@@ -1,0 +1,2181 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Telique Dev API",
+    "version": "dev",
+    "description": "Next-generation Telique API with enhanced capabilities and performance.\n    \nThis development version includes:\n- LERG (Local Exchange Routing Guide) data access\n- LRN (Location Routing Number) lookups\n- Enhanced performance with sub-microsecond response times\n- Expanded data coverage and real-time updates\n\nNote: This is a development version. Use the production Telique API for stable deployments.",
+    "contact": {
+      "name": "Ringer API Support",
+      "email": "api-support@ringer.tel",
+      "url": "https://ringer.tel"
+    },
+    "license": {
+      "name": "Proprietary",
+      "url": "https://ringer.tel/terms"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api-dev.ringer.tel/v1/telique",
+      "description": "Development server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "LERG",
+      "description": "Local Exchange Routing Guide operations"
+    },
+    {
+      "name": "LRN",
+      "description": "Local Routing Number lookups"
+    },
+    {
+      "name": "Health",
+      "description": "Service health monitoring"
+    },
+    {
+      "name": "Tables",
+      "description": "LERG table metadata and information"
+    },
+    {
+      "name": "Query",
+      "description": "Dynamic data queries across LERG tables"
+    },
+    {
+      "name": "Statistics",
+      "description": "Service statistics and metrics"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Health check endpoint",
+        "description": "Basic service health check that always returns healthy if the service is running",
+        "operationId": "healthCheck",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                },
+                "example": {
+                  "status": "healthy",
+                  "version": "2.0.0",
+                  "timestamp": "2025-01-07T02:30:00Z"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tables": {
+      "get": {
+        "tags": [
+          "Tables"
+        ],
+        "summary": "List all LERG tables",
+        "description": "Returns metadata for all 27 LERG tables including field information",
+        "operationId": "listTables",
+        "security": [
+          {
+            "ApiTokenAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of all available LERG tables",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TableInfo"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tables/{table_name}": {
+      "get": {
+        "tags": [
+          "Tables"
+        ],
+        "summary": "Get table information",
+        "description": "Returns detailed metadata for a specific LERG table",
+        "operationId": "getTableInfo",
+        "security": [
+          {
+            "ApiTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "table_name",
+            "in": "path",
+            "required": true,
+            "description": "Name of the LERG table (e.g., lerg_1, lerg_6, lerg_8)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "lerg_1",
+                "lerg_1_con",
+                "lerg_2",
+                "lerg_3",
+                "lerg_4",
+                "lerg_5",
+                "lerg_6",
+                "lerg_6_atc",
+                "lerg_6_ins",
+                "lerg_6_odd",
+                "lerg_7",
+                "lerg_7_ins",
+                "lerg_7_sha",
+                "lerg_7_sha_ins",
+                "lerg_8",
+                "lerg_8_lir",
+                "lerg_8_loc",
+                "lerg_8_pst",
+                "lerg_9",
+                "lerg_9_atc",
+                "lerg10",
+                "lerg11",
+                "lerg12",
+                "lerg12_ins",
+                "lerg16",
+                "lerg17",
+                "lergdate"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Table metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableInfo"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Table not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tables/{table_name}/schema": {
+      "get": {
+        "tags": [
+          "Tables"
+        ],
+        "summary": "Get table schema",
+        "description": "Returns the schema information for a specific LERG table including column names, types, and nullability",
+        "operationId": "getTableSchema",
+        "security": [
+          {
+            "ApiTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "table_name",
+            "in": "path",
+            "required": true,
+            "description": "Name of the LERG table (e.g., lerg_1, lerg_6, lerg_8)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "lerg_1",
+                "lerg_1_con",
+                "lerg_2",
+                "lerg_3",
+                "lerg_4",
+                "lerg_5",
+                "lerg_6",
+                "lerg_6_atc",
+                "lerg_6_ins",
+                "lerg_6_odd",
+                "lerg_7",
+                "lerg_7_ins",
+                "lerg_7_sha",
+                "lerg_7_sha_ins",
+                "lerg_8",
+                "lerg_8_lir",
+                "lerg_8_loc",
+                "lerg_8_pst",
+                "lerg_9",
+                "lerg_9_atc",
+                "lerg10",
+                "lerg11",
+                "lerg12",
+                "lerg12_ins",
+                "lerg16",
+                "lerg17",
+                "lergdate"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Table schema information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableSchemaResponse"
+                },
+                "example": {
+                  "table": "lerg_6",
+                  "display_name": "LERG 6",
+                  "fields": [
+                    {
+                      "name": "npa",
+                      "display_name": "NPA",
+                      "data_type": "integer",
+                      "nullable": false
+                    },
+                    {
+                      "name": "nxx",
+                      "display_name": "NXX",
+                      "data_type": "integer",
+                      "nullable": false
+                    },
+                    {
+                      "name": "block_id",
+                      "display_name": "Block ID",
+                      "data_type": "string",
+                      "nullable": false
+                    },
+                    {
+                      "name": "ocn",
+                      "display_name": "OCN",
+                      "data_type": "string",
+                      "nullable": true
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Table not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{table_name}/{fields}/{*query}": {
+      "get": {
+        "tags": [
+          "Query"
+        ],
+        "summary": "Query LERG table with filters",
+        "description": "Perform dynamic queries on any LERG table with field selection and filtering.\n\n## URL Format\n- `table_name`: The LERG table to query (e.g., lerg_6)\n- `fields`: Comma-separated list of fields to return (e.g., npa,nxx,loc_name)\n- `query`: Filter conditions as key=value pairs separated by & (e.g., npa=720&nxx=708&block_id=A)\n\n## Examples\n- Get NPAs in Denver: `/lerg_6/npa,nxx,loc_name/loc_name=DENVER`\n- Get OCNs in Colorado: `/lerg_1/ocn_num,ocn_name/ocn_state=CO`\n- Get specific block: `/lerg_6/lata,ocn,switch/npa=864&nxx=763&block_id=A`\n\n## Note\nThe API will return only the fields specified in the `fields` parameter. \nAll filters in the query string will be applied with AND logic.\n",
+        "operationId": "queryTable",
+        "security": [
+          {
+            "ApiTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "table_name",
+            "in": "path",
+            "required": true,
+            "description": "Name of the LERG table to query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fields",
+            "in": "path",
+            "required": true,
+            "description": "Comma-separated list of fields to return",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "query",
+            "in": "path",
+            "required": true,
+            "description": "Filter conditions as key=value pairs",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of records to return",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 100
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of records to skip for pagination",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Query results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Table or field not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/query": {
+      "post": {
+        "tags": [
+          "Query"
+        ],
+        "summary": "Complex query with JSON body",
+        "description": "Execute complex queries using a JSON request body. Supports advanced filtering\nand future join operations between tables.\n",
+        "operationId": "complexQuery",
+        "security": [
+          {
+            "ApiTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComplexQueryRequest"
+              },
+              "examples": {
+                "simpleQuery": {
+                  "summary": "Simple query with filters",
+                  "value": {
+                    "table": "lerg_6",
+                    "fields": [
+                      "npa",
+                      "nxx",
+                      "loc_name",
+                      "ocn"
+                    ],
+                    "filters": [
+                      {
+                        "field": "npa",
+                        "operator": "eq",
+                        "value": 720
+                      },
+                      {
+                        "field": "loc_name",
+                        "operator": "eq",
+                        "value": "DENVER"
+                      }
+                    ],
+                    "limit": 10
+                  }
+                },
+                "queryWithPagination": {
+                  "summary": "Query with pagination",
+                  "value": {
+                    "table": "lerg_1",
+                    "fields": [
+                      "ocn_num",
+                      "ocn_name",
+                      "ocn_state"
+                    ],
+                    "filters": [
+                      {
+                        "field": "ocn_state",
+                        "operator": "eq",
+                        "value": "CO"
+                      }
+                    ],
+                    "limit": 20,
+                    "offset": 40
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Query results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stats": {
+      "get": {
+        "tags": [
+          "Statistics"
+        ],
+        "summary": "Get service statistics",
+        "description": "Returns statistics about the loaded LERG data including table counts and memory usage",
+        "operationId": "getStats",
+        "security": [
+          {
+            "ApiTokenAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Service statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.yaml": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Get OpenAPI specification (YAML)",
+        "description": "Returns the complete OpenAPI 3.0 specification in YAML format",
+        "operationId": "getOpenApiYaml",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Complete OpenAPI 3.0 specification in YAML format",
+            "content": {
+              "application/x-yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{telephone_number}": {
+      "get": {
+        "tags": [
+          "LRN Lookup"
+        ],
+        "summary": "Lookup LRN for a telephone number (Simple GET)",
+        "description": "Query the Local Routing Number (LRN) and Service Profile Identifier (SPID) \nfor a given 10-digit US telephone number. This is the simplest endpoint for \nbackwards compatibility.\n",
+        "operationId": "lookupLRNSimple",
+        "parameters": [
+          {
+            "name": "telephone_number",
+            "in": "path",
+            "required": true,
+            "description": "10-digit US telephone number (NPA-NXX-XXXX format, digits only)",
+            "schema": {
+              "type": "string",
+              "pattern": "^[2-9]\\d{9}$",
+              "example": "2125551234"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "Response format",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "xml",
+                "plain"
+              ],
+              "default": "plain"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful lookup",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "2125550000;ABCD",
+                  "description": "Format: {LRN};{SPID} or just {telephone_number} if not found"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LRNResponse"
+                },
+                "example": {
+                  "telephone_number": "2125551234",
+                  "lrn": "2125550000",
+                  "spid": "ABCD",
+                  "status": "found"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "string",
+                  "example": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<lrn_response>\n  <telephone_number>2125551234</telephone_number>\n  <lrn>2125550000</lrn>\n  <spid>ABCD</spid>\n  <status>found</status>\n</lrn_response>\n"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid telephone number format",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "BADCOMMAND"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Readiness check endpoint",
+        "description": "Checks if the service and its dependencies (data store) are ready to handle requests",
+        "operationId": "readinessCheck",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Service is ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service is not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "DATA_STORE_UNAVAILABLE",
+                    "message": "Data store is not ready"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Metrics endpoint",
+        "description": "Returns service metrics in JSON format",
+        "operationId": "getMetrics",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Service metrics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lrn/lookup": {
+      "post": {
+        "tags": [
+          "LRN Lookup"
+        ],
+        "summary": "Lookup LRN for a phone number (POST method)",
+        "description": "Performs a Local Routing Number (LRN) lookup for the given phone number.\nReturns the LRN and optional metadata including SPID, LNP type, and activation timestamp.\n",
+        "operationId": "lrnLookupPost",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LrnLookupRequest"
+              },
+              "examples": {
+                "jsonFormat": {
+                  "summary": "JSON format request",
+                  "value": {
+                    "phone_number": "2125551234",
+                    "format": "json"
+                  }
+                },
+                "xmlFormat": {
+                  "summary": "XML format request",
+                  "value": {
+                    "phone_number": "+12125551234",
+                    "format": "xml"
+                  }
+                },
+                "rawFormat": {
+                  "summary": "Raw format request (default)",
+                  "value": {
+                    "phone_number": "212-555-1234",
+                    "format": "raw"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "LRN found successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LrnLookupResponse"
+                },
+                "example": {
+                  "phone_number": "2125551234",
+                  "lrn": "2125550000",
+                  "status": "success",
+                  "timestamp": "2025-01-07T02:30:00Z",
+                  "metadata": {
+                    "spid": "1234",
+                    "lnp_type": "lspp",
+                    "activation_timestamp": "2024-01-15T10:30:00Z",
+                    "last_updated": "2025-01-07T01:30:00Z"
+                  }
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "<lrn_response>\n  <phone_number>2125551234</phone_number>\n  <lrn>2125550000</lrn>\n  <status>success</status>\n  <timestamp>2025-01-07T02:30:00Z</timestamp>\n  <metadata>\n    <spid>1234</spid>\n    <lnp_type>lspp</lnp_type>\n    <activation_timestamp>2024-01-15T10:30:00Z</activation_timestamp>\n    <last_updated>2025-01-07T01:30:00Z</last_updated>\n  </metadata>\n</lrn_response>\n"
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "2125550000"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Phone number not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lrn/{phone_number}": {
+      "get": {
+        "tags": [
+          "LRN Lookup"
+        ],
+        "summary": "Lookup LRN for a phone number (GET method)",
+        "description": "Performs a Local Routing Number (LRN) lookup for the given phone number using a simple GET request.\nDefault response format is plain text \"LRN;SPID\" format.\n",
+        "operationId": "lrnLookupGet",
+        "parameters": [
+          {
+            "name": "phone_number",
+            "in": "path",
+            "required": true,
+            "description": "Phone number to lookup (10-digit US number without separators)",
+            "schema": {
+              "type": "string",
+              "pattern": "^[2-9]\\d{9}$",
+              "example": "3036298301"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "Response format (default is plain text \"LRN;SPID\")",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "xml",
+                "plain"
+              ],
+              "default": "plain",
+              "example": "json"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LRN found successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "description": "Plain text format \"LRN;SPID\""
+                },
+                "example": "2125550000;1234"
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LrnLookupResponse"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid phone number",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Phone number not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/data/stats": {
+      "get": {
+        "tags": [
+          "Data Store"
+        ],
+        "summary": "Get data store statistics",
+        "description": "Returns current statistics about the in-memory data store",
+        "operationId": "getDataStoreStats",
+        "responses": {
+          "200": {
+            "description": "Data store statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stats": {
+                      "$ref": "#/components/schemas/DataStoreStats"
+                    }
+                  }
+                },
+                "example": {
+                  "stats": {
+                    "total_records": 502323334,
+                    "last_update": "2025-01-07T01:30:00Z",
+                    "max_transaction_id": 3614260967,
+                    "memory_usage_bytes": 4958691328,
+                    "ready": true,
+                    "uptime_seconds": 3600
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lsms/list/phone_number": {
+      "get": {
+        "tags": [
+          "LSMS Database"
+        ],
+        "summary": "List phone numbers by LRN or SPID",
+        "description": "Query the LSMS PostgreSQL database to list all phone numbers associated with a given LRN or SPID.\n\n**Note**: These endpoints query the PostgreSQL database directly and may have higher latency \nthan the primary LRN lookup endpoints which use the in-memory data store.\n",
+        "operationId": "listPhoneNumbers",
+        "parameters": [
+          {
+            "name": "lrn",
+            "in": "query",
+            "required": false,
+            "description": "Local Routing Number to filter by (10-digit)",
+            "schema": {
+              "type": "string",
+              "pattern": "^[2-9]\\d{9}$",
+              "example": "7207081999"
+            }
+          },
+          {
+            "name": "spid",
+            "in": "query",
+            "required": false,
+            "description": "Service Provider ID to filter by (4 characters)",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z0-9]{4}$",
+              "example": "567G"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of phone numbers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhoneNumberListResponse"
+                },
+                "example": {
+                  "phone_numbers": [
+                    "3036298301",
+                    "3036298302",
+                    "3036298303"
+                  ],
+                  "count": 3,
+                  "query": {
+                    "lrn": "7207081999"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Database error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lsms/list/spid": {
+      "get": {
+        "tags": [
+          "LSMS Database"
+        ],
+        "summary": "List SPIDs by LRN or phone number",
+        "description": "Query the LSMS PostgreSQL database to list all Service Provider IDs (SPIDs) associated \nwith a given LRN or phone number.\n",
+        "operationId": "listSpids",
+        "parameters": [
+          {
+            "name": "lrn",
+            "in": "query",
+            "required": false,
+            "description": "Local Routing Number to filter by (10-digit)",
+            "schema": {
+              "type": "string",
+              "pattern": "^[2-9]\\d{9}$",
+              "example": "7207081999"
+            }
+          },
+          {
+            "name": "phone_number",
+            "in": "query",
+            "required": false,
+            "description": "Phone number to filter by (10-digit)",
+            "schema": {
+              "type": "string",
+              "pattern": "^[2-9]\\d{9}$",
+              "example": "3036298301"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of SPIDs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpidListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Database error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lsms/list/lrn": {
+      "get": {
+        "tags": [
+          "LSMS Database"
+        ],
+        "summary": "List LRNs by SPID or phone number",
+        "description": "Query the LSMS PostgreSQL database to list all Local Routing Numbers (LRNs) associated \nwith a given SPID or phone number.\n",
+        "operationId": "listLrns",
+        "parameters": [
+          {
+            "name": "spid",
+            "in": "query",
+            "required": false,
+            "description": "Service Provider ID to filter by (4 characters)",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z0-9]{4}$",
+              "example": "567G"
+            }
+          },
+          {
+            "name": "phone_number",
+            "in": "query",
+            "required": false,
+            "description": "Phone number to filter by (10-digit)",
+            "schema": {
+              "type": "string",
+              "pattern": "^[2-9]\\d{9}$",
+              "example": "3036298301"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of LRNs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LrnListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Database error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dno/{phone_number}": {
+      "get": {
+        "tags": [
+          "DNO"
+        ],
+        "summary": "Check if a phone number is Do Not Originate",
+        "description": "Checks if the given phone number is in the Do Not Originate (DNO) list.\nReturns a boolean indicating whether the number should not be originated.\n",
+        "operationId": "checkDno",
+        "parameters": [
+          {
+            "name": "phone_number",
+            "in": "path",
+            "required": true,
+            "description": "Phone number to check (10-digit US number)",
+            "schema": {
+              "type": "string",
+              "pattern": "^[2-9]\\d{9}$",
+              "example": "5551234567"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "Response format (default is plain text)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "xml",
+                "raw"
+              ],
+              "default": "raw",
+              "example": "json"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "DNO check completed successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true",
+                    "false"
+                  ],
+                  "description": "Plain text boolean response"
+                },
+                "example": "true"
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DnoLookupResponse"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid phone number",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "version",
+          "timestamp"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Service health status",
+            "enum": [
+              "healthy",
+              "degraded",
+              "unhealthy"
+            ],
+            "example": "healthy"
+          },
+          "version": {
+            "type": "string",
+            "description": "Service version",
+            "example": "2.0.0"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Response timestamp",
+            "example": "2025-01-07T02:30:00Z"
+          },
+          "details": {
+            "type": "object",
+            "description": "Additional health details",
+            "properties": {
+              "data_store": {
+                "type": "object",
+                "properties": {
+                  "connected": {
+                    "type": "boolean"
+                  },
+                  "records": {
+                    "type": "integer",
+                    "format": "int64"
+                  },
+                  "last_sync": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "TableInfo": {
+        "type": "object",
+        "required": [
+          "name",
+          "display_name",
+          "record_count",
+          "fields"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Internal table name (e.g., lerg_6)"
+          },
+          "display_name": {
+            "type": "string",
+            "description": "Display name (e.g., LERG_6)"
+          },
+          "record_count": {
+            "type": "integer",
+            "description": "Number of records in the table"
+          },
+          "fields": {
+            "type": "array",
+            "description": "List of fields in the table",
+            "items": {
+              "$ref": "#/components/schemas/FieldInfo"
+            }
+          }
+        }
+      },
+      "TableSchemaResponse": {
+        "type": "object",
+        "required": [
+          "table",
+          "display_name",
+          "fields"
+        ],
+        "properties": {
+          "table": {
+            "type": "string",
+            "description": "Internal table name (e.g., lerg_6)"
+          },
+          "display_name": {
+            "type": "string",
+            "description": "Display name (e.g., LERG 6)"
+          },
+          "fields": {
+            "type": "array",
+            "description": "List of field definitions in the table",
+            "items": {
+              "$ref": "#/components/schemas/FieldInfo"
+            }
+          }
+        }
+      },
+      "FieldInfo": {
+        "type": "object",
+        "required": [
+          "name",
+          "display_name",
+          "data_type",
+          "nullable"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Internal field name"
+          },
+          "display_name": {
+            "type": "string",
+            "description": "Display field name"
+          },
+          "data_type": {
+            "type": "string",
+            "description": "Data type of the field",
+            "enum": [
+              "string",
+              "integer",
+              "float",
+              "boolean",
+              "date"
+            ]
+          },
+          "nullable": {
+            "type": "boolean",
+            "description": "Whether the field can be null"
+          }
+        }
+      },
+      "QueryResponse": {
+        "type": "object",
+        "required": [
+          "table",
+          "count",
+          "data"
+        ],
+        "properties": {
+          "table": {
+            "type": "string",
+            "description": "Name of the queried table"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of records returned"
+          },
+          "data": {
+            "type": "array",
+            "description": "Query results",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      },
+      "ComplexQueryRequest": {
+        "type": "object",
+        "required": [
+          "table"
+        ],
+        "properties": {
+          "table": {
+            "type": "string",
+            "description": "Name of the table to query"
+          },
+          "fields": {
+            "type": "array",
+            "description": "List of fields to return (returns all if not specified)",
+            "items": {
+              "type": "string"
+            }
+          },
+          "filters": {
+            "type": "array",
+            "description": "Filter conditions",
+            "items": {
+              "$ref": "#/components/schemas/FilterCondition"
+            }
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of records to return",
+            "minimum": 1,
+            "maximum": 10000,
+            "default": 100
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of records to skip",
+            "minimum": 0,
+            "default": 0
+          },
+          "join": {
+            "$ref": "#/components/schemas/JoinClause",
+            "description": "Join clause for multi-table queries (future feature)"
+          }
+        }
+      },
+      "FilterCondition": {
+        "type": "object",
+        "required": [
+          "field",
+          "operator",
+          "value"
+        ],
+        "properties": {
+          "field": {
+            "type": "string",
+            "description": "Field name to filter on"
+          },
+          "operator": {
+            "type": "string",
+            "description": "Filter operator",
+            "enum": [
+              "eq",
+              "ne",
+              "gt",
+              "gte",
+              "lt",
+              "lte",
+              "like",
+              "in",
+              "notin",
+              "isnull",
+              "isnotnull"
+            ]
+          },
+          "value": {
+            "description": "Value to filter by (type depends on field)",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "JoinClause": {
+        "type": "object",
+        "required": [
+          "table",
+          "on"
+        ],
+        "properties": {
+          "table": {
+            "type": "string",
+            "description": "Table to join with"
+          },
+          "on": {
+            "type": "array",
+            "description": "Join conditions",
+            "items": {
+              "$ref": "#/components/schemas/JoinCondition"
+            }
+          },
+          "fields": {
+            "type": "array",
+            "description": "Fields to include from joined table",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "JoinCondition": {
+        "type": "object",
+        "required": [
+          "left_field",
+          "right_field"
+        ],
+        "properties": {
+          "left_field": {
+            "type": "string",
+            "description": "Field from the main table"
+          },
+          "right_field": {
+            "type": "string",
+            "description": "Field from the joined table"
+          }
+        }
+      },
+      "StatsResponse": {
+        "type": "object",
+        "required": [
+          "version",
+          "total_tables",
+          "total_records",
+          "tables"
+        ],
+        "properties": {
+          "version": {
+            "type": "string",
+            "description": "Data version identifier"
+          },
+          "total_tables": {
+            "type": "integer",
+            "description": "Total number of loaded tables"
+          },
+          "total_records": {
+            "type": "integer",
+            "description": "Total number of records across all tables"
+          },
+          "tables": {
+            "type": "array",
+            "description": "Per-table record counts",
+            "items": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Error code",
+                "enum": [
+                  "INVALID_PHONE_NUMBER",
+                  "INVALID_FORMAT",
+                  "INVALID_REQUEST",
+                  "PHONE_NUMBER_NOT_FOUND",
+                  "DATA_STORE_UNAVAILABLE",
+                  "INTERNAL_ERROR",
+                  "VALIDATION_ERROR"
+                ],
+                "example": "INVALID_PHONE_NUMBER"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message",
+                "example": "Invalid phone number format: 123"
+              },
+              "details": {
+                "type": "object",
+                "description": "Additional error details",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      },
+      "LRNResponse": {
+        "type": "object",
+        "properties": {
+          "telephone_number": {
+            "type": "string",
+            "description": "The queried telephone number",
+            "example": "2125551234"
+          },
+          "lrn": {
+            "type": "string",
+            "nullable": true,
+            "description": "The Local Routing Number (null if not found)",
+            "example": "2125550000"
+          },
+          "spid": {
+            "type": "string",
+            "nullable": true,
+            "description": "The Service Profile Identifier (null if not found)",
+            "pattern": "^[A-Z0-9]{4}$",
+            "example": "ABCD"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "found",
+              "not_found"
+            ],
+            "description": "Lookup status",
+            "example": "found"
+          }
+        },
+        "required": [
+          "telephone_number",
+          "status"
+        ]
+      },
+      "LrnLookupRequest": {
+        "type": "object",
+        "required": [
+          "phone_number"
+        ],
+        "properties": {
+          "phone_number": {
+            "type": "string",
+            "description": "Phone number to lookup (10-digit US number or E.164 format)",
+            "pattern": "^\\+?1?[2-9]\\d{9}$",
+            "example": "2125551234"
+          },
+          "format": {
+            "type": "string",
+            "description": "Response format",
+            "enum": [
+              "json",
+              "xml",
+              "raw"
+            ],
+            "default": "raw",
+            "example": "json"
+          }
+        }
+      },
+      "LrnLookupResponse": {
+        "type": "object",
+        "required": [
+          "phone_number",
+          "lrn",
+          "status",
+          "timestamp"
+        ],
+        "properties": {
+          "phone_number": {
+            "type": "string",
+            "description": "Original phone number from request (normalized)",
+            "example": "2125551234"
+          },
+          "lrn": {
+            "type": "string",
+            "description": "Local Routing Number for the phone number",
+            "example": "2125550000"
+          },
+          "status": {
+            "type": "string",
+            "description": "Request status",
+            "example": "success"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Response timestamp in ISO 8601 format",
+            "example": "2025-01-07T02:30:00Z"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/LrnMetadata"
+          }
+        }
+      },
+      "LrnMetadata": {
+        "type": "object",
+        "description": "Additional LRN metadata",
+        "properties": {
+          "spid": {
+            "type": "string",
+            "description": "Service Provider ID (4 characters)",
+            "example": "1234"
+          },
+          "lnp_type": {
+            "type": "string",
+            "description": "LNP Type",
+            "enum": [
+              "lspp",
+              "lisp",
+              "pool"
+            ],
+            "example": "lspp"
+          },
+          "activation_timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the number was ported",
+            "example": "2024-01-15T10:30:00Z"
+          },
+          "ocn": {
+            "type": "string",
+            "description": "Operating Company Number",
+            "example": "7421"
+          },
+          "region_id": {
+            "type": "integer",
+            "description": "NPAC region ID",
+            "example": 1
+          },
+          "last_updated": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last update timestamp",
+            "example": "2025-01-07T01:30:00Z"
+          }
+        }
+      },
+      "MetricsResponse": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "object",
+            "properties": {
+              "uptime_seconds": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "total_requests": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "active_connections": {
+                "type": "integer"
+              },
+              "version": {
+                "type": "string"
+              }
+            }
+          },
+          "requests": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "success": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "errors": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "avg_duration_ms": {
+                "type": "number",
+                "format": "double"
+              },
+              "requests_per_second": {
+                "type": "number",
+                "format": "double"
+              }
+            }
+          },
+          "data_store": {
+            "type": "object",
+            "properties": {
+              "total_records": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "memory_usage_bytes": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "cache_hit_rate_percent": {
+                "type": "number",
+                "format": "double"
+              },
+              "lookups_per_second": {
+                "type": "number",
+                "format": "double"
+              },
+              "avg_lookup_time_ns": {
+                "type": "number",
+                "format": "double"
+              }
+            }
+          },
+          "system": {
+            "type": "object",
+            "properties": {
+              "cpu_usage_percent": {
+                "type": "number",
+                "format": "double"
+              },
+              "memory_usage_bytes": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "memory_available_bytes": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "open_connections": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "DataStoreStats": {
+        "type": "object",
+        "properties": {
+          "total_records": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total number of LRN records in memory",
+            "example": 502323334
+          },
+          "last_update": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp of last data update",
+            "example": "2025-01-07T01:30:00Z"
+          },
+          "max_transaction_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Highest TransUnion transaction ID processed",
+            "example": 3614260967
+          },
+          "memory_usage_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Current memory usage in bytes",
+            "example": 4958691328
+          },
+          "ready": {
+            "type": "boolean",
+            "description": "Whether the data store is ready for queries",
+            "example": true
+          },
+          "uptime_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Time since data store started",
+            "example": 3600
+          }
+        }
+      },
+      "PhoneNumberListResponse": {
+        "type": "object",
+        "required": [
+          "phone_numbers",
+          "count",
+          "query"
+        ],
+        "properties": {
+          "phone_numbers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[2-9]\\d{9}$"
+            },
+            "description": "List of phone numbers (10-digit format)",
+            "example": [
+              "3036298301",
+              "3036298302",
+              "3036298303"
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "description": "Total number of phone numbers returned",
+            "example": 3
+          },
+          "query": {
+            "type": "object",
+            "description": "Query parameters used",
+            "properties": {
+              "lrn": {
+                "type": "string",
+                "description": "LRN used in query",
+                "example": "7207081999"
+              },
+              "spid": {
+                "type": "string",
+                "description": "SPID used in query",
+                "example": "567G"
+              }
+            }
+          }
+        }
+      },
+      "SpidListResponse": {
+        "type": "object",
+        "required": [
+          "spids",
+          "count",
+          "query"
+        ],
+        "properties": {
+          "spids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z0-9]{4}$"
+            },
+            "description": "List of Service Provider IDs (4-character format)",
+            "example": [
+              "567G",
+              "123A"
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "description": "Total number of SPIDs returned",
+            "example": 2
+          },
+          "query": {
+            "type": "object",
+            "description": "Query parameters used",
+            "properties": {
+              "lrn": {
+                "type": "string",
+                "description": "LRN used in query",
+                "example": "7207081999"
+              },
+              "phone_number": {
+                "type": "string",
+                "description": "Phone number used in query",
+                "example": "3036298301"
+              }
+            }
+          }
+        }
+      },
+      "LrnListResponse": {
+        "type": "object",
+        "required": [
+          "lrns",
+          "count",
+          "query"
+        ],
+        "properties": {
+          "lrns": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[2-9]\\d{9}$"
+            },
+            "description": "List of Local Routing Numbers (10-digit format)",
+            "example": [
+              "7207081999",
+              "3036298300"
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "description": "Total number of LRNs returned",
+            "example": 2
+          },
+          "query": {
+            "type": "object",
+            "description": "Query parameters used",
+            "properties": {
+              "spid": {
+                "type": "string",
+                "description": "SPID used in query",
+                "example": "567G"
+              },
+              "phone_number": {
+                "type": "string",
+                "description": "Phone number used in query",
+                "example": "3036298301"
+              }
+            }
+          }
+        }
+      },
+      "DnoLookupResponse": {
+        "type": "object",
+        "required": [
+          "phone_number",
+          "is_dno",
+          "status",
+          "timestamp"
+        ],
+        "properties": {
+          "phone_number": {
+            "type": "string",
+            "description": "Phone number that was checked",
+            "example": "5551234567"
+          },
+          "is_dno": {
+            "type": "boolean",
+            "description": "Whether the phone number is in the DNO list",
+            "example": true
+          },
+          "status": {
+            "type": "string",
+            "description": "Request status",
+            "example": "success"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Response timestamp",
+            "example": "2025-01-17T16:30:00Z"
+          }
+        }
+      },
+      "DnoCacheUpdateResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "entries_updated",
+          "previous_entries",
+          "timestamp",
+          "source"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Update status",
+            "example": "success"
+          },
+          "entries_updated": {
+            "type": "integer",
+            "description": "Number of entries in the new cache",
+            "example": 1234
+          },
+          "previous_entries": {
+            "type": "integer",
+            "description": "Number of entries in the previous cache",
+            "example": 1200
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Update timestamp",
+            "example": "2025-01-17T16:30:00Z"
+          },
+          "source": {
+            "type": "string",
+            "description": "Source of the update",
+            "example": "admin_upload"
+          }
+        }
+      },
+      "DnoCacheStatusResponse": {
+        "type": "object",
+        "required": [
+          "entries",
+          "last_updated",
+          "age_seconds",
+          "source"
+        ],
+        "properties": {
+          "entries": {
+            "type": "integer",
+            "description": "Number of phone numbers in the DNO cache",
+            "example": 1234
+          },
+          "last_updated": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the cache was last updated",
+            "example": "2025-01-17T15:30:00Z"
+          },
+          "age_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Age of the cache in seconds",
+            "example": 3600
+          },
+          "source": {
+            "type": "string",
+            "description": "Source of the current cache data",
+            "example": "admin_upload"
+          }
+        }
+      }
+    },
+    "responses": {},
+    "parameters": {},
+    "examples": {},
+    "requestBodies": {},
+    "headers": {},
+    "securitySchemes": {
+      "ApiTokenAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-token",
+        "description": "API token required for all endpoints"
+      },
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "API key for authentication (contact support for access)"
+      }
+    },
+    "links": {},
+    "callbacks": {}
+  },
+  "security": [
+    {
+      "ApiTokenAuth": []
+    },
+    {
+      "ApiKeyAuth": []
+    }
+  ]
+}

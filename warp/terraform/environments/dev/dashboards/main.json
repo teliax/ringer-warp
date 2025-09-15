@@ -1,0 +1,77 @@
+{
+  "displayName": "WARP Platform - Development",
+  "gridLayout": {
+    "widgets": [
+      {
+        "title": "SIP Call Volume",
+        "xyChart": {
+          "dataSets": [{
+            "timeSeriesQuery": {
+              "timeSeriesFilter": {
+                "filter": "metric.type=\"custom.googleapis.com/kamailio/calls_active\""
+              }
+            }
+          }]
+        }
+      },
+      {
+        "title": "RTPEngine Sessions",
+        "xyChart": {
+          "dataSets": [{
+            "timeSeriesQuery": {
+              "timeSeriesFilter": {
+                "filter": "metric.type=\"custom.googleapis.com/rtpengine/sessions_active\""
+              }
+            }
+          }]
+        }
+      },
+      {
+        "title": "API Request Rate",
+        "xyChart": {
+          "dataSets": [{
+            "timeSeriesQuery": {
+              "timeSeriesFilter": {
+                "filter": "metric.type=\"kubernetes.io/ingress/request_count\""
+              }
+            }
+          }]
+        }
+      },
+      {
+        "title": "Database Connections",
+        "xyChart": {
+          "dataSets": [{
+            "timeSeriesQuery": {
+              "timeSeriesFilter": {
+                "filter": "metric.type=\"cloudsql.googleapis.com/database/postgresql/num_backends\""
+              }
+            }
+          }]
+        }
+      },
+      {
+        "title": "Redis Memory Usage",
+        "xyChart": {
+          "dataSets": [{
+            "timeSeriesQuery": {
+              "timeSeriesFilter": {
+                "filter": "metric.type=\"redis.googleapis.com/stats/memory/usage\""
+              }
+            }
+          }]
+        }
+      },
+      {
+        "title": "Consul Service Health",
+        "scorecard": {
+          "timeSeriesQuery": {
+            "timeSeriesFilter": {
+              "filter": "metric.type=\"custom.googleapis.com/consul/services_healthy\""
+            }
+          }
+        }
+      }
+    ]
+  }
+}

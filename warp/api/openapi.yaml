@@ -1,0 +1,1530 @@
+openapi: 3.0.3
+info:
+  title: WARP SIP Trunking & Messaging API
+  description: |
+    Comprehensive API for managing SIP trunks, SMS/MMS/RCS messaging, routing, and telecommunications services.
+    This API provides full control over customer trunk groups, partition-based routing, LCR (Least Cost Routing),
+    and messaging capabilities through SMSC integration.
+  version: 1.0.0
+  contact:
+    name: WARP API Support
+    email: api-support@warp.io
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://api.warp.io/v1
+    description: Production API
+  - url: https://staging-api.warp.io/v1
+    description: Staging API
+  - url: http://localhost:8080/v1
+    description: Local Development
+
+security:
+  - bearerAuth: []
+  - apiKeyAuth: []
+
+tags:
+  - name: Authentication
+    description: Authentication and authorization endpoints
+  - name: Customers
+    description: Customer account management
+  - name: Trunks
+    description: SIP trunk configuration and management
+  - name: Partitions
+    description: Routing partition management (formerly machines)
+  - name: Routing
+    description: Routing rules and LCR configuration
+  - name: Providers
+    description: Downstream vendor/provider management
+  - name: Messaging
+    description: SMS, MMS, and RCS messaging operations
+  - name: CDRs
+    description: Call Detail Records and usage data
+  - name: Billing
+    description: Billing and rate management
+  - name: Monitoring
+    description: System health and metrics
+
+paths:
+  # Authentication Endpoints
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: User login
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+                mfa_code:
+                  type: string
+                  description: MFA code if enabled
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh access token
+      operationId: refreshToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  # Customer Management
+  /customers:
+    get:
+      tags: [Customers]
+      summary: List customers
+      operationId: listCustomers
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, suspended, terminated]
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Customer list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Customer'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags: [Customers]
+      summary: Create customer
+      operationId: createCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerCreate'
+      responses:
+        '201':
+          description: Customer created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+
+  /customers/{customer_id}:
+    parameters:
+      - $ref: '#/components/parameters/CustomerIdParam'
+    get:
+      tags: [Customers]
+      summary: Get customer details
+      operationId: getCustomer
+      responses:
+        '200':
+          description: Customer details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    patch:
+      tags: [Customers]
+      summary: Update customer
+      operationId: updateCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerUpdate'
+      responses:
+        '200':
+          description: Customer updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+
+  # SIP Trunk Management
+  /customers/{customer_id}/trunks:
+    parameters:
+      - $ref: '#/components/parameters/CustomerIdParam'
+    get:
+      tags: [Trunks]
+      summary: List customer trunks
+      operationId: listTrunks
+      responses:
+        '200':
+          description: Trunk list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SIPTrunk'
+
+    post:
+      tags: [Trunks]
+      summary: Create SIP trunk
+      operationId: createTrunk
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SIPTrunkCreate'
+      responses:
+        '201':
+          description: Trunk created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SIPTrunk'
+
+  /customers/{customer_id}/trunks/{trunk_id}:
+    parameters:
+      - $ref: '#/components/parameters/CustomerIdParam'
+      - $ref: '#/components/parameters/TrunkIdParam'
+    get:
+      tags: [Trunks]
+      summary: Get trunk details
+      operationId: getTrunk
+      responses:
+        '200':
+          description: Trunk details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SIPTrunk'
+
+    patch:
+      tags: [Trunks]
+      summary: Update trunk configuration
+      operationId: updateTrunk
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SIPTrunkUpdate'
+      responses:
+        '200':
+          description: Trunk updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SIPTrunk'
+
+    delete:
+      tags: [Trunks]
+      summary: Delete trunk
+      operationId: deleteTrunk
+      responses:
+        '204':
+          description: Trunk deleted
+
+  # IP Whitelist Management
+  /customers/{customer_id}/trunks/{trunk_id}/ips:
+    parameters:
+      - $ref: '#/components/parameters/CustomerIdParam'
+      - $ref: '#/components/parameters/TrunkIdParam'
+    post:
+      tags: [Trunks]
+      summary: Add IP to trunk whitelist
+      operationId: addTrunkIP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ip_address, direction]
+              properties:
+                ip_address:
+                  type: string
+                  format: ipv4
+                direction:
+                  type: string
+                  enum: [inbound, outbound, both]
+                description:
+                  type: string
+      responses:
+        '201':
+          description: IP added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IPWhitelist'
+
+  # Partition Management
+  /partitions:
+    get:
+      tags: [Partitions]
+      summary: List routing partitions
+      operationId: listPartitions
+      responses:
+        '200':
+          description: Partition list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Partition'
+
+    post:
+      tags: [Partitions]
+      summary: Create partition
+      operationId: createPartition
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartitionCreate'
+      responses:
+        '201':
+          description: Partition created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Partition'
+
+  /partitions/{partition_id}/routes:
+    parameters:
+      - $ref: '#/components/parameters/PartitionIdParam'
+    get:
+      tags: [Partitions]
+      summary: List partition routes
+      operationId: listPartitionRoutes
+      responses:
+        '200':
+          description: Route list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Route'
+
+    post:
+      tags: [Partitions]
+      summary: Assign route to partition
+      operationId: assignRoute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider_id, enabled]
+              properties:
+                provider_id:
+                  type: string
+                enabled:
+                  type: boolean
+                priority:
+                  type: integer
+      responses:
+        '201':
+          description: Route assigned
+
+  # Provider Management
+  /providers:
+    get:
+      tags: [Providers]
+      summary: List providers
+      operationId: listProviders
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [LRN, DNIS, OCNLATA, INTERNATIONAL, CIC]
+      responses:
+        '200':
+          description: Provider list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Provider'
+
+    post:
+      tags: [Providers]
+      summary: Create provider
+      operationId: createProvider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderCreate'
+      responses:
+        '201':
+          description: Provider created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Provider'
+
+  # Routing Calculation
+  /routing/calculate:
+    post:
+      tags: [Routing]
+      summary: Calculate routing for call
+      operationId: calculateRoute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteCalculationRequest'
+      responses:
+        '200':
+          description: Routing calculation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteCalculationResponse'
+
+  # SMS/MMS/RCS Messaging
+  /messaging/sms:
+    post:
+      tags: [Messaging]
+      summary: Send SMS message
+      operationId: sendSMS
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SMSRequest'
+      responses:
+        '202':
+          description: Message queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /messaging/mms:
+    post:
+      tags: [Messaging]
+      summary: Send MMS message
+      operationId: sendMMS
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MMSRequest'
+      responses:
+        '202':
+          description: Message queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /messaging/rcs:
+    post:
+      tags: [Messaging]
+      summary: Send RCS message
+      operationId: sendRCS
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RCSRequest'
+      responses:
+        '202':
+          description: Message queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /messaging/messages/{message_id}:
+    parameters:
+      - $ref: '#/components/parameters/MessageIdParam'
+    get:
+      tags: [Messaging]
+      summary: Get message status
+      operationId: getMessageStatus
+      responses:
+        '200':
+          description: Message status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageStatus'
+
+  # CDR Management
+  /cdrs:
+    get:
+      tags: [CDRs]
+      summary: List CDRs
+      operationId: listCDRs
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: customer_id
+          in: query
+          schema:
+            type: string
+        - name: trunk_id
+          in: query
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: direction
+          in: query
+          schema:
+            type: string
+            enum: [inbound, outbound]
+      responses:
+        '200':
+          description: CDR list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CDR'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /cdrs/export:
+    post:
+      tags: [CDRs]
+      summary: Export CDRs
+      operationId: exportCDRs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [format, date_from, date_to]
+              properties:
+                format:
+                  type: string
+                  enum: [csv, json, parquet]
+                date_from:
+                  type: string
+                  format: date-time
+                date_to:
+                  type: string
+                  format: date-time
+                customer_id:
+                  type: string
+                trunk_id:
+                  type: string
+      responses:
+        '202':
+          description: Export initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  export_id:
+                    type: string
+                  status:
+                    type: string
+                  download_url:
+                    type: string
+
+  # Billing and Rates
+  /billing/rates:
+    get:
+      tags: [Billing]
+      summary: List rate decks
+      operationId: listRates
+      parameters:
+        - name: zone
+          in: query
+          schema:
+            type: string
+            enum: [INTERSTATE, INTRASTATE, LOCAL, INTERNATIONAL, TOLLFREE]
+        - name: prefix
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Rate list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Rate'
+
+    post:
+      tags: [Billing]
+      summary: Upload rate deck
+      operationId: uploadRates
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, provider_id]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                provider_id:
+                  type: string
+                effective_date:
+                  type: string
+                  format: date
+      responses:
+        '202':
+          description: Rate upload initiated
+
+  /billing/invoices:
+    get:
+      tags: [Billing]
+      summary: List invoices
+      operationId: listInvoices
+      parameters:
+        - name: customer_id
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, pending, paid, overdue]
+      responses:
+        '200':
+          description: Invoice list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Invoice'
+
+  # System Monitoring
+  /health:
+    get:
+      tags: [Monitoring]
+      summary: Health check
+      operationId: healthCheck
+      security: []
+      responses:
+        '200':
+          description: System healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded, unhealthy]
+                  version:
+                    type: string
+                  uptime:
+                    type: integer
+                  components:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        status:
+                          type: string
+                        latency_ms:
+                          type: number
+
+  /metrics:
+    get:
+      tags: [Monitoring]
+      summary: Get system metrics
+      operationId: getMetrics
+      responses:
+        '200':
+          description: System metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  calls:
+                    type: object
+                    properties:
+                      active:
+                        type: integer
+                      total_today:
+                        type: integer
+                      cps:
+                        type: number
+                  messages:
+                    type: object
+                    properties:
+                      queued:
+                        type: integer
+                      sent_today:
+                        type: integer
+                      mps:
+                        type: number
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  parameters:
+    CustomerIdParam:
+      name: customer_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    TrunkIdParam:
+      name: trunk_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    PartitionIdParam:
+      name: partition_id
+      in: path
+      required: true
+      schema:
+        type: string
+
+    MessageIdParam:
+      name: message_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  responses:
+    BadRequestError:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    UnauthorizedError:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFoundError:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    RateLimitError:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      headers:
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+
+  schemas:
+    # Authentication Schemas
+    AuthResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          default: Bearer
+        expires_in:
+          type: integer
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        role:
+          type: string
+          enum: [super_admin, partner_admin, customer_admin, technical_user, billing_user, support_user, read_only]
+        permissions:
+          type: array
+          items:
+            type: string
+        mfa_enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    # Customer Schemas
+    Customer:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        account_number:
+          type: string
+        status:
+          type: string
+          enum: [active, suspended, terminated]
+        billing_email:
+          type: string
+          format: email
+        technical_email:
+          type: string
+          format: email
+        partner_id:
+          type: string
+          format: uuid
+        credit_limit:
+          type: number
+        prepaid_balance:
+          type: number
+        currency:
+          type: string
+        timezone:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CustomerCreate:
+      type: object
+      required: [name, billing_email, technical_email]
+      properties:
+        name:
+          type: string
+        billing_email:
+          type: string
+          format: email
+        technical_email:
+          type: string
+          format: email
+        partner_id:
+          type: string
+          format: uuid
+        credit_limit:
+          type: number
+        currency:
+          type: string
+        timezone:
+          type: string
+
+    CustomerUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        billing_email:
+          type: string
+          format: email
+        technical_email:
+          type: string
+          format: email
+        credit_limit:
+          type: number
+        status:
+          type: string
+          enum: [active, suspended, terminated]
+
+    # SIP Trunk Schemas
+    SIPTrunk:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        customer_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, testing]
+        partition_id:
+          type: string
+        tech_prefix:
+          type: string
+        max_channels:
+          type: integer
+        cps_limit:
+          type: integer
+        codecs:
+          type: array
+          items:
+            type: string
+            enum: [G711U, G711A, G729, G722, OPUS]
+        sip_options:
+          type: object
+          properties:
+            registration_required:
+              type: boolean
+            transport:
+              type: string
+              enum: [UDP, TCP, TLS]
+            port:
+              type: integer
+            dtmf_mode:
+              type: string
+              enum: [RFC2833, INFO, INBAND]
+        inbound_ips:
+          type: array
+          items:
+            $ref: '#/components/schemas/IPWhitelist'
+        outbound_ips:
+          type: array
+          items:
+            $ref: '#/components/schemas/IPWhitelist'
+        features:
+          type: object
+          properties:
+            e911_enabled:
+              type: boolean
+            cnam_enabled:
+              type: boolean
+            transcoding_enabled:
+              type: boolean
+            encryption_enabled:
+              type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    SIPTrunkCreate:
+      type: object
+      required: [name, partition_id]
+      properties:
+        name:
+          type: string
+        partition_id:
+          type: string
+        tech_prefix:
+          type: string
+        max_channels:
+          type: integer
+        cps_limit:
+          type: integer
+        codecs:
+          type: array
+          items:
+            type: string
+        sip_options:
+          type: object
+        inbound_ips:
+          type: array
+          items:
+            type: object
+            properties:
+              ip_address:
+                type: string
+                format: ipv4
+              description:
+                type: string
+        outbound_ips:
+          type: array
+          items:
+            type: object
+            properties:
+              ip_address:
+                type: string
+                format: ipv4
+              description:
+                type: string
+
+    SIPTrunkUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, testing]
+        partition_id:
+          type: string
+        max_channels:
+          type: integer
+        cps_limit:
+          type: integer
+        codecs:
+          type: array
+          items:
+            type: string
+
+    IPWhitelist:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ip_address:
+          type: string
+          format: ipv4
+        direction:
+          type: string
+          enum: [inbound, outbound, both]
+        description:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    # Partition Schemas
+    Partition:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        route_count:
+          type: integer
+        trunk_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    PartitionCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+
+    # Provider Schemas
+    Provider:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [LRN, DNIS, OCNLATA, INTERNATIONAL, CIC]
+        status:
+          type: string
+          enum: [active, inactive]
+        billing_model:
+          type: string
+          enum: [LRN, OCN_LATA, DNIS, FLAT]
+        dialstrings:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+
+    ProviderCreate:
+      type: object
+      required: [name, type, billing_model]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [LRN, DNIS, OCNLATA, INTERNATIONAL, CIC]
+        billing_model:
+          type: string
+        dialstrings:
+          type: array
+          items:
+            type: string
+
+    # Routing Schemas
+    Route:
+      type: object
+      properties:
+        id:
+          type: string
+        provider_id:
+          type: string
+        provider_name:
+          type: string
+        enabled:
+          type: boolean
+        priority:
+          type: integer
+
+    RouteCalculationRequest:
+      type: object
+      required: [ani, dnis, trunk_id]
+      properties:
+        ani:
+          type: string
+        dnis:
+          type: string
+        trunk_id:
+          type: string
+        lrn:
+          type: string
+        ocn:
+          type: string
+        lata:
+          type: string
+        state:
+          type: string
+        cic:
+          type: string
+        rate_limit:
+          type: number
+        max_results:
+          type: integer
+
+    RouteCalculationResponse:
+      type: object
+      properties:
+        zone:
+          type: string
+          enum: [INTERSTATE, INTRASTATE, LOCAL, INTERNATIONAL, TOLLFREE]
+        routes:
+          type: array
+          items:
+            type: object
+            properties:
+              provider:
+                type: string
+              dialstring:
+                type: string
+              rate:
+                type: number
+              rate_type:
+                type: string
+
+    # Messaging Schemas
+    SMSRequest:
+      type: object
+      required: [from, to, body]
+      properties:
+        from:
+          type: string
+        to:
+          type: string
+        body:
+          type: string
+          maxLength: 1600
+        callback_url:
+          type: string
+          format: uri
+        priority:
+          type: string
+          enum: [normal, high]
+
+    MMSRequest:
+      type: object
+      required: [from, to]
+      properties:
+        from:
+          type: string
+        to:
+          type: string
+        body:
+          type: string
+        media_url:
+          type: string
+          format: uri
+        media_file:
+          type: string
+          format: binary
+        callback_url:
+          type: string
+          format: uri
+
+    RCSRequest:
+      type: object
+      required: [from, to, content]
+      properties:
+        from:
+          type: string
+        to:
+          type: string
+        content:
+          type: object
+          properties:
+            text:
+              type: string
+            rich_card:
+              type: object
+            suggested_actions:
+              type: array
+              items:
+                type: object
+        callback_url:
+          type: string
+          format: uri
+
+    MessageResponse:
+      type: object
+      properties:
+        message_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, sending, delivered, failed]
+        created_at:
+          type: string
+          format: date-time
+
+    MessageStatus:
+      type: object
+      properties:
+        message_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, sending, delivered, failed, read]
+        from:
+          type: string
+        to:
+          type: string
+        direction:
+          type: string
+          enum: [inbound, outbound]
+        type:
+          type: string
+          enum: [SMS, MMS, RCS]
+        segments:
+          type: integer
+        price:
+          type: number
+        error_code:
+          type: string
+        error_message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # CDR Schemas
+    CDR:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        call_id:
+          type: string
+        customer_id:
+          type: string
+          format: uuid
+        trunk_id:
+          type: string
+          format: uuid
+        direction:
+          type: string
+          enum: [inbound, outbound]
+        ani:
+          type: string
+        dnis:
+          type: string
+        zone:
+          type: string
+        provider:
+          type: string
+        start_time:
+          type: string
+          format: date-time
+        answer_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        duration:
+          type: integer
+        billable_duration:
+          type: integer
+        rate:
+          type: number
+        cost:
+          type: number
+        sip_code:
+          type: integer
+        release_cause:
+          type: string
+
+    # Billing Schemas
+    Rate:
+      type: object
+      properties:
+        id:
+          type: string
+        provider_id:
+          type: string
+        zone:
+          type: string
+        prefix:
+          type: string
+        rate:
+          type: number
+        effective_date:
+          type: string
+          format: date
+        expiry_date:
+          type: string
+          format: date
+
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        invoice_number:
+          type: string
+        customer_id:
+          type: string
+          format: uuid
+        period_start:
+          type: string
+          format: date
+        period_end:
+          type: string
+          format: date
+        amount:
+          type: number
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [draft, pending, paid, overdue]
+        due_date:
+          type: string
+          format: date
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              description:
+                type: string
+              quantity:
+                type: number
+              unit_price:
+                type: number
+              amount:
+                type: number
+
+    # Common Schemas
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        pages:
+          type: integer
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+        request_id:
+          type: string
+          format: uuid
+
+# Webhooks
+webhooks:
+  callEvent:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event_type:
+                  type: string
+                  enum: [call.started, call.answered, call.ended]
+                call_id:
+                  type: string
+                trunk_id:
+                  type: string
+                ani:
+                  type: string
+                dnis:
+                  type: string
+                timestamp:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Event received
+
+  messageEvent:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event_type:
+                  type: string
+                  enum: [message.sent, message.delivered, message.failed, message.received]
+                message_id:
+                  type: string
+                from:
+                  type: string
+                to:
+                  type: string
+                timestamp:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Event received

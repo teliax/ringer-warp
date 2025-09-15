@@ -1,0 +1,135 @@
+# Environment Variables
+.env
+.env.local
+.env.*.local
+*.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Dependencies
+node_modules/
+vendor/
+venv/
+env/
+*.egg-info/
+__pycache__/
+*.pyc
+
+# Build outputs
+dist/
+build/
+out/
+target/
+*.exe
+*.dll
+*.so
+*.dylib
+bin/
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.coverage
+.pytest_cache/
+*.test
+*.spec
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+
+# Docker
+.dockerignore
+*.tar
+
+# Cloud credentials
+*-key.json
+*.pem
+*.key
+*.crt
+*.p12
+credentials/
+secrets/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Backup files
+*.backup
+*.bak
+*.tmp
+*.temp
+
+# OS generated files
+Thumbs.db
+.Spotlight-V100
+.Trashes
+
+# Go
+go.sum
+vendor/
+
+# Python
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+.gradle/
+gradle/
+
+# Next.js
+.next/
+out/
+.vercel
+
+# Cache
+.cache/
+.parcel-cache/
+
+# Documentation build
+docs/_build/
+site/
+
+# Temporary files
+tmp/
+temp/
+
+# Local development
+.localstack/
+.devcontainer/
+
+# Claude
+.claude/settings.local.json
