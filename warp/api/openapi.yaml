@@ -13,9 +13,9 @@ info:
     name: Proprietary
 
 servers:
-  - url: https://api.warp.io/v1
+  - url: https://api.ringer.tel/v1
     description: Production API
-  - url: https://staging-api.warp.io/v1
+  - url: https://staging-api.ringer.tel/v1
     description: Staging API
   - url: http://localhost:8080/v1
     description: Local Development
