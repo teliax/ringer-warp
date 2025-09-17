@@ -1,0 +1,670 @@
+openapi: 3.0.3
+info:
+  title: LERG API Service
+  description: |
+    High-performance Local Exchange Routing Guide (LERG) data API for real-time telecom call routing and analytics.
+    
+    ## Overview
+    The LERG API provides access to telecom routing data including:
+    - Operating Company Numbers (OCN)
+    - NPA-NXX assignments
+    - Switch data
+    - Rate centers
+    - And all 27 LERG tables
+    
+    ## Authentication
+    All API endpoints require an API token to be included in the `x-api-token` header.
+    
+    ## Data Updates
+    Data is updated monthly
+  version: 0.8.10
+  contact:
+    name: Ringer Telique Support
+    email: support@ringer.tel
+    url: https://ringer.tel
+  license:
+    name: Proprietary
+    url: https://ringer.tel/license
+
+servers:
+  - url: https://api-dev.ringer.tel/v1/telique/lerg
+    description: Testing server (not 99.999% uptime)
+
+security:
+  - ApiTokenAuth: []
+
+tags:
+  - name: Health
+    description: Service health monitoring
+  - name: Tables
+    description: LERG table metadata and information
+  - name: Query
+    description: Dynamic data queries across all LERG tables
+  - name: Statistics
+    description: Service statistics and metrics
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check endpoint
+      description: Returns the health status of the LERG API service
+      operationId: healthCheck
+      security:
+        - ApiTokenAuth: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "healthy"
+                service: "lerg-api"
+                version: "0.1.0"
+
+  /tables:
+    get:
+      tags:
+        - Tables
+      summary: List all LERG tables
+      description: Returns metadata for all 27 LERG tables including field information
+      operationId: listTables
+      security:
+        - ApiTokenAuth: []
+      responses:
+        '200':
+          description: List of all available LERG tables
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TableInfo'
+
+  /tables/{table_name}:
+    get:
+      tags:
+        - Tables
+      summary: Get table information
+      description: Returns detailed metadata for a specific LERG table
+      operationId: getTableInfo
+      security:
+        - ApiTokenAuth: []
+      parameters:
+        - name: table_name
+          in: path
+          required: true
+          description: Name of the LERG table (e.g., lerg_1, lerg_6, lerg_8)
+          schema:
+            type: string
+            enum:
+              - lerg_1
+              - lerg_1_con
+              - lerg_2
+              - lerg_3
+              - lerg_4
+              - lerg_5
+              - lerg_6
+              - lerg_6_atc
+              - lerg_6_ins
+              - lerg_6_odd
+              - lerg_7
+              - lerg_7_ins
+              - lerg_7_sha
+              - lerg_7_sha_ins
+              - lerg_8
+              - lerg_8_lir
+              - lerg_8_loc
+              - lerg_8_pst
+              - lerg_9
+              - lerg_9_atc
+              - lerg10
+              - lerg11
+              - lerg12
+              - lerg12_ins
+              - lerg16
+              - lerg17
+              - lergdate
+      responses:
+        '200':
+          description: Table metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TableInfo'
+        '404':
+          description: Table not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tables/{table_name}/schema:
+    get:
+      tags:
+        - Tables
+      summary: Get table schema
+      description: Returns the schema information for a specific LERG table including column names, types, and nullability
+      operationId: getTableSchema
+      security:
+        - ApiTokenAuth: []
+      parameters:
+        - name: table_name
+          in: path
+          required: true
+          description: Name of the LERG table (e.g., lerg_1, lerg_6, lerg_8)
+          schema:
+            type: string
+            enum:
+              - lerg_1
+              - lerg_1_con
+              - lerg_2
+              - lerg_3
+              - lerg_4
+              - lerg_5
+              - lerg_6
+              - lerg_6_atc
+              - lerg_6_ins
+              - lerg_6_odd
+              - lerg_7
+              - lerg_7_ins
+              - lerg_7_sha
+              - lerg_7_sha_ins
+              - lerg_8
+              - lerg_8_lir
+              - lerg_8_loc
+              - lerg_8_pst
+              - lerg_9
+              - lerg_9_atc
+              - lerg10
+              - lerg11
+              - lerg12
+              - lerg12_ins
+              - lerg16
+              - lerg17
+              - lergdate
+      responses:
+        '200':
+          description: Table schema information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TableSchemaResponse'
+              example:
+                table: "lerg_6"
+                display_name: "LERG 6"
+                fields:
+                  - name: "npa"
+                    display_name: "NPA"
+                    data_type: "integer"
+                    nullable: false
+                  - name: "nxx"
+                    display_name: "NXX"
+                    data_type: "integer"
+                    nullable: false
+                  - name: "block_id"
+                    display_name: "Block ID"
+                    data_type: "string"
+                    nullable: false
+                  - name: "ocn"
+                    display_name: "OCN"
+                    data_type: "string"
+                    nullable: true
+        '404':
+          description: Table not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /{table_name}/{fields}/{*query}:
+    get:
+      tags:
+        - Query
+      summary: Query LERG table with filters
+      description: |
+        Perform dynamic queries on any LERG table with field selection and filtering.
+        
+        ## URL Format
+        - `table_name`: The LERG table to query (e.g., lerg_6)
+        - `fields`: Comma-separated list of fields to return (e.g., npa,nxx,loc_name)
+        - `query`: Filter conditions as key=value pairs separated by & (e.g., npa=720&nxx=708&block_id=A)
+        
+        ## Examples
+        - Get NPAs in Denver: `/lerg_6/npa,nxx,loc_name/loc_name=DENVER`
+        - Get OCNs in Colorado: `/lerg_1/ocn_num,ocn_name/ocn_state=CO`
+        - Get specific block: `/lerg_6/lata,ocn,switch/npa=864&nxx=763&block_id=A`
+        
+        ## Note
+        The API will return only the fields specified in the `fields` parameter. 
+        All filters in the query string will be applied with AND logic.
+      operationId: queryTable
+      security:
+        - ApiTokenAuth: []
+      parameters:
+        - name: table_name
+          in: path
+          required: true
+          description: Name of the LERG table to query
+          schema:
+            type: string
+        - name: fields
+          in: path
+          required: true
+          description: Comma-separated list of fields to return
+          schema:
+            type: string
+        - name: query
+          in: path
+          required: true
+          description: Filter conditions as key=value pairs
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of records to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10000
+            default: 100
+        - name: offset
+          in: query
+          required: false
+          description: Number of records to skip for pagination
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Query results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Table or field not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /query:
+    post:
+      tags:
+        - Query
+      summary: Complex query with JSON body
+      description: |
+        Execute complex queries using a JSON request body. Supports advanced filtering
+        and future join operations between tables.
+      operationId: complexQuery
+      security:
+        - ApiTokenAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComplexQueryRequest'
+            examples:
+              simpleQuery:
+                summary: Simple query with filters
+                value:
+                  table: "lerg_6"
+                  fields: ["npa", "nxx", "loc_name", "ocn"]
+                  filters:
+                    - field: "npa"
+                      operator: "eq"
+                      value: 720
+                    - field: "loc_name"
+                      operator: "eq"
+                      value: "DENVER"
+                  limit: 10
+              queryWithPagination:
+                summary: Query with pagination
+                value:
+                  table: "lerg_1"
+                  fields: ["ocn_num", "ocn_name", "ocn_state"]
+                  filters:
+                    - field: "ocn_state"
+                      operator: "eq"
+                      value: "CO"
+                  limit: 20
+                  offset: 40
+      responses:
+        '200':
+          description: Query results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /stats:
+    get:
+      tags:
+        - Statistics
+      summary: Get service statistics
+      description: Returns statistics about the loaded LERG data including table counts and memory usage
+      operationId: getStats
+      security:
+        - ApiTokenAuth: []
+      responses:
+        '200':
+          description: Service statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /openapi.yaml:
+    get:
+      tags:
+        - Health
+      summary: Get OpenAPI specification (YAML)
+      description: Returns the complete OpenAPI 3.0 specification in YAML format
+      operationId: getOpenApiYaml
+      security: []
+      responses:
+        '200':
+          description: Complete OpenAPI 3.0 specification in YAML format
+          content:
+            application/x-yaml:
+              schema:
+                type: string
+
+components:
+  securitySchemes:
+    ApiTokenAuth:
+      type: apiKey
+      in: header
+      name: x-api-token
+      description: API token required for all endpoints
+
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - service
+        - version
+      properties:
+        status:
+          type: string
+          description: Health status of the service
+          enum:
+            - healthy
+            - degraded
+            - unhealthy
+        service:
+          type: string
+          description: Name of the service
+        version:
+          type: string
+          description: Service version
+
+    TableInfo:
+      type: object
+      required:
+        - name
+        - display_name
+        - record_count
+        - fields
+      properties:
+        name:
+          type: string
+          description: Internal table name (e.g., lerg_6)
+        display_name:
+          type: string
+          description: Display name (e.g., LERG_6)
+        record_count:
+          type: integer
+          description: Number of records in the table
+        fields:
+          type: array
+          description: List of fields in the table
+          items:
+            $ref: '#/components/schemas/FieldInfo'
+
+    TableSchemaResponse:
+      type: object
+      required:
+        - table
+        - display_name
+        - fields
+      properties:
+        table:
+          type: string
+          description: Internal table name (e.g., lerg_6)
+        display_name:
+          type: string
+          description: Display name (e.g., LERG 6)
+        fields:
+          type: array
+          description: List of field definitions in the table
+          items:
+            $ref: '#/components/schemas/FieldInfo'
+
+    FieldInfo:
+      type: object
+      required:
+        - name
+        - display_name
+        - data_type
+        - nullable
+      properties:
+        name:
+          type: string
+          description: Internal field name
+        display_name:
+          type: string
+          description: Display field name
+        data_type:
+          type: string
+          description: Data type of the field
+          enum:
+            - string
+            - integer
+            - float
+            - boolean
+            - date
+        nullable:
+          type: boolean
+          description: Whether the field can be null
+
+    QueryResponse:
+      type: object
+      required:
+        - table
+        - count
+        - data
+      properties:
+        table:
+          type: string
+          description: Name of the queried table
+        count:
+          type: integer
+          description: Number of records returned
+        data:
+          type: array
+          description: Query results
+          items:
+            type: object
+            additionalProperties: true
+
+    ComplexQueryRequest:
+      type: object
+      required:
+        - table
+      properties:
+        table:
+          type: string
+          description: Name of the table to query
+        fields:
+          type: array
+          description: List of fields to return (returns all if not specified)
+          items:
+            type: string
+        filters:
+          type: array
+          description: Filter conditions
+          items:
+            $ref: '#/components/schemas/FilterCondition'
+        limit:
+          type: integer
+          description: Maximum number of records to return
+          minimum: 1
+          maximum: 10000
+          default: 100
+        offset:
+          type: integer
+          description: Number of records to skip
+          minimum: 0
+          default: 0
+        join:
+          $ref: '#/components/schemas/JoinClause'
+          description: Join clause for multi-table queries (future feature)
+
+    FilterCondition:
+      type: object
+      required:
+        - field
+        - operator
+        - value
+      properties:
+        field:
+          type: string
+          description: Field name to filter on
+        operator:
+          type: string
+          description: Filter operator
+          enum:
+            - eq        # equals
+            - ne        # not equals
+            - gt        # greater than
+            - gte       # greater than or equal
+            - lt        # less than
+            - lte       # less than or equal
+            - like      # SQL LIKE pattern
+            - in        # in list
+            - notin     # not in list
+            - isnull    # is null
+            - isnotnull # is not null
+        value:
+          description: Value to filter by (type depends on field)
+          oneOf:
+            - type: string
+            - type: number
+            - type: boolean
+            - type: array
+              items:
+                oneOf:
+                  - type: string
+                  - type: number
+
+    JoinClause:
+      type: object
+      required:
+        - table
+        - on
+      properties:
+        table:
+          type: string
+          description: Table to join with
+        on:
+          type: array
+          description: Join conditions
+          items:
+            $ref: '#/components/schemas/JoinCondition'
+        fields:
+          type: array
+          description: Fields to include from joined table
+          items:
+            type: string
+
+    JoinCondition:
+      type: object
+      required:
+        - left_field
+        - right_field
+      properties:
+        left_field:
+          type: string
+          description: Field from the main table
+        right_field:
+          type: string
+          description: Field from the joined table
+
+    StatsResponse:
+      type: object
+      required:
+        - version
+        - total_tables
+        - total_records
+        - tables
+      properties:
+        version:
+          type: string
+          description: Data version identifier
+        total_tables:
+          type: integer
+          description: Total number of loaded tables
+        total_records:
+          type: integer
+          description: Total number of records across all tables
+        tables:
+          type: array
+          description: Per-table record counts
+          items:
+            type: array
+            items:
+              oneOf:
+                - type: string
+                - type: integer
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - status
+      properties:
+        error:
+          type: string
+          description: Error message
+        status:
+          type: integer
+          description: HTTP status code 

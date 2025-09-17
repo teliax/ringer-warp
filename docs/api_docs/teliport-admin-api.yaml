@@ -1,0 +1,1136 @@
+openapi: 3.0.1
+info:
+  title: Ringer SOA Admin API (Internal)
+  version: 1.0.0
+  description: |-
+    Internal administrative API for managing the Ringer SOA platform.
+    
+    This API provides administrative functionality including:
+    - Customer and token management
+    - SPID management and assignment
+    - Event monitoring and acknowledgment
+    - Phone number lookups and activation
+    - System statistics and monitoring
+    - Conflict resolution
+    - Transaction and event auditing
+    
+    Authentication: Admin Bearer token required for all endpoints
+    
+    **INTERNAL USE ONLY** - This API is not for customer consumption
+  contact:
+    name: Ringer Internal API Support
+    email: api-support@ringer.tel
+    url: https://ringer.tel
+  license:
+    name: Proprietary - Internal Use Only
+    url: https://ringer.tel/internal-terms
+servers:
+  - url: https://soa-api.ringer.tel
+    description: Production server
+  - url: https://staging-soa-api.ringer.tel
+    description: Staging server
+  - url: http://localhost:8080
+    description: Local development server
+tags:
+  - name: Customer Management
+    description: Endpoints for managing customers
+  - name: Token Management
+    description: Endpoints for managing API tokens
+  - name: SPID Management
+    description: Endpoints for managing SPIDs
+  - name: Event Management
+    description: Endpoints for SOA event monitoring
+  - name: Phone Operations
+    description: Endpoints for phone number operations
+  - name: System Monitoring
+    description: Endpoints for system statistics and monitoring
+  - name: Analytics
+    description: Endpoints for customer analytics and reporting
+paths:
+  /api/v1/admin/tokens/{tokenId}:
+    get:
+      tags:
+        - Token Management
+      summary: Get token details
+      operationId: getToken
+      parameters:
+        - name: tokenId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+      security:
+        - bearerAuth: []
+    put:
+      tags:
+        - Token Management
+      summary: Update token
+      operationId: updateToken
+      parameters:
+        - name: tokenId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTokenRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+      security:
+        - bearerAuth: []
+  
+  /api/v1/admin/tokens/{tokenId}/spids:
+    get:
+      tags:
+        - Token Management
+      summary: Get token allowed SPIDs
+      operationId: getTokenSpids
+      parameters:
+        - name: tokenId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                uniqueItems: true
+                type: array
+                items:
+                  type: string
+      security:
+        - bearerAuth: []
+    put:
+      tags:
+        - Token Management
+      summary: Update token allowed SPIDs
+      operationId: updateTokenSpids
+      parameters:
+        - name: tokenId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              uniqueItems: true
+              type: array
+              items:
+                type: string
+        required: true
+      responses:
+        '200':
+          description: OK
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/tokens/{tokenId}/revoke:
+    post:
+      tags:
+        - Token Management
+      summary: Revoke token
+      operationId: revokeToken
+      parameters:
+        - name: tokenId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: reason
+          in: query
+          required: false
+          schema:
+            type: string
+            default: Revoked via API
+      responses:
+        '200':
+          description: Token revoked successfully
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/customers:
+    get:
+      tags:
+        - Customer Management
+      summary: List customers
+      operationId: listCustomers
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            default: 20
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CustomerResponse'
+      security:
+        - bearerAuth: []
+    post:
+      tags:
+        - Customer Management
+      summary: Create customer
+      operationId: createCustomer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCustomerRequest'
+        required: true
+      responses:
+        '201':
+          description: Customer created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerResponse'
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/customers/{customerId}:
+    get:
+      tags:
+        - Customer Management
+      summary: Get customer details
+      operationId: getCustomer
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerResponse'
+      security:
+        - bearerAuth: []
+    put:
+      tags:
+        - Customer Management
+      summary: Update customer
+      operationId: updateCustomer
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCustomerRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerResponse'
+      security:
+        - bearerAuth: []
+    delete:
+      tags:
+        - Customer Management
+      summary: Delete customer
+      operationId: deleteCustomer
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Customer deleted
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/customers/{customerId}/tokens:
+    get:
+      tags:
+        - Token Management
+      summary: List customer tokens
+      operationId: listCustomerTokens
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TokenResponse'
+      security:
+        - bearerAuth: []
+    post:
+      tags:
+        - Token Management
+      summary: Create token for customer
+      operationId: createToken
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTokenRequest'
+        required: true
+      responses:
+        '201':
+          description: Token created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/customers/{customerId}/spids:
+    get:
+      tags:
+        - SPID Management
+      summary: List customer SPIDs
+      operationId: listCustomerSpids
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties:
+                    type: object
+      security:
+        - bearerAuth: []
+    post:
+      tags:
+        - SPID Management
+      summary: Add SPID to customer
+      operationId: addCustomerSpid
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: string
+        required: true
+      responses:
+        '201':
+          description: SPID added
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/customers/{customerId}/spids/{spid}:
+    put:
+      tags:
+        - SPID Management
+      summary: Update customer SPID
+      operationId: updateCustomerSpid
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: spid
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: object
+        required: true
+      responses:
+        '200':
+          description: SPID updated
+      security:
+        - bearerAuth: []
+    delete:
+      tags:
+        - SPID Management
+      summary: Remove SPID from customer
+      operationId: removeCustomerSpid
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: spid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: SPID removed
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/statistics:
+    get:
+      tags:
+        - System Monitoring
+      summary: Get system statistics
+      operationId: getStatistics
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/events:
+    get:
+      tags:
+        - Event Management
+      summary: Get SOA events
+      operationId: getAdminEvents
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            default: 50
+        - name: sortBy
+          in: query
+          required: false
+          schema:
+            type: string
+            default: recNo
+        - name: sortDirection
+          in: query
+          required: false
+          schema:
+            type: string
+            default: desc
+        - name: showAll
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/events/{recno}/acknowledge:
+    post:
+      tags:
+        - Event Management
+      summary: Acknowledge event by record number
+      operationId: acknowledgeEvent
+      parameters:
+        - name: recno
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '200':
+          description: Event acknowledged
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/events/acknowledge:
+    post:
+      tags:
+        - Event Management
+      summary: Acknowledge event
+      operationId: acknowledgeEventBody
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: object
+        required: true
+      responses:
+        '200':
+          description: Event acknowledged
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/events/poll:
+    post:
+      tags:
+        - Event Management
+      summary: Trigger event polling
+      operationId: triggerEventPolling
+      responses:
+        '200':
+          description: Polling triggered
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/events/polling-status:
+    get:
+      tags:
+        - Event Management
+      summary: Get polling status
+      operationId: getPollingStatus
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/lookup/{tn}:
+    get:
+      tags:
+        - Phone Operations
+      summary: Lookup phone number
+      description: |-
+        Retrieves the current SOA status and SPID information for a phone number.
+        
+        **Note**: This endpoint does NOT indicate whether a number is designated as an LRN.
+        It returns:
+        - Current SOA status (e.g., "Activate Ready", "Complete")
+        - New SPID (if in a pending port)
+        - Old SPID (if in a pending port)
+        - Due dates for the port operation
+        
+        This is primarily used to check port status, not LRN designation.
+      operationId: lookupPhoneNumber
+      parameters:
+        - name: tn
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9]{10}$'
+      responses:
+        '200':
+          description: Phone number details
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+        '400':
+          description: Invalid phone number format
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/activate/{tn}:
+    post:
+      tags:
+        - Phone Operations
+      summary: Activate phone number
+      description: Activates a phone number that is in "Activate Ready" status
+      operationId: activatePhoneNumber
+      parameters:
+        - name: tn
+          in: path
+          description: 10-digit telephone number
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9]{10}$'
+      responses:
+        '200':
+          description: Phone number activated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  message:
+                    type: string
+                  tn:
+                    type: string
+                  newspid:
+                    type: string
+        '400':
+          description: Invalid request or phone not in Activate Ready status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/spid-lookup/{spid}:
+    get:
+      tags:
+        - SPID Management
+      summary: Lookup SPID information
+      description: |-
+        Retrieves recent SOA event activity related to a SPID.
+        
+        **Important**: This endpoint does NOT return all phone numbers associated with a SPID.
+        For large SPIDs, that could be millions of numbers and would overwhelm the system.
+        
+        Instead, it returns:
+        - Recent events where this SPID was the new SPID (port-ins)
+        - Recent events where this SPID was the old SPID (port-outs)
+        - Associated customers who have access to this SPID
+        - A sample of phone numbers found in recent events (NOT comprehensive)
+        
+        This is useful for monitoring recent port activity, not for inventory management.
+      operationId: lookupSpid
+      parameters:
+        - name: spid
+          in: path
+          description: 4-character SPID
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9A-Z]{4}$'
+      responses:
+        '200':
+          description: SPID information retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  spid:
+                    type: string
+                  phoneNumbers:
+                    type: array
+                    items:
+                      type: string
+                  phoneCount:
+                    type: integer
+                  eventsAsNewSpid:
+                    type: array
+                    items:
+                      type: object
+                  eventsAsOldSpid:
+                    type: array
+                    items:
+                      type: object
+                  totalEventCount:
+                    type: integer
+                  associatedCustomers:
+                    type: array
+                    items:
+                      type: object
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/verify/port/{telephoneNumber}:
+    get:
+      tags:
+        - Phone Operations
+      summary: Verify port state
+      operationId: verifyPort
+      parameters:
+        - name: telephoneNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Port verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/reconcile/port/{telephoneNumber}:
+    post:
+      tags:
+        - Phone Operations
+      summary: Reconcile port state
+      operationId: reconcilePort
+      parameters:
+        - name: telephoneNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Port reconciled
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/realtime/port/{telephoneNumber}:
+    get:
+      tags:
+        - Phone Operations
+      summary: Get real-time port info
+      operationId: getRealTimePortInfo
+      parameters:
+        - name: telephoneNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Real-time port information
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/customers/{customerId}/transactions:
+    get:
+      tags:
+        - Analytics
+      summary: Get customer transactions
+      operationId: getCustomerTransactions
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            default: 10
+      responses:
+        '200':
+          description: Customer transactions
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/customers/{customerId}/events:
+    get:
+      tags:
+        - Analytics
+      summary: Get customer events
+      operationId: getCustomerEvents
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Customer events
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/customers/{customerId}/conflicts:
+    get:
+      tags:
+        - Analytics
+      summary: Get customer conflicts
+      operationId: getCustomerConflicts
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Customer conflicts
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/customers/{customerId}/verify:
+    get:
+      tags:
+        - Analytics
+      summary: Verify customer transactions
+      operationId: verifyCustomerTransactions
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Verification results
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/customers/{customerId}/generate-sample-data:
+    post:
+      tags:
+        - System Monitoring
+      summary: Generate sample data
+      operationId: generateSampleData
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Sample data generated
+      security:
+        - bearerAuth: []
+
+  /api/v1/admin/conflicts/resolve:
+    post:
+      tags:
+        - Conflict Resolution
+      summary: Resolve conflict
+      operationId: resolveConflict
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: object
+        required: true
+      responses:
+        '200':
+          description: Conflict resolved
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+      security:
+        - bearerAuth: []
+
+components:
+  schemas:
+    CreateTokenRequest:
+      type: object
+      properties:
+        description:
+          maxLength: 200
+          minLength: 0
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        ip_whitelist:
+          type: array
+          items:
+            type: string
+        allowed_operations:
+          type: array
+          items:
+            type: string
+        is_active:
+          type: boolean
+        allow_all_operations:
+          type: boolean
+        allowed_spids:
+          uniqueItems: true
+          type: array
+          items:
+            pattern: ^[0-9A-Z]{4}$
+            type: string
+    
+    TokenResponse:
+      type: object
+      properties:
+        token_id:
+          type: string
+          format: uuid
+        customer_id:
+          type: string
+          format: uuid
+        customer_name:
+          type: string
+        token:
+          type: string
+        token_prefix:
+          type: string
+        description:
+          type: string
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        last_used_at:
+          type: string
+          format: date-time
+        ip_whitelist:
+          type: array
+          items:
+            type: string
+        allowed_operations:
+          type: array
+          items:
+            type: string
+        allowed_spids:
+          uniqueItems: true
+          type: array
+          items:
+            type: string
+        usage_count:
+          type: integer
+          format: int64
+    
+    CreateCustomerRequest:
+      required:
+        - customer_name
+        - email
+        - is_active
+      type: object
+      properties:
+        customer_name:
+          maxLength: 100
+          minLength: 2
+          type: string
+        email:
+          type: string
+        is_active:
+          type: boolean
+        rate_limit:
+          maximum: 10000
+          minimum: 1
+          type: integer
+          format: int32
+        notes:
+          maxLength: 500
+          minLength: 0
+          type: string
+    
+    CustomerResponse:
+      type: object
+      properties:
+        customer_id:
+          type: string
+          format: uuid
+        customer_name:
+          type: string
+        email:
+          type: string
+        is_active:
+          type: boolean
+        rate_limit:
+          type: integer
+          format: int32
+        notes:
+          type: string
+        active_spids:
+          uniqueItems: true
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        token_count:
+          type: integer
+          format: int32
+        last_api_call:
+          type: string
+          format: date-time
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Bearer
+      description: |-
+        Admin Bearer Token Authentication
+        
+        Authenticate using an admin Bearer token configured in your environment.
+        Include the token in the Authorization header of your requests:
+        
+        Authorization: Bearer YOUR_ADMIN_TOKEN
+        
+        Admin tokens have full access to all operations. 

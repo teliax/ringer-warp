@@ -1,0 +1,15 @@
+# dependencies
+**/node_modules/**
+
+# ide
+**/.idea/**
+**/.vscode/**
+
+# transpiled .js files
+packages/**/dist
+
+# coverage reports
+**/coverage/**
+
+# config
+**/core/sdksetup/config*.json

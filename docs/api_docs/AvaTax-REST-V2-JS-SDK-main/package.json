@@ -1,0 +1,56 @@
+{
+  "name": "avatax",
+  "version": "25.9.0",
+  "description": "AvaTax v2 SDK for languages using JavaScript",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "homepage": "https://github.com/avadev/AvaTax-REST-V2-JS-SDK",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/avadev/AvaTax-REST-V2-JS-SDK.git"
+  },
+  "scripts": {
+    "build-tsc": "tsc && cp package.json .build && cp README.md .build",
+    "build-tsc-win": "tsc && copy package.json .build && copy README.md .build",
+    "test": "jest",
+    "lint": "eslint lib/**/*.js test/**/*.js --cache",
+    "format": "prettier --single-quote --write ./test/**/*.js ./lib/*.js ./lib/**/*.js",
+    "npm-publish": "cd .build && npm publish && cd .."
+  },
+  "keywords": [
+    "avalara",
+    "avatax"
+  ],
+  "typesVersions": {
+    "*": {
+      "index": [
+        "index.d.ts"
+      ],
+      "models": [
+        "lib/models.d.ts"
+      ],
+      "enums": [
+        "lib/enums.d.ts"
+      ]
+    }
+  },
+  "author": "Justin Soliz, Genevieve Conty",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@types/node-fetch": "^2.6.2",
+    "form-data": "^4.0.0",
+    "json2typescript": "^1.6.1",
+    "node-fetch": "^2.6.7"
+  },
+  "devDependencies": {
+    "@types/form-data": "^2.2.1",
+    "@types/jest": "^28.1.3",
+    "@types/node": "^18.19.50",
+    "eslint": "^4.0.0",
+    "jest": "^29.7.0",
+    "moment": "^2.20.1",
+    "nock": "^9.0.2",
+    "prettier": "^1.4.4",
+    "ts-jest": "^29.3.1"
+  }
+}

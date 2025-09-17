@@ -1,0 +1,1109 @@
+openapi: 3.0.1
+info:
+  title: Ringer Portability API
+  version: 1.0.0
+  description: |-
+    Service Order Acceptance (SOA) API for Local Number Portability (LNP) operations.
+
+    This API provides comprehensive functionality for managing telephone number porting operations including:
+    - Port request creation and management
+    - Number activation and disconnection
+    - Conflict resolution
+    - LRN (Location Routing Number) management
+    - Real-time status queries
+    - Event management and notifications
+
+    Authentication: Bearer token required for all endpoints
+  contact:
+    name: Ringer API Support
+    email: api-support@ringer.tel
+    url: https://ringer.tel
+  license:
+    name: Proprietary
+    url: https://ringer.tel/terms
+  x-logo:
+    url: https://ringer.tel/logo.png
+    altText: Ringer Logo
+servers:
+  - url: https://soa-api.ringer.tel
+    description: Production server
+  - url: https://staging-soa-api.ringer.tel
+    description: Staging server
+  - url: http://localhost:8080
+    description: Local development server
+tags:
+  - name: SOA Operations
+    description: Service Order Acceptance endpoints for Local Number Portability
+paths:
+  /v1/lnp/soa/release:
+    post:
+      tags:
+        - SOA Operations SOA Operations
+      summary: Release a port request
+      description: Releases a telephone number from a port request
+      operationId: release
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SoaReleaseRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/SoaReleaseRequest'
+        required: true
+      responses:
+        '200':
+          description: Release successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '403':
+          description: SPID not authorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '404':
+          description: Port request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+      security:
+        - bearerAuth: []
+  /v1/lnp/soa/lrn/remove:
+    post:
+      tags:
+        - SOA Operations SOA Operations
+      summary: Remove an LRN
+      description: Removes an existing Local Routing Number
+      operationId: removeLrn
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SoaLrnRemoveRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/SoaLrnRemoveRequest'
+        required: true
+      responses:
+        '200':
+          description: LRN removed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '403':
+          description: SPID not authorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '404':
+          description: LRN not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+      security:
+        - bearerAuth: []
+  /v1/lnp/soa/lrn/create:
+    post:
+      tags:
+        - SOA Operations SOA Operations
+      summary: Create an LRN
+      description: Creates a new Local Routing Number
+      operationId: createLrn
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SoaLrnCreateRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/SoaLrnCreateRequest'
+        required: true
+      responses:
+        '201':
+          description: LRN created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '403':
+          description: SPID not authorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '409':
+          description: LRN already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+      security:
+        - bearerAuth: []
+  /v1/lnp/soa/events/{recno}/acknowledge:
+    post:
+      tags:
+        - SOA Operations SOA Operations
+      summary: Acknowledge an event
+      description: Acknowledges a specific SOA event by record number
+      operationId: acknowledgeEvent
+      parameters:
+        - name: recno
+          in: path
+          description: Record number of the event to acknowledge
+          required: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '200':
+          description: Event acknowledged successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+      security:
+        - bearerAuth: []
+  /v1/lnp/soa/disconnect:
+    post:
+      tags:
+        - SOA Operations SOA Operations
+      summary: Disconnect a number
+      description: Disconnects a telephone number from service
+      operationId: disconnect
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SoaDisconnectRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/SoaDisconnectRequest'
+        required: true
+      responses:
+        '200':
+          description: Disconnection successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '403':
+          description: SPID not authorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+      security:
+        - bearerAuth: []
+  /v1/lnp/soa/create:
+    post:
+      tags:
+        - SOA Operations SOA Operations
+      summary: Create a new port request
+      description: Creates a new service order for porting a telephone number
+      operationId: create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SoaCreateRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/SoaCreateRequest'
+        required: true
+      responses:
+        '201':
+          description: Port request created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '403':
+          description: SPID not authorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '409':
+          description: Conflict - number already in porting
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+      security:
+        - bearerAuth: []
+  /v1/lnp/soa/conflict/remove:
+    post:
+      tags:
+        - SOA Operations SOA Operations
+      summary: Remove a conflict
+      description: Removes a telephone number from conflict status
+      operationId: removeConflict
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SoaConflictRemoveRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/SoaConflictRemoveRequest'
+        required: true
+      responses:
+        '200':
+          description: Conflict removed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+      security:
+        - bearerAuth: []
+  /v1/lnp/soa/conflict/create:
+    post:
+      tags:
+        - SOA Operations SOA Operations
+      summary: Create a conflict
+      description: Places a telephone number into conflict status
+      operationId: createConflict
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SoaConflictCreateRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/SoaConflictCreateRequest'
+        required: true
+      responses:
+        '200':
+          description: Conflict created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+      security:
+        - bearerAuth: []
+  /v1/lnp/soa/cancel:
+    post:
+      tags:
+        - SOA Operations SOA Operations
+      summary: Cancel a port request
+      description: Cancels an existing port request for a telephone number
+      operationId: cancel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SoaCancelRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/SoaCancelRequest'
+        required: true
+      responses:
+        '200':
+          description: Cancellation successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '403':
+          description: SPID not authorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '404':
+          description: Port request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+      security:
+        - bearerAuth: []
+  /v1/lnp/soa/activate:
+    post:
+      tags:
+        - SOA Operations SOA Operations
+      summary: Activate a ported number
+      description: Activates a telephone number that has been ported
+      operationId: activate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SoaActivateRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/SoaActivateRequest'
+        required: true
+      responses:
+        '200':
+          description: Activation successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '403':
+          description: SPID not authorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaResponse'
+      security:
+        - bearerAuth: []
+  /api/v1/soa/release:
+    post:
+      tags:
+        - SOA Operations soa-operations-controller
+      operationId: releasePort
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: object
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+  /api/v1/soa/query:
+    post:
+      tags:
+        - SOA Operations soa-operations-controller
+      operationId: queryPort
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: object
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+  /api/v1/soa/npanxxcreate:
+    post:
+      tags:
+        - SOA Operations soa-operations-controller
+      operationId: createNpanxx
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: object
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+  /api/v1/soa/intrasp:
+    post:
+      tags:
+        - SOA Operations soa-operations-controller
+      operationId: intraSp
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: object
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+  /api/v1/soa/create:
+    post:
+      tags:
+        - SOA Operations soa-operations-controller
+      operationId: createPort
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: object
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+  /api/v1/soa/conflictremove:
+    post:
+      tags:
+        - SOA Operations soa-operations-controller
+      operationId: removeConflict_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: object
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+  /api/v1/soa/conflictcreate:
+    post:
+      tags:
+        - SOA Operations soa-operations-controller
+      operationId: createConflict_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: object
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+  /api/v1/soa/actreadyget:
+    post:
+      tags:
+        - SOA Operations soa-operations-controller
+      operationId: getActivationReady
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: object
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+  /api/v1/soa/activate:
+    post:
+      tags:
+        - SOA Operations soa-operations-controller
+      operationId: activatePort
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: object
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+  /v1/lnp/soa/status/{tn}:
+    get:
+      tags:
+        - SOA Operations SOA Operations
+      summary: Get number status
+      description: Gets the current status of a telephone number
+      operationId: getStatus
+      parameters:
+        - name: tn
+          in: path
+          description: 10-digit telephone number
+          required: true
+          schema:
+            type: string
+          example: 2125551234
+      responses:
+        '200':
+          description: Status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaStatusResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaStatusResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaStatusResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaStatusResponse'
+        '404':
+          description: Number not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaStatusResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaStatusResponse'
+      security:
+        - bearerAuth: []
+  /v1/lnp/soa/spid/{tn}:
+    get:
+      tags:
+        - SOA Operations SOA Operations
+      summary: Get SPID for number
+      description: Gets the current SPID information for a telephone number
+      operationId: getSpid
+      parameters:
+        - name: tn
+          in: path
+          description: 10-digit telephone number
+          required: true
+          schema:
+            type: string
+          example: 2125551234
+      responses:
+        '200':
+          description: SPID retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaSpidResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaSpidResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaSpidResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaSpidResponse'
+        '404':
+          description: Number not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaSpidResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaSpidResponse'
+      security:
+        - bearerAuth: []
+  /v1/lnp/soa/query/{tn}:
+    get:
+      tags:
+        - SOA Operations SOA Operations
+      summary: Query port status
+      description: Queries the current status and details of a telephone number
+      operationId: query
+      parameters:
+        - name: tn
+          in: path
+          description: 10-digit telephone number
+          required: true
+          schema:
+            type: string
+          example: 2125551234
+        - name: newspid
+          in: query
+          description: 4-character SPID
+          required: false
+          schema:
+            type: string
+          example: 1234
+        - name: region
+          in: query
+          description: 4-character region ID
+          required: false
+          schema:
+            type: string
+          example: EAST
+      responses:
+        '200':
+          description: Query successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaQueryResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaQueryResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaQueryResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaQueryResponse'
+        '403':
+          description: SPID not authorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaQueryResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaQueryResponse'
+        '404':
+          description: Number not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaQueryResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaQueryResponse'
+      security:
+        - bearerAuth: []
+  /v1/lnp/soa/events:
+    get:
+      tags:
+        - SOA Operations SOA Operations
+      summary: Get SOA events
+      description: Retrieves unacknowledged SOA events
+      operationId: getEvents
+      responses:
+        '200':
+          description: Events retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaEventsResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaEventsResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaEventsResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaEventsResponse'
+      security:
+        - bearerAuth: []
+  /v1/lnp/soa/activation-ready/{newspid}:
+    get:
+      tags:
+        - SOA Operations SOA Operations
+      summary: Get activation-ready numbers
+      description: Gets all numbers ready for activation for a specific SPID
+      operationId: getActivationReady_1
+      parameters:
+        - name: newspid
+          in: path
+          description: 4-character new SPID
+          required: true
+          schema:
+            type: string
+          example: 1234
+      responses:
+        '200':
+          description: Numbers retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaActReadyResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaActReadyResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaActReadyResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaActReadyResponse'
+        '403':
+          description: SPID not authorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoaActReadyResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SoaActReadyResponse'
+      security:
+        - bearerAuth: []
+  /api/v1/soa/status/{tn}:
+    get:
+      tags:
+        - SOA Operations soa-operations-controller
+      operationId: getStatus_1
+      parameters:
+        - name: tn
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+  /api/v1/soa/spidget/{tn}:
+    get:
+      tags:
+        - SOA Operations soa-operations-controller
+      operationId: getSpid_1
+      parameters:
+        - name: tn
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object

@@ -1,0 +1,1120 @@
+openapi: 3.0.3
+info:
+  title: NotADipDip LRN Lookup API
+  description: |
+    High-performance Local Routing Number (LRN) lookup service for telecommunications.
+    Part of the Telique API ecosystem, providing real-time access to LRN data synchronized from TransUnion's LSMS BDD.
+    
+    ## Features
+    - Real-time LRN lookups with sub-millisecond response times
+    - Support for JSON, XML, and plain text response formats
+    - In-memory data store with 500M+ records
+    - Automatic synchronization with TransUnion LSMS
+    - Direct LSMS database queries for detailed relationship information
+    - Do Not Originate (DNO) phone number checking
+    - High availability with 99.999% uptime target
+    
+    ## Performance
+    - Capacity: 10,000+ TPS sustained
+    - Latency: <50ms P95 (in-memory lookups), <500ms P95 (database queries)
+    - Memory efficiency: 9.86 bytes/record
+    
+    ## LSMS Database Queries
+    Query the LSMS PostgreSQL database directly for:
+    - Finding all phone numbers associated with an LRN or SPID
+    - Finding all SPIDs associated with an LRN or phone number
+    - Finding all LRNs associated with a SPID or phone number
+    
+    ## Do Not Originate (DNO) Service
+    Lightweight service to check if a phone number is flagged as Do Not Originate.
+    Maintains an in-memory cache of ~1200 phone numbers with sub-microsecond lookups.
+  version: 2.0.0
+  contact:
+    name: Ringer Support
+    url: https://docs.ringer.tel
+    email: support@ringer.com
+  license:
+    name: Proprietary
+    
+servers:
+  - url: http://localhost:56660
+    description: Local development server
+  - url: https://api.ringer.tel/notadipdip
+    description: Production server
+  - url: https://api-dev.ringer.tel/notadipdip
+    description: Development server
+  - url: https://api-staging.ringer.tel/notadipdip
+    description: Staging server
+
+tags:
+  - name: LRN Lookup
+    description: Phone number to LRN lookup operations
+  - name: LSMS Database
+    description: Direct queries to the LSMS PostgreSQL database for detailed information
+  - name: DNO
+    description: Do Not Originate (DNO) phone number checking
+  - name: DNO Admin
+    description: Administrative endpoints for DNO cache management
+  - name: Health
+    description: Service health and monitoring endpoints
+  - name: Data Store
+    description: Data store information and statistics
+
+paths:
+  # Simple LRN lookup endpoint (legacy compatibility)
+  /{telephone_number}:
+    get:
+      tags:
+        - LRN Lookup
+      summary: Lookup LRN for a telephone number (Simple GET)
+      description: |
+        Query the Local Routing Number (LRN) and Service Profile Identifier (SPID) 
+        for a given 10-digit US telephone number. This is the simplest endpoint for 
+        backwards compatibility.
+      operationId: lookupLRNSimple
+      parameters:
+        - name: telephone_number
+          in: path
+          required: true
+          description: 10-digit US telephone number (NPA-NXX-XXXX format, digits only)
+          schema:
+            type: string
+            pattern: '^[2-9]\d{9}$'
+            example: "2125551234"
+        - name: format
+          in: query
+          required: false
+          description: Response format
+          schema:
+            type: string
+            enum: [json, xml, plain]
+            default: plain
+      responses:
+        '200':
+          description: Successful lookup
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "2125550000;ABCD"
+                description: "Format: {LRN};{SPID} or just {telephone_number} if not found"
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LRNResponse'
+              example:
+                telephone_number: "2125551234"
+                lrn: "2125550000"
+                spid: "ABCD"
+                status: "found"
+            application/xml:
+              schema:
+                type: string
+                example: |
+                  <?xml version="1.0" encoding="UTF-8"?>
+                  <lrn_response>
+                    <telephone_number>2125551234</telephone_number>
+                    <lrn>2125550000</lrn>
+                    <spid>ABCD</spid>
+                    <status>found</status>
+                  </lrn_response>
+        '400':
+          description: Invalid telephone number format
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "BADCOMMAND"
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+                
+  # Health check endpoints
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check endpoint
+      description: Basic service health check that always returns healthy if the service is running
+      operationId: healthCheck
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: healthy
+                version: 2.0.0
+                timestamp: "2025-01-07T02:30:00Z"
+                
+  /ready:
+    get:
+      tags:
+        - Health
+      summary: Readiness check endpoint
+      description: Checks if the service and its dependencies (data store) are ready to handle requests
+      operationId: readinessCheck
+      security: []
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: DATA_STORE_UNAVAILABLE
+                  message: Data store is not ready
+                  
+  /metrics:
+    get:
+      tags:
+        - Health
+      summary: Metrics endpoint
+      description: Returns service metrics in JSON format
+      operationId: getMetrics
+      security: []
+      responses:
+        '200':
+          description: Service metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsResponse'
+                
+  # LRN lookup endpoints
+  /api/v1/lrn/lookup:
+    post:
+      tags:
+        - LRN Lookup
+      summary: Lookup LRN for a phone number (POST method)
+      description: |
+        Performs a Local Routing Number (LRN) lookup for the given phone number.
+        Returns the LRN and optional metadata including SPID, LNP type, and activation timestamp.
+      operationId: lrnLookupPost
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LrnLookupRequest'
+            examples:
+              jsonFormat:
+                summary: JSON format request
+                value:
+                  phone_number: "2125551234"
+                  format: "json"
+              xmlFormat:
+                summary: XML format request
+                value:
+                  phone_number: "+12125551234"
+                  format: "xml"
+              rawFormat:
+                summary: Raw format request (default)
+                value:
+                  phone_number: "212-555-1234"
+                  format: "raw"
+      responses:
+        '200':
+          description: LRN found successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LrnLookupResponse'
+              example:
+                phone_number: "2125551234"
+                lrn: "2125550000"
+                status: "success"
+                timestamp: "2025-01-07T02:30:00Z"
+                metadata:
+                  spid: "1234"
+                  lnp_type: "lspp"
+                  activation_timestamp: "2024-01-15T10:30:00Z"
+                  last_updated: "2025-01-07T01:30:00Z"
+            application/xml:
+              schema:
+                type: string
+              example: |
+                <lrn_response>
+                  <phone_number>2125551234</phone_number>
+                  <lrn>2125550000</lrn>
+                  <status>success</status>
+                  <timestamp>2025-01-07T02:30:00Z</timestamp>
+                  <metadata>
+                    <spid>1234</spid>
+                    <lnp_type>lspp</lnp_type>
+                    <activation_timestamp>2024-01-15T10:30:00Z</activation_timestamp>
+                    <last_updated>2025-01-07T01:30:00Z</last_updated>
+                  </metadata>
+                </lrn_response>
+            text/plain:
+              schema:
+                type: string
+              example: "2125550000"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Phone number not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+                
+  /api/v1/lrn/{phone_number}:
+    get:
+      tags:
+        - LRN Lookup
+      summary: Lookup LRN for a phone number (GET method)
+      description: |
+        Performs a Local Routing Number (LRN) lookup for the given phone number using a simple GET request.
+        Default response format is plain text "LRN;SPID" format.
+      operationId: lrnLookupGet
+      parameters:
+        - name: phone_number
+          in: path
+          required: true
+          description: Phone number to lookup (10-digit US number without separators)
+          schema:
+            type: string
+            pattern: '^[2-9]\d{9}$'
+            example: "3036298301"
+        - name: format
+          in: query
+          required: false
+          description: Response format (default is plain text "LRN;SPID")
+          schema:
+            type: string
+            enum: [json, xml, plain]
+            default: plain
+            example: json
+      responses:
+        '200':
+          description: LRN found successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: Plain text format "LRN;SPID"
+              example: "2125550000;1234"
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LrnLookupResponse'
+            application/xml:
+              schema:
+                type: string
+        '400':
+          description: Invalid phone number
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Phone number not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+                
+  # Data store endpoints
+  /api/v1/data/stats:
+    get:
+      tags:
+        - Data Store
+      summary: Get data store statistics
+      description: Returns current statistics about the in-memory data store
+      operationId: getDataStoreStats
+      responses:
+        '200':
+          description: Data store statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stats:
+                    $ref: '#/components/schemas/DataStoreStats'
+              example:
+                stats:
+                  total_records: 502323334
+                  last_update: "2025-01-07T01:30:00Z"
+                  max_transaction_id: 3614260967
+                  memory_usage_bytes: 4958691328
+                  ready: true
+                  uptime_seconds: 3600
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+                
+  # LSMS Database endpoints
+  /api/v1/lsms/list/phone_number:
+    get:
+      tags:
+        - LSMS Database
+      summary: List phone numbers by LRN or SPID
+      description: |
+        Query the LSMS PostgreSQL database to list all phone numbers associated with a given LRN or SPID.
+        
+        **Note**: These endpoints query the PostgreSQL database directly and may have higher latency 
+        than the primary LRN lookup endpoints which use the in-memory data store.
+      operationId: listPhoneNumbers
+      parameters:
+        - name: lrn
+          in: query
+          required: false
+          description: Local Routing Number to filter by (10-digit)
+          schema:
+            type: string
+            pattern: '^[2-9]\d{9}$'
+            example: "7207081999"
+        - name: spid
+          in: query
+          required: false
+          description: Service Provider ID to filter by (4 characters)
+          schema:
+            type: string
+            pattern: '^[A-Z0-9]{4}$'
+            example: "567G"
+      responses:
+        '200':
+          description: List of phone numbers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneNumberListResponse'
+              example:
+                phone_numbers: ["3036298301", "3036298302", "3036298303"]
+                count: 3
+                query:
+                  lrn: "7207081999"
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+                
+  /api/v1/lsms/list/spid:
+    get:
+      tags:
+        - LSMS Database
+      summary: List SPIDs by LRN or phone number
+      description: |
+        Query the LSMS PostgreSQL database to list all Service Provider IDs (SPIDs) associated 
+        with a given LRN or phone number.
+      operationId: listSpids
+      parameters:
+        - name: lrn
+          in: query
+          required: false
+          description: Local Routing Number to filter by (10-digit)
+          schema:
+            type: string
+            pattern: '^[2-9]\d{9}$'
+            example: "7207081999"
+        - name: phone_number
+          in: query
+          required: false
+          description: Phone number to filter by (10-digit)
+          schema:
+            type: string
+            pattern: '^[2-9]\d{9}$'
+            example: "3036298301"
+      responses:
+        '200':
+          description: List of SPIDs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpidListResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+                
+  /api/v1/lsms/list/lrn:
+    get:
+      tags:
+        - LSMS Database
+      summary: List LRNs by SPID or phone number
+      description: |
+        Query the LSMS PostgreSQL database to list all Local Routing Numbers (LRNs) associated 
+        with a given SPID or phone number.
+      operationId: listLrns
+      parameters:
+        - name: spid
+          in: query
+          required: false
+          description: Service Provider ID to filter by (4 characters)
+          schema:
+            type: string
+            pattern: '^[A-Z0-9]{4}$'
+            example: "567G"
+        - name: phone_number
+          in: query
+          required: false
+          description: Phone number to filter by (10-digit)
+          schema:
+            type: string
+            pattern: '^[2-9]\d{9}$'
+            example: "3036298301"
+      responses:
+        '200':
+          description: List of LRNs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LrnListResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+                
+  # DNO endpoints
+  /api/v1/dno/{phone_number}:
+    get:
+      tags:
+        - DNO
+      summary: Check if a phone number is Do Not Originate
+      description: |
+        Checks if the given phone number is in the Do Not Originate (DNO) list.
+        Returns a boolean indicating whether the number should not be originated.
+      operationId: checkDno
+      parameters:
+        - name: phone_number
+          in: path
+          required: true
+          description: Phone number to check (10-digit US number)
+          schema:
+            type: string
+            pattern: '^[2-9]\d{9}$'
+            example: "5551234567"
+        - name: format
+          in: query
+          required: false
+          description: Response format (default is plain text)
+          schema:
+            type: string
+            enum: [json, xml, raw]
+            default: raw
+            example: json
+      responses:
+        '200':
+          description: DNO check completed successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+                enum: ["true", "false"]
+                description: Plain text boolean response
+              example: "true"
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DnoLookupResponse'
+            application/xml:
+              schema:
+                type: string
+        '400':
+          description: Invalid phone number
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+                
+  /admin/dno/upload:
+    post:
+      tags:
+        - DNO Admin
+      summary: Upload DNO phone numbers
+      description: |
+        Upload a CSV file containing phone numbers to be marked as Do Not Originate.
+        The upload completely replaces the existing DNO cache.
+        
+        CSV Format:
+        - No header row
+        - One 10-digit phone number per line
+      operationId: uploadDnoCsv
+      security: []  # Admin authentication handled by Cloud Armor
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: CSV file containing phone numbers
+              required:
+                - file
+      responses:
+        '200':
+          description: DNO cache updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DnoCacheUpdateResponse'
+        '400':
+          description: Invalid request or CSV format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+                
+  /admin/dno/status:
+    get:
+      tags:
+        - DNO Admin
+      summary: Get DNO cache status
+      description: Returns current statistics about the DNO cache including entry count and last update time
+      operationId: getDnoCacheStatus
+      security: []  # Admin authentication handled by Cloud Armor
+      responses:
+        '200':
+          description: DNO cache status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DnoCacheStatusResponse'
+                
+  /admin/dno/export:
+    get:
+      tags:
+        - DNO Admin
+      summary: Export DNO phone numbers
+      description: |
+        Download the current DNO cache as a CSV file.
+        Returns all phone numbers currently marked as Do Not Originate.
+      operationId: exportDnoCsv
+      security: []  # Admin authentication handled by Cloud Armor
+      responses:
+        '200':
+          description: DNO cache exported as CSV
+          content:
+            text/csv:
+              schema:
+                type: string
+                description: CSV file with one phone number per line
+              example: |
+                5551234567
+                5551234568
+                5551234569
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: 'attachment; filename="dno-export-20250117-163000.csv"'
+              description: Filename with timestamp
+
+components:
+  schemas:
+    # Updated LRN Response for simple endpoint
+    LRNResponse:
+      type: object
+      properties:
+        telephone_number:
+          type: string
+          description: The queried telephone number
+          example: "2125551234"
+        lrn:
+          type: string
+          nullable: true
+          description: The Local Routing Number (null if not found)
+          example: "2125550000"
+        spid:
+          type: string
+          nullable: true
+          description: The Service Profile Identifier (null if not found)
+          pattern: '^[A-Z0-9]{4}$'
+          example: "ABCD"
+        status:
+          type: string
+          enum: [found, not_found]
+          description: Lookup status
+          example: "found"
+      required:
+        - telephone_number
+        - status
+        
+    LrnLookupRequest:
+      type: object
+      required:
+        - phone_number
+      properties:
+        phone_number:
+          type: string
+          description: Phone number to lookup (10-digit US number or E.164 format)
+          pattern: '^\+?1?[2-9]\d{9}$'
+          example: "2125551234"
+        format:
+          type: string
+          description: Response format
+          enum: [json, xml, raw]
+          default: raw
+          example: json
+          
+    LrnLookupResponse:
+      type: object
+      required:
+        - phone_number
+        - lrn
+        - status
+        - timestamp
+      properties:
+        phone_number:
+          type: string
+          description: Original phone number from request (normalized)
+          example: "2125551234"
+        lrn:
+          type: string
+          description: Local Routing Number for the phone number
+          example: "2125550000"
+        status:
+          type: string
+          description: Request status
+          example: "success"
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp in ISO 8601 format
+          example: "2025-01-07T02:30:00Z"
+        metadata:
+          $ref: '#/components/schemas/LrnMetadata'
+          
+    LrnMetadata:
+      type: object
+      description: Additional LRN metadata
+      properties:
+        spid:
+          type: string
+          description: Service Provider ID (4 characters)
+          example: "1234"
+        lnp_type:
+          type: string
+          description: LNP Type
+          enum: [lspp, lisp, pool]
+          example: "lspp"
+        activation_timestamp:
+          type: string
+          format: date-time
+          description: When the number was ported
+          example: "2024-01-15T10:30:00Z"
+        ocn:
+          type: string
+          description: Operating Company Number
+          example: "7421"
+        region_id:
+          type: integer
+          description: NPAC region ID
+          example: 1
+        last_updated:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: "2025-01-07T01:30:00Z"
+          
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - version
+        - timestamp
+      properties:
+        status:
+          type: string
+          description: Service health status
+          enum: [healthy, degraded, unhealthy]
+          example: "healthy"
+        version:
+          type: string
+          description: Service version
+          example: "2.0.0"
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+          example: "2025-01-07T02:30:00Z"
+        details:
+          type: object
+          description: Additional health details
+          properties:
+            data_store:
+              type: object
+              properties:
+                connected:
+                  type: boolean
+                records:
+                  type: integer
+                  format: int64
+                last_sync:
+                  type: string
+                  format: date-time
+                  
+    MetricsResponse:
+      type: object
+      properties:
+        service:
+          type: object
+          properties:
+            uptime_seconds:
+              type: integer
+              format: int64
+            total_requests:
+              type: integer
+              format: int64
+            active_connections:
+              type: integer
+            version:
+              type: string
+        requests:
+          type: object
+          properties:
+            total:
+              type: integer
+              format: int64
+            success:
+              type: integer
+              format: int64
+            errors:
+              type: integer
+              format: int64
+            avg_duration_ms:
+              type: number
+              format: double
+            requests_per_second:
+              type: number
+              format: double
+        data_store:
+          type: object
+          properties:
+            total_records:
+              type: integer
+              format: int64
+            memory_usage_bytes:
+              type: integer
+              format: int64
+            cache_hit_rate_percent:
+              type: number
+              format: double
+            lookups_per_second:
+              type: number
+              format: double
+            avg_lookup_time_ns:
+              type: number
+              format: double
+        system:
+          type: object
+          properties:
+            cpu_usage_percent:
+              type: number
+              format: double
+            memory_usage_bytes:
+              type: integer
+              format: int64
+            memory_available_bytes:
+              type: integer
+              format: int64
+            open_connections:
+              type: integer
+              
+    DataStoreStats:
+      type: object
+      properties:
+        total_records:
+          type: integer
+          format: int64
+          description: Total number of LRN records in memory
+          example: 502323334
+        last_update:
+          type: string
+          format: date-time
+          description: Timestamp of last data update
+          example: "2025-01-07T01:30:00Z"
+        max_transaction_id:
+          type: integer
+          format: int64
+          description: Highest TransUnion transaction ID processed
+          example: 3614260967
+        memory_usage_bytes:
+          type: integer
+          format: int64
+          description: Current memory usage in bytes
+          example: 4958691328
+        ready:
+          type: boolean
+          description: Whether the data store is ready for queries
+          example: true
+        uptime_seconds:
+          type: integer
+          format: int64
+          description: Time since data store started
+          example: 3600
+          
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              description: Error code
+              enum:
+                - INVALID_PHONE_NUMBER
+                - INVALID_FORMAT
+                - INVALID_REQUEST
+                - PHONE_NUMBER_NOT_FOUND
+                - DATA_STORE_UNAVAILABLE
+                - INTERNAL_ERROR
+                - VALIDATION_ERROR
+              example: INVALID_PHONE_NUMBER
+            message:
+              type: string
+              description: Human-readable error message
+              example: "Invalid phone number format: 123"
+            details:
+              type: object
+              description: Additional error details
+              additionalProperties: true
+              
+    PhoneNumberListResponse:
+      type: object
+      required:
+        - phone_numbers
+        - count
+        - query
+      properties:
+        phone_numbers:
+          type: array
+          items:
+            type: string
+            pattern: '^[2-9]\d{9}$'
+          description: List of phone numbers (10-digit format)
+          example: ["3036298301", "3036298302", "3036298303"]
+        count:
+          type: integer
+          description: Total number of phone numbers returned
+          example: 3
+        query:
+          type: object
+          description: Query parameters used
+          properties:
+            lrn:
+              type: string
+              description: LRN used in query
+              example: "7207081999"
+            spid:
+              type: string
+              description: SPID used in query
+              example: "567G"
+              
+    SpidListResponse:
+      type: object
+      required:
+        - spids
+        - count
+        - query
+      properties:
+        spids:
+          type: array
+          items:
+            type: string
+            pattern: '^[A-Z0-9]{4}$'
+          description: List of Service Provider IDs (4-character format)
+          example: ["567G", "123A"]
+        count:
+          type: integer
+          description: Total number of SPIDs returned
+          example: 2
+        query:
+          type: object
+          description: Query parameters used
+          properties:
+            lrn:
+              type: string
+              description: LRN used in query
+              example: "7207081999"
+            phone_number:
+              type: string
+              description: Phone number used in query
+              example: "3036298301"
+              
+    LrnListResponse:
+      type: object
+      required:
+        - lrns
+        - count
+        - query
+      properties:
+        lrns:
+          type: array
+          items:
+            type: string
+            pattern: '^[2-9]\d{9}$'
+          description: List of Local Routing Numbers (10-digit format)
+          example: ["7207081999", "3036298300"]
+        count:
+          type: integer
+          description: Total number of LRNs returned
+          example: 2
+        query:
+          type: object
+          description: Query parameters used
+          properties:
+            spid:
+              type: string
+              description: SPID used in query
+              example: "567G"
+            phone_number:
+              type: string
+              description: Phone number used in query
+              example: "3036298301"
+              
+    DnoLookupResponse:
+      type: object
+      required:
+        - phone_number
+        - is_dno
+        - status
+        - timestamp
+      properties:
+        phone_number:
+          type: string
+          description: Phone number that was checked
+          example: "5551234567"
+        is_dno:
+          type: boolean
+          description: Whether the phone number is in the DNO list
+          example: true
+        status:
+          type: string
+          description: Request status
+          example: "success"
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+          example: "2025-01-17T16:30:00Z"
+          
+    DnoCacheUpdateResponse:
+      type: object
+      required:
+        - status
+        - entries_updated
+        - previous_entries
+        - timestamp
+        - source
+      properties:
+        status:
+          type: string
+          description: Update status
+          example: "success"
+        entries_updated:
+          type: integer
+          description: Number of entries in the new cache
+          example: 1234
+        previous_entries:
+          type: integer
+          description: Number of entries in the previous cache
+          example: 1200
+        timestamp:
+          type: string
+          format: date-time
+          description: Update timestamp
+          example: "2025-01-17T16:30:00Z"
+        source:
+          type: string
+          description: Source of the update
+          example: "admin_upload"
+          
+    DnoCacheStatusResponse:
+      type: object
+      required:
+        - entries
+        - last_updated
+        - age_seconds
+        - source
+      properties:
+        entries:
+          type: integer
+          description: Number of phone numbers in the DNO cache
+          example: 1234
+        last_updated:
+          type: string
+          format: date-time
+          description: When the cache was last updated
+          example: "2025-01-17T15:30:00Z"
+        age_seconds:
+          type: integer
+          format: int64
+          description: Age of the cache in seconds
+          example: 3600
+        source:
+          type: string
+          description: Source of the current cache data
+          example: "admin_upload"
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication (contact support for access)
+
+security:
+  - ApiKeyAuth: []
