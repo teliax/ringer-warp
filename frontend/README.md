@@ -1,69 +1,54 @@
-# WARP Platform Frontend
+# React + TypeScript + Vite
 
-## Overview
-React-based customer portal for the WARP SIP Trunking & Messaging Platform.
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-## Stack
-- React 18+
-- TypeScript
-- Tailwind CSS (recommended)
-- Vite or Next.js
-- TanStack Query (for API calls)
-- Zustand (for state management)
+Currently, two official plugins are available:
 
-## Structure
-```
-src/
-├── components/     # Reusable UI components
-├── pages/         # Page-level components
-├── hooks/         # Custom React hooks
-├── styles/        # Global styles and themes
-└── utils/         # Helper functions and API client
-```
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
-## Pages to Implement
-1. **Authentication**
-   - Login
-   - Register
-   - MFA Setup
-   - Password Reset
+## Expanding the ESLint configuration
 
-2. **Dashboard**
-   - Usage Overview
-   - Recent Calls
-   - Quick Stats
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
 
-3. **Trunk Management**
-   - List Trunks
-   - Configure Trunk
-   - IP Whitelist
-   - Codec Settings
-
-4. **Number Management**
-   - DID Inventory
-   - Purchase Numbers
-   - Port Requests
-   - E911 Configuration
-
-5. **Billing**
-   - Current Usage
-   - Invoice History
-   - Payment Methods
-   - Usage Reports
-
-6. **Support**
-   - CDR Search
-   - Troubleshooting
-   - Documentation
-
-## API Integration
-The frontend connects to the WARP API at endpoints defined in `/warp/api/openapi.yaml`.
-
-## Development
-```bash
-npm install
-npm run dev
+```js
+export default tseslint.config({
+  extends: [
+    // Remove ...tseslint.configs.recommended and replace with this
+    ...tseslint.configs.recommendedTypeChecked,
+    // Alternatively, use this for stricter rules
+    ...tseslint.configs.strictTypeChecked,
+    // Optionally, add this for stylistic rules
+    ...tseslint.configs.stylisticTypeChecked,
+  ],
+  languageOptions: {
+    // other options...
+    parserOptions: {
+      project: ['./tsconfig.node.json', './tsconfig.app.json'],
+      tsconfigRootDir: import.meta.dirname,
+    },
+  },
+})
 ```
 
-## Deployment
-Configured for Vercel deployment (see `.env.example` for VERCEL_* variables).
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
+
+export default tseslint.config({
+  plugins: {
+    // Add the react-x and react-dom plugins
+    'react-x': reactX,
+    'react-dom': reactDom,
+  },
+  rules: {
+    // other rules...
+    // Enable its recommended typescript rules
+    ...reactX.configs['recommended-typescript'].rules,
+    ...reactDom.configs.recommended.rules,
+  },
+})
+```
