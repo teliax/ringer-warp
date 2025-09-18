@@ -191,7 +191,26 @@ DELETE /api/v1/resources/{id}     # Delete
 - Cloud Armor DDoS protection
 - VPC Service Controls
 
-## 12. Technology Constraints
+## 12. SIP Network Architecture
+
+### Decision: Shared Multi-Tenant Infrastructure
+- **Kamailio**: Shared pods across all customers
+- **RTPEngine**: Shared VM pool
+- **Isolation**: Logical (database), not physical
+- **Details**: See [SIP_NETWORK_ARCHITECTURE.md](./SIP_NETWORK_ARCHITECTURE.md)
+
+### IP Address Strategy
+- **Origination**: 3-5 static IPs via Cloud NAT
+- **Termination**: Single anycast IP via Load Balancer
+- **RTP Media**: Separate /28 subnet
+- **Customer Requirement**: Must whitelist all origination IPs
+
+### Authentication
+- **Primary**: IP ACL (90% of customers)
+- **Secondary**: SIP Registration (dynamic IPs)
+- **Hybrid**: Both available simultaneously
+
+## 13. Technology Constraints
 
 ### Must Use (Per PRD)
 - Kamailio for SIP
@@ -206,6 +225,26 @@ DELETE /api/v1/resources/{id}     # Delete
 - TypeScript for frontend
 - Python for data pipelines
 - Terraform for all IaC
+
+## 14. SMS/MMS Architecture
+
+### Decision: Jasmin SMSC with Sinch Integration
+- **SMSC Platform**: Jasmin (open-source, scalable)
+- **Carrier Integration**: Sinch via SMPP binds
+- **Customer Access**: REST API (90%) and SMPP (10%)
+- **Details**: See [SMS_ARCHITECTURE.md](./SMS_ARCHITECTURE.md)
+
+### SMS Routing Strategy
+- **A2P Messaging**: All outbound via Sinch
+- **10DLC Registration**: Managed through Sinch TCR
+- **Inbound**: Direct delivery to customer webhooks/SMPP
+- **Queue Management**: RabbitMQ for reliable delivery
+
+### Database Design
+- **Separate Schema**: `sms` schema in PostgreSQL
+- **Message Storage**: 30-day retention, then archive
+- **Campaign Management**: 10DLC templates and registration
+- **Rate Limiting**: Per-customer MPS limits
 
 ## Payment Processing Integration
 
