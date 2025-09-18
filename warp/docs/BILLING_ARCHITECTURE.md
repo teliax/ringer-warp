@@ -3,6 +3,13 @@
 ## Overview
 Comprehensive billing system handling customer charges, vendor payments, taxes, and complex telecom rating across voice, SMS, and toll-free services.
 
+## Core Architecture Principles
+1. **Service-Specific Data Creation**: Kamailio (voice), Jasmin (SMS/MMS), API services create raw records
+2. **Centralized Enrichment**: Poller service enriches and rates all records
+3. **BigQuery Storage**: All rated records stored in partitioned BigQuery tables
+4. **NetSuite Integration**: Biller service ETLs data to NetSuite based on customer billing cycles
+5. **Vendor Performance Tracking**: Separate CDR tracking for vendor attempts and performance
+
 ## Billing Components Architecture
 
 ### 1. Customer Billing (Revenue)
@@ -49,7 +56,57 @@ interface CustomerBilling {
 }
 ```
 
-### 2. Usage Tracking & Rating
+### 2. Data Pipeline Architecture
+
+#### Data Flow
+```yaml
+Voice Flow:
+  1. Kamailio Routing Engine:
+     - Creates raw CDR with SIP PVs
+     - Stores in Redis/CloudSQL
+     - Includes routing decision and vendor selection
+  
+  2. Poller Service (runs every minute):
+     - Harvests raw CDRs
+     - Enriches with LRN/LERG data (NANPA calls)
+     - Enriches with RespOrg data (toll-free)
+     - Determines jurisdiction
+     - Applies rating
+     - Stores in BigQuery
+  
+  3. Biller Service (runs daily):
+     - Identifies customers to bill
+     - Extracts usage from BigQuery
+     - Maps to NetSuite SKUs
+     - Exports to NetSuite
+  
+  4. NetSuite:
+     - Generates invoices
+     - Manages AR
+     - Handles collections
+
+SMS/MMS Flow:
+  1. Jasmin:
+     - Creates MDRs (Message Detail Records)
+     - Stores in database
+  
+  2. Poller Service:
+     - Same enrichment and rating process
+     - Stores in BigQuery
+  
+  3-4. Same as voice
+
+Telco API Flow:
+  1. API Service:
+     - Already storing in BigQuery
+  
+  2. Biller Service:
+     - Extracts API usage
+     - Maps to SKUs
+     - Exports to NetSuite
+```
+
+### 3. Usage Tracking & Rating
 
 #### Real-time Rating Engine
 ```typescript
@@ -93,13 +150,21 @@ interface SmsRating {
 
 #### CDR Processing Pipeline
 ```yaml
-Flow:
-  1. Kamailio → CDR Generated
-  2. Redis → Temporary storage
-  3. Rating Engine → Calculate charges
-  4. PostgreSQL → Store rated CDR
-  5. BigQuery → Analytics & reporting
-  6. NetSuite → Invoice generation
+Customer CDR Flow:
+  1. Kamailio → Raw CDR with SIP headers
+  2. Redis/CloudSQL → Temporary storage
+  3. Poller → Enrichment (LRN, LERG, jurisdiction)
+  4. Poller → Rating (customer rate, vendor cost, margin)
+  5. BigQuery → Partitioned storage
+  6. Biller → ETL to NetSuite
+  7. NetSuite → Invoice generation
+
+Vendor CDR Flow (Performance Tracking):
+  1. Vendor Kamailio pods → Vendor CDR
+  2. Redis/CloudSQL → Temporary storage
+  3. Poller → Performance metrics (PDD, MOS, jitter)
+  4. BigQuery → Vendor performance analytics
+  5. Reports → Vendor scorecards
 
 Real-time Balance Updates:
   - Redis: Current balance cache
@@ -107,7 +172,30 @@ Real-time Balance Updates:
   - Threshold alerts at 20%, 10%, 5%
 ```
 
-### 3. Vendor Payment Management
+### 3. Vendor Management
+
+#### Vendor CDR Tracking
+```yaml
+Purpose:
+  - Track all vendor call attempts
+  - Monitor performance metrics
+  - Calculate actual vendor costs
+  - Support reconciliation and disputes
+
+Data Collected:
+  - Customer CDR reference
+  - Attempt number (for retries)
+  - Vendor name and trunk
+  - Call disposition and SIP response
+  - Performance metrics (PDD, MOS, packet loss, jitter)
+  - Actual vendor rate and cost
+
+Analytics:
+  - ASR (Answer Seizure Ratio) by vendor
+  - ACD (Average Call Duration) by vendor
+  - Cost per successful call
+  - Performance comparison across vendors
+```
 
 #### Carrier Payments (Outbound)
 ```yaml
@@ -121,6 +209,7 @@ Payment Processing:
   - Reconciliation: Daily CDR matching
   - Disputes: 30-day window
   - Auto-pay: ACH for approved vendors
+  - Performance-based penalties/bonuses
 ```
 
 ### 4. Tax Compliance
@@ -146,6 +235,71 @@ interface TaxCalculation {
 ```sql
 -- Billing schema
 CREATE SCHEMA billing;
+
+-- Raw CDR table (from Kamailio)
+CREATE TABLE billing.raw_cdr (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sip_uuid VARCHAR(128) NOT NULL,
+  sip_callid VARCHAR(128) NOT NULL,
+  
+  -- SIP Headers (Kamailio PVs)
+  sip_from VARCHAR(255),
+  sip_rpid VARCHAR(255),
+  sip_contact VARCHAR(255),
+  sip_ruri VARCHAR(255),
+  sip_pai VARCHAR(255),
+  sip_pci VARCHAR(255),
+  
+  -- Call Info
+  customer_ban VARCHAR(50) NOT NULL,
+  raw_ani VARCHAR(24),
+  dni VARCHAR(24),
+  direction VARCHAR(20),
+  
+  -- Routing
+  selected_vendor VARCHAR(50),
+  vendor_trunk VARCHAR(50),
+  routing_partition VARCHAR(20),
+  
+  -- Timestamps
+  start_stamp TIMESTAMP WITH TIME ZONE,
+  answer_stamp TIMESTAMP WITH TIME ZONE,
+  end_stamp TIMESTAMP WITH TIME ZONE,
+  
+  -- Processing flags
+  enriched BOOLEAN DEFAULT FALSE,
+  rated BOOLEAN DEFAULT FALSE,
+  exported_to_bq BOOLEAN DEFAULT FALSE,
+  
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Vendor CDR table (performance tracking)
+CREATE TABLE billing.vendor_cdr (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_cdr_id UUID,
+  vendor_name VARCHAR(50) NOT NULL,
+  vendor_trunk VARCHAR(50),
+  attempt_number INTEGER,
+  
+  -- Call details
+  start_stamp TIMESTAMP WITH TIME ZONE,
+  end_stamp TIMESTAMP WITH TIME ZONE,
+  disposition VARCHAR(20),
+  sip_response_code INTEGER,
+  
+  -- Performance metrics
+  pdd_ms INTEGER,
+  mos_score NUMERIC(3,2),
+  packet_loss NUMERIC(5,2),
+  jitter_ms INTEGER,
+  
+  -- Cost
+  vendor_rate NUMERIC(10,7),
+  vendor_cost NUMERIC(12,5),
+  
+  created_at TIMESTAMP DEFAULT NOW()
+);
 
 -- Customer wallets (prepaid)
 CREATE TABLE billing.wallets (
@@ -266,9 +420,66 @@ POST   /api/v1/billing/rate-plans/calculate
 
 ## Integration Architecture
 
+### NetSuite Integration
+```typescript
+// Daily biller job
+async function runDailyBiller() {
+  // 1. Identify customers to bill
+  const customers = await getCustomersToBill();
+  
+  for (const customer of customers) {
+    // 2. Extract usage from BigQuery
+    const usage = await extractUsageFromBigQuery(customer);
+    
+    // 3. Map to NetSuite SKUs
+    const lineItems = mapUsageToSKUs(usage);
+    
+    // 4. Export to NetSuite
+    await exportToNetSuite(customer, lineItems);
+    
+    // 5. Mark CDRs as exported
+    await markCDRsExported(customer);
+  }
+}
+
+// SKU Mapping
+const SKU_MAPPING = {
+  'TERMINATING:DOMESTIC:INTERSTATE': 'SKU001',
+  'TERMINATING:DOMESTIC:INTRASTATE': 'SKU002',
+  'TERMINATING:DOMESTIC:LOCAL': 'SKU003',
+  'TERMINATING:TOLLFREE': 'SKU004',
+  'TERMINATING:INTERNATIONAL': 'SKU005',
+  'ORIGINATING:DOMESTIC': 'SKU006',
+  'ORIGINATING:TOLLFREE': 'SKU007',
+  'SMS:OUTBOUND': 'SKU008',
+  'SMS:INBOUND': 'SKU009',
+  'MMS:OUTBOUND': 'SKU010',
+  'API:LRN': 'SKU011',
+  'API:CNAM': 'SKU012'
+};
+```
+
+### Jasmin SMS/MMS Integration
+```typescript
+// SMS/MMS MDR processing
+async function processJasminMDRs() {
+  // 1. Fetch MDRs from Jasmin
+  const mdrs = await jasmin.getMDRs();
+  
+  // 2. Enrich and rate
+  for (const mdr of mdrs) {
+    const enriched = await enrichMDR(mdr);
+    const rated = await rateMDR(enriched);
+    
+    // 3. Store in BigQuery
+    await storeMDRInBigQuery(rated);
+  }
+}
+```
+
 ### NetSuite Sync
 ```typescript
-// Hourly sync job
+// NetSuite sync (simplified)
 async function syncWithNetSuite() {
   // 1. Export new invoices
   const invoices = await getUnsyncedInvoices();
@@ -374,10 +585,11 @@ interface FraudChecks {
 ```yaml
 Morning (6 AM):
   1. Import vendor CDRs
-  2. Match against our CDRs
-  3. Flag discrepancies
-  4. Calculate vendor costs
+  2. Match against our CDRs (using vendor_cdr table)
+  3. Flag discrepancies > 5%
+  4. Calculate actual vendor costs
   5. Update margin reports
+  6. Generate vendor performance reports
 
 Evening (6 PM):
   1. Process payment settlements
@@ -433,11 +645,11 @@ Estimated Monthly Costs:
 
 ## Implementation Priorities
 
-### Phase 1: Core Billing (Week 1-2)
-- [ ] Payment method management
-- [ ] Balance tracking
-- [ ] Basic CDR rating
-- [ ] Simple invoicing
+### Phase 1: Core Infrastructure (Week 1-2)
+- [ ] Kamailio routing engine CDR creation
+- [ ] Poller service for enrichment and rating
+- [ ] BigQuery partitioned tables setup
+- [ ] Basic NetSuite SKU mapping
 
 ### Phase 2: Automation (Week 3-4)
 - [ ] Auto-recharge

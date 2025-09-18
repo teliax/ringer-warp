@@ -7,46 +7,119 @@ Comprehensive billing system for wholesale SIP trunking and messaging services, 
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│              Usage Collection Layer                  │
-│  CDRs (Calls) | MDRs (Messages) | API Usage         │
+│          Service Layer (Data Creation)               │
+│  Kamailio (Voice) | Jasmin (SMS) | API Services     │
 └─────────────────────────────────────────────────────┘
                         │
+                        ▼
 ┌─────────────────────────────────────────────────────┐
-│              Real-Time Rating Engine                 │
-│  Rate Lookup | Margin Calc | Taxes | Surcharges     │
+│         Temporary Storage (Redis/CloudSQL)           │
+│  Raw CDRs | Raw MDRs | API Usage Logs               │
 └─────────────────────────────────────────────────────┘
                         │
+                        ▼
 ┌─────────────────────────────────────────────────────┐
-│           Usage Aggregation & Mediation              │
-│  Deduplication | Validation | Enrichment            │
+│      Poller Service (Enrichment & Rating)            │
+│  LRN Lookup | LERG Data | Jurisdiction | Rating     │
 └─────────────────────────────────────────────────────┘
                         │
+                        ▼
 ┌─────────────────────────────────────────────────────┐
-│             Billing Engine Core                      │
-│  Invoice Generation | Payment Processing | Credits   │
+│         BigQuery (Partitioned Storage)               │
+│  CDRs | MDRs | Vendor CDRs | API Usage | Analytics  │
+└─────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────┐
+│      Biller Service (ETL to NetSuite)                │
+│  Customer Terms | SKU Mapping | Usage Aggregation    │
+└─────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────┐
+│      NetSuite (Billing & Invoicing)                  │
+│  Invoice Generation | AR | Collections | Reporting   │
 └─────────────────────────────────────────────────────┘
 ```
 
-## 1. Rating Engine
+## 1. Data Collection Layer
 
-### Real-Time Rating
+### Kamailio Routing Engine Integration
+```lua
+-- Kamailio routing engine (LuaJIT + FFI)
+function process_call(sip_msg)
+    local cdr = {
+        -- Core identifiers
+        sip_uuid = generate_uuid(),
+        sip_callid = sip_msg.callid,
+        
+        -- SIP headers (pseudo variables)
+        sip_from = sip_msg.$fu,
+        sip_rpid = sip_msg.$rpid,
+        sip_contact = sip_msg.$ct,
+        sip_ruri = sip_msg.$ru,
+        sip_pai = sip_msg.$pai,
+        sip_pci = sip_msg.$pci,
+        
+        -- Call details
+        raw_ani = extract_ani(sip_msg),
+        dni = extract_dni(sip_msg),
+        
+        -- Routing decision
+        selected_vendor = routing_result.vendor,
+        vendor_trunk = routing_result.trunk,
+        routing_partition = routing_result.partition,
+        
+        -- Timestamps
+        start_stamp = os.time(),
+        customer_ban = get_customer_ban(sip_msg)
+    }
+    
+    -- Store in Redis or CloudSQL
+    store_raw_cdr(cdr)
+    
+    return routing_result
+end
+```
+
+### Raw CDR Storage
 ```go
-// Core rating structure
-type RatingRequest struct {
-    CustomerID   string
-    TrunkID      string
-    CallType     string  // INBOUND, OUTBOUND, TOLLFREE
-    ANI          string
-    DNIS         string
-    LRN          string
-    OCN          string
-    LATA         string
-    State        string
-    Zone         string  // INTERSTATE, INTRASTATE, LOCAL, INTERNATIONAL
-    Duration     int     // seconds
-    Timestamp    time.Time
-    MessageType  string  // SMS, MMS, RCS (for messaging)
-    Segments     int     // for multi-part messages
+// CDR structure from routing engine
+type RawCDR struct {
+    // Identifiers
+    ID          string    `db:"id"`
+    SipUUID     string    `db:"sip_uuid"`
+    SipCallID   string    `db:"sip_callid"`
+    
+    // SIP Headers (raw PVs)
+    SipFrom     string    `db:"sip_from"`
+    SipRPID     string    `db:"sip_rpid"`
+    SipContact  string    `db:"sip_contact"`
+    SipRURI     string    `db:"sip_ruri"`
+    SipPAI      string    `db:"sip_pai"`
+    SipPCI      string    `db:"sip_pci"`
+    
+    // Call Info
+    CustomerBAN string    `db:"customer_ban"`
+    RawANI      string    `db:"raw_ani"`
+    DNI         string    `db:"dni"`
+    Direction   string    `db:"direction"` // TERMINATING, ORIGINATING
+    
+    // Routing
+    SelectedVendor   string `db:"selected_vendor"`
+    VendorTrunk      string `db:"vendor_trunk"`
+    RoutingPartition string `db:"routing_partition"`
+    
+    // Timestamps
+    StartStamp    time.Time `db:"start_stamp"`
+    ProgressStamp *time.Time `db:"progress_stamp"`
+    AnswerStamp   *time.Time `db:"answer_stamp"`
+    EndStamp      *time.Time `db:"end_stamp"`
+    
+    // Processing flags
+    Enriched      bool `db:"enriched"`
+    Rated         bool `db:"rated"`
+    ExportedToBQ  bool `db:"exported_to_bq"`
 }
 
 type RatingResponse struct {
@@ -146,41 +219,181 @@ function calculateMargin(vendorRate, customerProfile) {
 }
 ```
 
-## 2. Usage Collection & Mediation
+## 2. Poller Service (Enrichment & Rating)
 
-### CDR/MDR Processing Pipeline
+### CDR Enrichment Pipeline
 ```python
-class UsageMediator:
-    def process_usage_record(self, record):
-        # 1. Validation
-        if not self.validate_record(record):
-            return self.quarantine_record(record)
+class CDRPoller:
+    """Harvests raw CDRs, enriches them, rates them, and stores in BigQuery"""
+    
+    def __init__(self):
+        self.redis_client = Redis()
+        self.db = CloudSQL()
+        self.bq_client = BigQueryClient()
+        self.telique_api = TeliqueAPI()
+        self.lerg_db = LERGDatabase()
+        self.somos_api = SomosAPI()
+    
+    def poll_and_process(self):
+        """Main polling loop - runs every minute"""
+        # Harvest raw CDRs
+        raw_cdrs = self.harvest_raw_cdrs()
+        
+        for cdr in raw_cdrs:
+            try:
+                # Enrich based on call type
+                enriched = self.enrich_cdr(cdr)
+                
+                # Apply rating
+                rated = self.rate_cdr(enriched)
+                
+                # Store in BigQuery
+                self.store_in_bigquery(rated)
+                
+                # Mark as processed
+                self.mark_processed(cdr['id'])
+                
+            except Exception as e:
+                self.handle_error(cdr, e)
+    
+    def harvest_raw_cdrs(self):
+        """Fetch unprocessed CDRs from Redis/CloudSQL"""
+        return self.db.query("""
+            SELECT * FROM billing.raw_cdr 
+            WHERE enriched = FALSE 
+            AND created_at >= NOW() - INTERVAL '1 hour'
+            ORDER BY created_at 
+            LIMIT 1000
+        """)
+    
+    def enrich_cdr(self, cdr):
+        """Add LRN, LERG, jurisdiction data for BOTH ANI and DNI"""
+        enriched = cdr.copy()
+        
+        # For ANI (Calling Party) - NANPA calls
+        if self.is_nanpa(cdr['raw_ani']):
+            # LRN lookup via Telique for ANI
+            ani_lrn_data = self.telique_api.lookup_lrn(cdr['raw_ani'])
+            enriched['ani_lrn'] = ani_lrn_data['lrn']
+            enriched['ani_spid'] = ani_lrn_data['spid']
+            enriched['ani_ocn'] = ani_lrn_data['ocn']
+            enriched['ani_lata'] = ani_lrn_data['lata']
+            
+            # LERG data enrichment for ANI
+            ani_lerg_data = self.lerg_db.lookup(enriched['ani_lrn'])
+            enriched['ani_rate_center'] = ani_lerg_data['rate_center']
+            enriched['ani_state'] = ani_lerg_data['state']
+            enriched['ani_carrier_name'] = ani_lerg_data['carrier_name']
+        
+        # For DNI (Called Party) - NANPA calls
+        if self.is_nanpa(cdr['dni']):
+            # LRN lookup via Telique for DNI
+            dni_lrn_data = self.telique_api.lookup_lrn(cdr['dni'])
+            enriched['dni_lrn'] = dni_lrn_data['lrn']
+            enriched['dni_spid'] = dni_lrn_data['spid']
+            enriched['dni_ocn'] = dni_lrn_data['ocn']
+            enriched['dni_lata'] = dni_lrn_data['lata']
+            
+            # LERG data enrichment for DNI
+            dni_lerg_data = self.lerg_db.lookup(enriched['dni_lrn'])
+            enriched['dni_rate_center'] = dni_lerg_data['rate_center']
+            enriched['dni_state'] = dni_lerg_data['state']
+            enriched['dni_carrier_name'] = dni_lerg_data['carrier_name']
+            
+            # Jurisdiction determination (comparing ANI vs DNI)
+            enriched['jurisdiction'] = self.determine_jurisdiction(
+                enriched.get('ani_ocn'), enriched.get('dni_ocn'),
+                enriched.get('ani_state'), enriched.get('dni_state'),
+                enriched.get('ani_lata'), enriched.get('dni_lata')
+            )
+        
+        # For toll-free calls
+        elif self.is_tollfree(cdr['dni']):
+            # Get RespOrg info
+            ror_data = self.somos_api.lookup_resporg(cdr['dni'])
+            enriched['ror_id'] = ror_data['id']
+            enriched['ror_name'] = ror_data['name']
+            enriched['call_type'] = 'TOLLFREE'
+        
+        # For international calls
+        elif self.is_international(cdr['dni']):
+            enriched['call_type'] = 'INTERNATIONAL'
+            enriched['country_code'] = self.extract_country_code(cdr['dni'])
+        
+        return enriched
+    
+    def determine_jurisdiction(self, ani_ocn, dni_ocn, ani_state, dni_state, ani_lata, dni_lata):
+        """Determine interstate/intrastate/local jurisdiction"""
+        # Local: Same OCN or same LATA
+        if ani_ocn and dni_ocn and ani_ocn == dni_ocn:
+            return 'LOCAL'
+        if ani_lata and dni_lata and ani_lata == dni_lata:
+            return 'LOCAL'
+        
+        # Intrastate: Same state but different OCN/LATA
+        if ani_state and dni_state and ani_state == dni_state:
+            return 'INTRASTATE'
+        
+        # Interstate: Different states
+        return 'INTERSTATE'
 
-        # 2. Deduplication
-        if self.is_duplicate(record):
-            return self.handle_duplicate(record)
+## 3. Rating Engine
 
-        # 3. Enrichment
-        enriched = self.enrich_record(record)
-
-        # 4. Rating
-        rated = self.rate_record(enriched)
-
-        # 5. Aggregation
-        self.aggregate_usage(rated)
-
-        # 6. Storage
-        self.store_rated_cdr(rated)
-
+### Rate Application
+```python
+class RatingEngine:
+    """Applies customer rates and calculates charges"""
+    
+    def rate_cdr(self, cdr):
+        """Apply rating to enriched CDR"""
+        rated = cdr.copy()
+        
+        # Lookup customer rate
+        rate_key = self.build_rate_key(cdr)
+        customer_rate = self.lookup_customer_rate(rate_key)
+        
+        # Lookup vendor cost
+        vendor_cost = self.lookup_vendor_cost(cdr['selected_vendor'], rate_key)
+        
+        # Calculate billable duration
+        raw_seconds = (cdr['end_stamp'] - cdr['answer_stamp']).total_seconds()
+        billed_seconds = self.apply_billing_increment(raw_seconds, customer_rate['increment'])
+        
+        # Calculate charges
+        rated['customer_rate'] = customer_rate['rate']
+        rated['vendor_cost'] = vendor_cost
+        rated['margin'] = customer_rate['rate'] - vendor_cost
+        rated['billed_seconds'] = billed_seconds
+        rated['total_charge'] = (billed_seconds / 60.0) * customer_rate['rate']
+        
+        # Add rating metadata
+        rated['rate_zone'] = rate_key['zone']
+        rated['rated_at'] = datetime.now()
+        rated['rated'] = True
+        
         return rated
-
-    def enrich_record(self, record):
-        # Add LRN, jurisdiction, timezone
-        record['lrn'] = self.lrn_lookup(record['dnis'])
-        record['jurisdiction'] = self.determine_jurisdiction(record)
-        record['timezone'] = self.get_timezone(record['state'])
-        record['peak_hours'] = self.is_peak_hours(record['timestamp'])
-        return record
+    
+    def build_rate_key(self, cdr):
+        """Build rate lookup key based on call attributes"""
+        return {
+            'customer_ban': cdr['customer_ban'],
+            'direction': cdr['direction'],
+            'call_type': cdr.get('call_type', 'DOMESTIC'),
+            'jurisdiction': cdr.get('jurisdiction', 'INTERSTATE'),
+            'npanxx': cdr['dni'][:6] if len(cdr['dni']) >= 6 else None,
+            'zone': self.determine_rate_zone(cdr)
+        }
+    
+    def apply_billing_increment(self, seconds, increment):
+        """Apply billing increment (1/1 or 6/6)"""
+        if increment == 1:
+            # Bill in 1-second increments
+            return math.ceil(seconds)
+        elif increment == 6:
+            # Bill in 6-second increments
+            return math.ceil(seconds / 6.0) * 6
+        else:
+            return math.ceil(seconds)
 ```
 
 ### Real-Time Usage Tracking
@@ -219,35 +432,239 @@ CREATE UNIQUE INDEX ON current_usage (customer_id, trunk_id);
 REFRESH MATERIALIZED VIEW CONCURRENTLY current_usage;
 ```
 
-## 3. NetSuite Integration Architecture
+## 4. BigQuery Storage Layer
 
-### Overview
-The WARP platform generates rated usage data and feeds it to NetSuite for invoice generation, AR management, and financial reporting.
+### Partitioned Table Structure
+```sql
+-- Main CDR table (partitioned by date)
+CREATE TABLE `warp_billing.cdrs_partitioned`
+(
+  -- Identifiers
+  id STRING NOT NULL,
+  sip_uuid STRING NOT NULL,
+  sip_callid STRING NOT NULL,
+  customer_ban STRING NOT NULL,
+  
+  -- Call details
+  direction STRING,  -- TERMINATING, ORIGINATING
+  call_type STRING,  -- DOMESTIC, TOLLFREE, INTERNATIONAL
+  jurisdiction STRING,  -- INTERSTATE, INTRASTATE, LOCAL
+  
+  -- Timestamps
+  start_stamp TIMESTAMP NOT NULL,
+  answer_stamp TIMESTAMP,
+  end_stamp TIMESTAMP NOT NULL,
+  
+  -- Party info
+  raw_ani STRING,
+  dni STRING,
+  lrn STRING,
+  
+  -- ANI (Calling Party) enrichment data
+  ani_lrn STRING,
+  ani_spid STRING,
+  ani_ocn STRING,
+  ani_lata INT64,
+  ani_rate_center STRING,
+  ani_state STRING,
+  ani_carrier_name STRING,
+  
+  -- DNI (Called Party) enrichment data
+  dni_lrn STRING,
+  dni_spid STRING,
+  dni_ocn STRING,
+  dni_lata INT64,
+  dni_rate_center STRING,
+  dni_state STRING,
+  dni_carrier_name STRING,
+  
+  -- Rating
+  customer_rate NUMERIC,
+  vendor_cost NUMERIC,
+  margin NUMERIC,
+  billed_seconds INT64,
+  total_charge NUMERIC,
+  
+  -- Vendor info
+  selected_vendor STRING,
+  vendor_trunk STRING,
+  routing_partition STRING,
+  
+  -- Processing metadata
+  rated_at TIMESTAMP,
+  exported_to_ns BOOLEAN,
+  netsuite_invoice_id STRING
+)
+PARTITION BY DATE(start_stamp)
+CLUSTER BY customer_ban, direction, call_type;
 
+-- Vendor CDR table (for performance tracking)
+CREATE TABLE `warp_billing.vendor_cdrs`
+(
+  id STRING NOT NULL,
+  customer_cdr_id STRING,
+  vendor_name STRING NOT NULL,
+  vendor_trunk STRING,
+  
+  -- Attempt info
+  attempt_number INT64,
+  start_stamp TIMESTAMP,
+  end_stamp TIMESTAMP,
+  duration_seconds INT64,
+  
+  -- Result
+  disposition STRING,
+  sip_response_code INT64,
+  failure_reason STRING,
+  
+  -- Cost
+  vendor_rate NUMERIC,
+  vendor_cost NUMERIC,
+  
+  -- Performance
+  pdd_ms INT64,
+  mos_score NUMERIC,
+  packet_loss NUMERIC,
+  jitter_ms INT64
+)
+PARTITION BY DATE(start_stamp)
+CLUSTER BY vendor_name, customer_cdr_id;
 ```
-┌─────────────────────────────────────────────────────┐
-│            WARP Rating Engine                        │
-│   CDR/MDR Collection → Rating → Aggregation         │
-└─────────────────────────────────────────────────────┘
-                        │
-                   Rated Usage
-                        │
-┌─────────────────────────────────────────────────────┐
-│          Usage Summarization Service                 │
-│   Daily/Monthly Aggregation → Validation            │
-└─────────────────────────────────────────────────────┘
-                        │
-                  Billable Items
-                        │
-┌─────────────────────────────────────────────────────┐
-│           NetSuite Integration Layer                 │
-│   SuiteTalk REST API / CSV Import / SuiteScript     │
-└─────────────────────────────────────────────────────┘
-                        │
-┌─────────────────────────────────────────────────────┐
-│                    NetSuite                          │
-│   Invoice Generation → AR → Collections → GL        │
-└─────────────────────────────────────────────────────┘
+
+## 5. Biller Service (ETL to NetSuite)
+
+### Daily Billing Process
+```python
+class BillerService:
+    """ETL service that extracts usage from BigQuery and loads to NetSuite"""
+    
+    def __init__(self):
+        self.bq_client = BigQueryClient()
+        self.netsuite_api = NetSuiteAPI()
+        self.customer_db = CustomerDatabase()
+    
+    def run_daily_billing(self):
+        """Main billing process - runs daily at 2 AM"""
+        # Identify customers to bill today
+        customers = self.get_customers_to_bill()
+        
+        for customer in customers:
+            try:
+                # Extract usage from BigQuery
+                usage = self.extract_customer_usage(customer)
+                
+                # Map to NetSuite SKUs
+                line_items = self.map_to_skus(usage)
+                
+                # Send to NetSuite
+                self.export_to_netsuite(customer, line_items)
+                
+            except Exception as e:
+                self.handle_billing_error(customer, e)
+    
+    def get_customers_to_bill(self):
+        """Find customers whose billing cycle runs today"""
+        today = datetime.now()
+        
+        # Weekly billing (e.g., every Monday)
+        weekly = self.customer_db.query("""
+            SELECT * FROM customers 
+            WHERE billing_cycle = 'WEEKLY' 
+            AND billing_day_of_week = %s
+        """, today.weekday())
+        
+        # Monthly billing (e.g., 1st of month)
+        monthly = self.customer_db.query("""
+            SELECT * FROM customers 
+            WHERE billing_cycle = 'MONTHLY' 
+            AND billing_day_of_month = %s
+        """, today.day)
+        
+        return weekly + monthly
+    
+    def extract_customer_usage(self, customer):
+        """Extract usage data from BigQuery"""
+        period_start, period_end = self.get_billing_period(customer)
+        
+        query = """
+            SELECT 
+                direction,
+                call_type,
+                jurisdiction,
+                COUNT(*) as call_count,
+                SUM(billed_seconds)/60 as minutes,
+                SUM(total_charge) as amount
+            FROM `warp_billing.cdrs_partitioned`
+            WHERE customer_ban = @customer_ban
+                AND DATE(start_stamp) >= @period_start
+                AND DATE(start_stamp) <= @period_end
+                AND exported_to_ns = FALSE
+            GROUP BY direction, call_type, jurisdiction
+        """
+        
+        return self.bq_client.query(query, {
+            'customer_ban': customer['ban'],
+            'period_start': period_start,
+            'period_end': period_end
+        })
+    
+    def map_to_skus(self, usage_data):
+        """Map usage to NetSuite SKUs"""
+        sku_mapping = {
+            ('TERMINATING', 'DOMESTIC', 'INTERSTATE'): 'SKU001',
+            ('TERMINATING', 'DOMESTIC', 'INTRASTATE'): 'SKU002',
+            ('TERMINATING', 'DOMESTIC', 'LOCAL'): 'SKU003',
+            ('TERMINATING', 'TOLLFREE', None): 'SKU004',
+            ('TERMINATING', 'INTERNATIONAL', None): 'SKU005',
+            ('ORIGINATING', 'DOMESTIC', None): 'SKU006',
+            ('ORIGINATING', 'TOLLFREE', None): 'SKU007',
+        }
+        
+        line_items = []
+        for row in usage_data:
+            key = (row['direction'], row['call_type'], row.get('jurisdiction'))
+            sku = sku_mapping.get(key, 'SKU999')  # Default SKU
+            
+            line_items.append({
+                'sku': sku,
+                'description': f"{row['direction']} {row['call_type']} {row.get('jurisdiction', '')}",
+                'quantity': row['minutes'],
+                'amount': row['amount'],
+                'metadata': {
+                    'call_count': row['call_count'],
+                    'direction': row['direction'],
+                    'call_type': row['call_type']
+                }
+            })
+        
+        return line_items
+```
+
+## 6. NetSuite Integration
+
+### NetSuite API Client
+```python
+class NetSuiteAPI:
+    """NetSuite SuiteTalk REST API integration"""
+    
+    def export_usage(self, customer, line_items):
+        """Export usage data to NetSuite"""
+        # Create usage record in NetSuite
+        usage_record = {
+            'recordtype': 'customrecord_warp_usage',
+            'custrecord_customer': customer['netsuite_id'],
+            'custrecord_period_start': customer['period_start'],
+            'custrecord_period_end': customer['period_end'],
+            'custrecord_line_items': json.dumps(line_items),
+            'custrecord_total_amount': sum(item['amount'] for item in line_items)
+        }
+        
+        response = self.client.post('/record/v1/customrecord_warp_usage', usage_record)
+        
+        # Mark CDRs as exported
+        self.mark_cdrs_exported(customer, customer['period_start'], customer['period_end'])
+        
+        return response
 ```
 
 ### NetSuite Integration Points

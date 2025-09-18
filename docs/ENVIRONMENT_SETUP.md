@@ -100,27 +100,27 @@ jasmin-cli connector add sinch
 
 ### 7. Database Connections
 
-#### PostgreSQL (Cloud SQL)
+#### PostgreSQL (Cloud SQL) - Primary Database
 ```bash
-# Create instance
+# Create instance with high availability
 gcloud sql instances create warp-db \
   --database-version=POSTGRES_14 \
   --tier=db-n1-standard-4 \
-  --region=us-central1
+  --region=us-central1 \
+  --availability-type=REGIONAL \
+  --enable-bin-log
+
+# Create databases
+gcloud sql databases create warp --instance=warp-db
+gcloud sql databases create kamailio --instance=warp-db
+gcloud sql databases create homer --instance=warp-db
 
 # Get connection details
 gcloud sql instances describe warp-db
 ```
 
-#### CockroachDB
-```bash
-# Deploy cluster on GKE
-kubectl apply -f k8s/cockroachdb/
-
-# Initialize cluster
-kubectl exec -it cockroachdb-0 -- \
-  /cockroach/cockroach init --insecure
-```
+#### Note on CockroachDB
+CockroachDB is NOT used in this architecture. Cloud SQL PostgreSQL with regional replication provides the necessary HA capabilities.
 
 #### Redis
 ```bash
@@ -209,6 +209,8 @@ required_vars=(
   "SINCH_APP_KEY"
   "AUTH0_DOMAIN"
   "TELIQUE_API_KEY"
+  "KAMAILIO_SERVICE_HOST"
+  "JASMIN_HOST"
 )
 
 missing_vars=()

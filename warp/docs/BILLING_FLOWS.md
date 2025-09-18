@@ -1,7 +1,12 @@
 # WARP Platform Billing Flows
 
 ## Overview
-This document describes the actual billing flows for the WARP platform, incorporating complexity around jurisdiction, rate decks, and multi-vendor management.
+This document describes the actual billing flows for the WARP platform, incorporating complexity around jurisdiction, rate decks, and multi-vendor management. The architecture follows a clear data pipeline:
+1. **Data Creation**: Application services (Kamailio, Jasmin) create raw records
+2. **Data Enrichment**: Pollers harvest, enrich, and rate the records
+3. **Data Storage**: Enriched records stored in partitioned BigQuery tables
+4. **Data ETL**: Billers extract data to NetSuite based on customer billing cycles
+5. **Billing & Invoicing**: NetSuite handles final billing and invoice generation
 
 ## Core Billing Principles
 
@@ -10,6 +15,7 @@ This document describes the actual billing flows for the WARP platform, incorpor
 - **Partition Independence**: Billing rates are NOT tied to routing partitions (Premium/Economy)
 - **Margin Management**: Handled by routing engine, not billing
 - **Quality Factors**: Managed through manual intervention, out of billing scope
+- **Data Pipeline**: Kamailio → Redis/CloudSQL → Poller → BigQuery → NetSuite
 
 ### 2. Account Structure
 - **BAN (Billing Account Number)**: Primary billing entity
@@ -58,8 +64,115 @@ interface VoiceTerminationRating {
 }
 ```
 
-#### Database Tables Required
+#### Jurisdiction Determination Logic
+```typescript
+function determineJurisdiction(cdr: EnrichedCDR): string {
+  // Local: Same OCN or same LATA
+  if (cdr.ani_ocn === cdr.dni_ocn) return 'LOCAL';
+  if (cdr.ani_lata === cdr.dni_lata) return 'LOCAL';
+  
+  // Intrastate: Same state but different OCN/LATA
+  if (cdr.ani_state === cdr.dni_state) return 'INTRASTATE';
+  
+  // Interstate: Different states
+  return 'INTERSTATE';
+}
+```
+
+#### CDR Schema (Enhanced)
 ```sql
+-- Raw CDR table created by Kamailio routing engine
+CREATE TABLE billing.raw_cdr (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sip_uuid VARCHAR(128) NOT NULL,  -- SIP session UUID
+  sip_callid VARCHAR(128) NOT NULL, -- SIP Call-ID header
+  
+  -- Timestamps
+  start_stamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  progress_stamp TIMESTAMP WITH TIME ZONE,
+  answer_stamp TIMESTAMP WITH TIME ZONE,
+  end_stamp TIMESTAMP WITH TIME ZONE,
+  
+  -- Customer/Account Info
+  customer_ban VARCHAR(50) NOT NULL,
+  trunk_id VARCHAR(50),
+  
+  -- SIP Headers (raw from Kamailio PVs)
+  sip_from VARCHAR(255),         -- From header
+  sip_rpid VARCHAR(255),         -- Remote-Party-ID
+  sip_contact VARCHAR(255),      -- Contact header
+  sip_ruri VARCHAR(255),         -- Request-URI
+  sip_pai VARCHAR(255),          -- P-Asserted-Identity
+  sip_pci VARCHAR(255),          -- P-Charge-Info
+  
+  -- Call Party Info (initial values)
+  raw_ani VARCHAR(24),           -- Calling number (raw)
+  dni VARCHAR(24),               -- Called number
+  
+  -- Direction and Type
+  direction VARCHAR(20),         -- 'ORIGINATING' or 'TERMINATING'
+  call_type VARCHAR(20),         -- 'DOMESTIC', 'TOLLFREE', 'INTERNATIONAL'
+  
+  -- Routing Info (from routing engine)
+  routing_partition VARCHAR(20), -- 'PREMIUM', 'ECONOMY', etc.
+  selected_vendor VARCHAR(50),
+  vendor_trunk VARCHAR(50),
+  
+  -- Basic Metrics
+  raw_seconds INTEGER,
+  disposition VARCHAR(20),       -- 'ANSWERED', 'BUSY', 'FAILED', etc.
+  sip_response_code INTEGER,
+  
+  -- Network Info
+  orig_ip INET,
+  egress_ip INET,
+  
+  -- To be enriched by poller (ANI - Calling Party)
+  ani_lrn BIGINT,               -- ANI LRN from Telique
+  ani_spid VARCHAR(10),         -- ANI Service Provider ID
+  ani_lata INTEGER,             -- ANI LATA code
+  ani_ocn VARCHAR(10),          -- ANI Operating Company Number
+  ani_state VARCHAR(2),         -- ANI State
+  ani_rate_center VARCHAR(50),  -- ANI Rate Center
+  
+  -- To be enriched by poller (DNI - Called Party)
+  dni_lrn BIGINT,               -- DNI LRN from Telique
+  dni_spid VARCHAR(10),         -- DNI Service Provider ID
+  dni_lata INTEGER,             -- DNI LATA code
+  dni_ocn VARCHAR(10),          -- DNI Operating Company Number
+  dni_state VARCHAR(2),         -- DNI State
+  dni_rate_center VARCHAR(50),  -- DNI Rate Center
+  
+  -- Jurisdiction (calculated by comparing ANI vs DNI)
+  jurisdiction VARCHAR(20),     -- 'INTERSTATE', 'INTRASTATE', 'LOCAL'
+  
+  -- Toll-free specific (DNI only)
+  ror_id VARCHAR(20),           -- RespOrg ID for toll-free
+  ror_name VARCHAR(100),        -- RespOrg name
+  
+  -- Rating fields (populated by poller)
+  rate_zone VARCHAR(20),        -- Final zone for rating
+  customer_rate NUMERIC(10,7),
+  vendor_cost NUMERIC(10,7),
+  margin NUMERIC(10,7),
+  billed_seconds INTEGER,
+  total_charge NUMERIC(12,5),
+  
+  -- Processing flags
+  enriched BOOLEAN DEFAULT FALSE,
+  rated BOOLEAN DEFAULT FALSE,
+  billed BOOLEAN DEFAULT FALSE,
+  exported_to_bq BOOLEAN DEFAULT FALSE,
+  exported_to_ns BOOLEAN DEFAULT FALSE,
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_raw_cdr_processing ON billing.raw_cdr (enriched, rated, created_at);
+CREATE INDEX idx_raw_cdr_customer ON billing.raw_cdr (customer_ban, start_stamp);
+CREATE INDEX idx_raw_cdr_sip ON billing.raw_cdr (sip_uuid, sip_callid);
+
 -- Customer rate deck
 CREATE TABLE billing.customer_rate_deck (
   id UUID PRIMARY KEY,
@@ -86,7 +199,53 @@ CREATE TABLE billing.vendor_rate_deck (
 );
 ```
 
-### 2. Voice Origination Biller
+### 2. Vendor CDR Tracking
+
+#### Purpose
+Track all vendor call attempts for performance monitoring and cost reconciliation. One customer call may result in multiple vendor attempts.
+
+#### Vendor CDR Schema
+```sql
+CREATE TABLE billing.vendor_cdr (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_cdr_id UUID,         -- Reference to customer CDR
+  sip_uuid VARCHAR(128) NOT NULL,
+  vendor_name VARCHAR(50) NOT NULL,
+  vendor_trunk VARCHAR(50),
+  
+  -- Attempt Info
+  attempt_number INTEGER,
+  start_stamp TIMESTAMP WITH TIME ZONE,
+  end_stamp TIMESTAMP WITH TIME ZONE,
+  
+  -- Call Details
+  ani VARCHAR(24),
+  dni VARCHAR(24),
+  duration_seconds INTEGER,
+  
+  -- Result
+  disposition VARCHAR(20),
+  sip_response_code INTEGER,
+  failure_reason TEXT,
+  
+  -- Cost
+  vendor_rate NUMERIC(10,7),
+  vendor_cost NUMERIC(12,5),
+  
+  -- Performance Metrics
+  pdd_ms INTEGER,               -- Post-dial delay
+  mos_score NUMERIC(3,2),       -- Mean Opinion Score
+  packet_loss NUMERIC(5,2),
+  jitter_ms INTEGER,
+  
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_vendor_cdr_customer ON billing.vendor_cdr (customer_cdr_id);
+CREATE INDEX idx_vendor_cdr_vendor ON billing.vendor_cdr (vendor_name, start_stamp);
+```
+
+### 3. Voice Origination Biller
 
 #### Rating Factors
 ```yaml
@@ -120,7 +279,7 @@ interface VoiceOriginationBilling {
 }
 ```
 
-### 3. SMS/MMS Biller
+### 4. SMS/MMS Biller (Jasmin Integration)
 
 #### Rating Factors
 ```yaml
@@ -159,7 +318,7 @@ interface SMSBilling {
 }
 ```
 
-### 4. Telco Data API Biller
+### 5. Telco Data API Biller
 
 #### Rating Factors
 ```yaml
@@ -393,6 +552,128 @@ interface SystemDependencies {
     netsuite: 'Queue for later sync',
     hubspot: 'Log and continue',
     avalara: 'Use default tax rate',
+  };
+}
+```
+
+## Data Pipeline Architecture
+
+### 1. Kamailio Routing Engine Integration
+```yaml
+Routing Engine (LuaJIT + FFI):
+  Input:
+    - SIP messages with pseudo variables (PVs)
+    - Real-time routing decisions
+  
+  Output to Redis/CloudSQL:
+    - Raw CDR with SIP headers
+    - Basic call info
+    - Selected vendor/trunk
+  
+  Data Fields:
+    - All SIP PVs available in Kamailio
+    - Routing partition used
+    - Vendor selection
+    - Initial timestamps
+```
+
+### 2. Poller Service
+```typescript
+interface PollerService {
+  // Runs every minute
+  schedule: '* * * * *';
+  
+  tasks: {
+    harvest_cdrs: {
+      source: 'Redis/CloudSQL',
+      query: 'SELECT * FROM raw_cdr WHERE enriched = FALSE',
+      batch_size: 1000
+    },
+    
+    enrich_data: {
+      // For NANPA calls - BOTH ANI and DNI
+      ani_lrn_lookup: 'Telique API for calling number',
+      dni_lrn_lookup: 'Telique API for called number',
+      ani_lerg_lookup: 'LERG database for ANI details',
+      dni_lerg_lookup: 'LERG database for DNI details',
+      
+      // For toll-free (DNI only)
+      ror_lookup: 'Somos API for toll-free RespOrg',
+      
+      // Jurisdiction determination
+      jurisdiction_calc: 'Compare ANI vs DNI: OCN, LATA, State'
+    },
+    
+    rate_calls: {
+      rate_lookup: 'customer_rate_deck',
+      vendor_cost_lookup: 'vendor_rate_deck',
+      margin_calculation: 'rate - cost',
+      billing_increment: '1 or 6 seconds'
+    },
+    
+    store_in_bigquery: {
+      dataset: 'warp_billing',
+      table: 'cdrs_partitioned',
+      partition_field: 'DATE(start_stamp)',
+      cluster_fields: ['customer_ban', 'direction', 'call_type']
+    }
+  };
+}
+```
+
+### 3. Biller Service (ETL to NetSuite)
+```typescript
+interface BillerService {
+  // Runs daily
+  schedule: '0 2 * * *';  // 2 AM daily
+  
+  process: {
+    identify_customers: {
+      // Find customers to bill based on their terms
+      weekly: 'bill_cycle_day = current_day_of_week',
+      monthly: 'bill_cycle_day = current_day_of_month'
+    },
+    
+    extract_usage: {
+      source: 'BigQuery',
+      query: `
+        SELECT 
+          customer_ban,
+          call_type,
+          direction,
+          jurisdiction,
+          COUNT(*) as call_count,
+          SUM(billed_seconds)/60 as minutes,
+          SUM(total_charge) as amount
+        FROM warp_billing.cdrs_partitioned
+        WHERE DATE(start_stamp) >= @period_start
+          AND DATE(start_stamp) <= @period_end
+          AND customer_ban = @customer_ban
+        GROUP BY 1,2,3,4
+      `
+    },
+    
+    map_to_skus: {
+      'TERMINATING:DOMESTIC:INTERSTATE': 'SKU001',
+      'TERMINATING:DOMESTIC:INTRASTATE': 'SKU002', 
+      'TERMINATING:DOMESTIC:LOCAL': 'SKU003',
+      'TERMINATING:TOLLFREE': 'SKU004',
+      'TERMINATING:INTERNATIONAL': 'SKU005',
+      'ORIGINATING:DOMESTIC': 'SKU006',
+      'ORIGINATING:TOLLFREE': 'SKU007'
+    },
+    
+    export_to_netsuite: {
+      api: 'SuiteTalk REST',
+      endpoint: '/record/v1/usage',
+      batch_size: 1000,
+      data_format: {
+        customer_id: 'NetSuite internal ID',
+        line_items: 'Array of SKU + quantity + amount',
+        period: 'Billing period dates',
+        metadata: 'Additional call statistics'
+      }
+    }
   };
 }
 ```
