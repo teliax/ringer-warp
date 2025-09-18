@@ -8,8 +8,8 @@ WARP is a carrier-grade SIP trunking and messaging platform designed for wholesa
 ### Documentation
 - [Product Requirements](warp/docs/PRD.md) - Business requirements and features
 - [Architecture](warp/docs/ARCHITECTURE.md) - Technical architecture and design
-- [Claude Flow Guide](CLAUDE_FLOW_GUIDE.md) - AI implementation guide
-- [Implementation Roadmap](IMPLEMENTATION_ROADMAP.md) - Phased development plan
+- [Hive-Mind Orchestration Guide](HIVEMIND_ORCHESTRATION_GUIDE.md) - Complete AI implementation guide
+- [Development Decisions](DEVELOPMENT_ENVIRONMENT_DECISIONS.md) - Framework and architecture decisions
 - [API Specification](warp/api/openapi.yaml) - OpenAPI 3.0.3 specification
 
 ### Specialized Documentation
@@ -81,7 +81,9 @@ terraform apply
 ## 📂 Project Structure
 
 ```
-sip_tg_iaas/
+ringer-warp/
+├── customer-frontend/    # Customer portal (React/Next.js)
+├── admin-frontend/       # Admin portal (React/Next.js)
 ├── warp/
 │   ├── api/              # API specifications
 │   ├── docs/             # Platform documentation
@@ -89,9 +91,13 @@ sip_tg_iaas/
 │   ├── k8s/             # Kubernetes manifests
 │   ├── database/        # Database schemas
 │   └── services/        # Microservices
-├── CLAUDE_FLOW_GUIDE.md # AI implementation guide
-├── IMPLEMENTATION_ROADMAP.md # Development phases
-└── .env.example         # Environment configuration
+├── docker/              # Docker compose configurations
+├── docs/
+│   ├── api_docs/        # External API documentation
+│   └── coordination/    # Hive-mind coordination files
+├── HIVEMIND_ORCHESTRATION_GUIDE.md # Complete hive-mind guide
+├── DEVELOPMENT_ENVIRONMENT_DECISIONS.md # Framework decisions
+└── .env.development     # Development configuration
 ```
 
 ## 🔑 Key Features
@@ -213,12 +219,12 @@ npx @openapitools/openapi-generator-cli generate \
 1. **Start with Documentation**
    - Read [PRD.md](warp/docs/PRD.md) for requirements
    - Review [ARCHITECTURE.md](warp/docs/ARCHITECTURE.md) for technical decisions
-   - Check [CLAUDE_FLOW_GUIDE.md](CLAUDE_FLOW_GUIDE.md) for implementation guidance
+   - Follow [HIVEMIND_ORCHESTRATION_GUIDE.md](HIVEMIND_ORCHESTRATION_GUIDE.md) for complete implementation guide
 
-2. **Follow the Roadmap**
-   - Use [IMPLEMENTATION_ROADMAP.md](IMPLEMENTATION_ROADMAP.md) for phased approach
-   - Check daily tasks and weekly milestones
-   - Update progress in documentation
+2. **Check Environment Setup**
+   - Review [DEVELOPMENT_ENVIRONMENT_DECISIONS.md](DEVELOPMENT_ENVIRONMENT_DECISIONS.md) for framework choices
+   - Configure `.env.development` with credentials
+   - Verify GCP project access
 
 3. **Implement Services**
    - Start with database schemas
