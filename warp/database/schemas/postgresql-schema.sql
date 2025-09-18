@@ -435,8 +435,8 @@ CREATE TABLE billing.invoice_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     invoice_id UUID REFERENCES billing.invoices(id) ON DELETE CASCADE,
 
-    -- Item details
-    item_type VARCHAR(50) NOT NULL, -- VOICE, SMS, DID_RENTAL, TRUNK_RENTAL, etc.
+    -- Item details (see PRODUCT_CATALOG.md for full list)
+    item_type VARCHAR(50) NOT NULL, -- VOICE_TERM_*, DID_*_USAGE, SMS_*, API_*_LOOKUP, etc.
     description TEXT NOT NULL,
 
     -- Quantity and rates
