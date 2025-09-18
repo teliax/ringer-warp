@@ -1,16 +1,20 @@
-### Billing Product Requirements Document (PRD) for WARP Wholesale Telecom Platform – Rewritten with Grok4 Heavy
+### Billing Product Requirements Document (PRD) for WARP Wholesale Telecom Platform
 
-**Version:** 2.0 (Enhanced Rewrite)  
+**Version:** 3.0 (Simplified Architecture)  
 **Date:** [Current Date]  
-**Author:** Grok4 Heavy (xAI) – Leveraging advanced reasoning, external research on telecom billing best practices (e.g., streamlined accuracy, multi-vendor reconciliation, customer experience optimization from sources like CSG, Telgoo5, and Deloitte), and NetSuite API integration patterns (e.g., automated invoice creation, batch syncing, and payment workflows from Oracle docs and integration guides like Knit and Merge.dev). This rewrite incorporates real-world strategies for scalability, compliance, and efficiency in wholesale telecom billing, ensuring alignment with industry trends like real-time charging, dispute resolution, and AI-driven margin optimization.  
+**Author:** WARP Engineering Team
 
-**Purpose:** This enhanced PRD refines the original design for WARP's billing architecture, emphasizing modularity, real-time performance, and robust integrations. It addresses key challenges in wholesale telecom (e.g., complex rating, multi-vendor margins, regulatory compliance) while incorporating best practices such as personalized billing plans, automated dispute handling, and seamless ERP syncing. The system will generate product-specific billers with telco-aware rating engines, integrate deeply with NetSuite for invoicing (using REST API patterns for automated creation and batch updates), and handle prepaid/postpaid models. Usage from BigQuery, rates from Cloud SQL, and rollups to NetSuite ensure accuracy and auditability. Claude will implement in NestJS/TypeScript, with expanded code scaffolds for reliability.
+**Purpose:** This PRD defines WARP's billing architecture with clear separation of concerns:
+- **WARP Platform**: Handles all complex telecom rating, CDR enrichment, jurisdiction determination, and usage aggregation
+- **NetSuite**: Handles invoice generation, AR management, and financial reporting based on pre-rated usage data from WARP
+- **Data Pipeline**: Kamailio/Jasmin → Poller (enrichment/rating) → BigQuery → Biller (ETL) → NetSuite
 
-**Scope Enhancements in This Rewrite:**  
-- Deeper integration details with NetSuite (e.g., OAuth2 authentication, batch endpoints, error retries).  
-- Best practices integration: Real-time customer notifications, dispute workflows, AI-assisted rating for dynamic pricing.  
-- Expanded scalability: Support for 5000+ TPS with sharding; volume-based autoscaling.  
-- Out of Scope: Full tax compliance engine (leverage Avalara); custom AI models (future phase).  
+**Architecture Principles:**  
+- **Service-Specific Data Creation**: Each service (Kamailio for voice, Jasmin for SMS) creates raw records with all available data
+- **Centralized Enrichment**: Single poller service enriches all record types (LRN, LERG, jurisdiction, RespOrg)
+- **BigQuery as System of Record**: All rated CDRs stored in partitioned BigQuery tables
+- **NetSuite for Financials Only**: NetSuite receives aggregated, pre-rated usage mapped to SKUs
+- **Vendor Performance Tracking**: Separate CDR stream for vendor attempts and quality metrics
 
 **Key Assumptions (Updated):**  
 - NetSuite is pre-configured with SKUs, dynamic pricing tiers, and e-invoicing capabilities.  
@@ -23,12 +27,29 @@
 - 20% reduction in disputes through proactive margin alerts and customer portals.  
 - Full audit trail for compliance (e.g., FCC/USF reporting).  
 
-#### 1. Business Requirements (Refined with Industry Best Practices)
-**Products and Billing Models (Expanded):**  
-Drawing from telecom billing guides (e.g., Telgoo5 and Metavshn), emphasize flexibility in pricing to support wholesale dynamics:  
-- **Voice Termination/Origination:** Per-minute CDR rating with jurisdictional splits (e.g., LRN-based interstate/intrastate at 60/40 default, adjustable). Tiers: Commitment-based (e.g., <500K min/mo = $0.006/min; >5M = $0.0025/min with retrospective rebates). Include time-of-day multipliers and quality tiers (ASR/ACD thresholds for premium routing). Prepaid: Real-time deductions with low-balance alerts via SendGrid. Postpaid: $N net $N cycles with grace periods.  
-- **SMS/MMS:** Per-message MDR rating, including carrier surcharges (e.g., +$0.003 for MMS attachments). Tiers: Volume-discounted (e.g., 0-100K msgs = $0.003; >1M = $0.0015) with campaign-specific overrides for 10DLC compliance. Handle inbound/outbound separately for A2P regulations.  
-- **Telco Data API:** Per-query billing (e.g., LRN = $0.001, CNAM = $0.004) with bulk tiers (e.g., 10K+ queries/mo = 20% discount). Track via API logs; support rate-limiting for prepaid to prevent abuse.  
+#### 1. Data Pipeline Architecture
+
+**Voice CDR Flow:**
+1. **Kamailio Routing Engine**: Creates raw CDR with SIP headers (From, RPID, Contact, RURI, P-Asserted-Identity, P-Charge-Info)
+2. **Redis/CloudSQL**: Temporary storage of raw CDRs
+3. **Poller Service**: 
+   - Enriches with LRN data (Telique API for NANPA calls)
+   - Enriches with LERG data (rate center, state)
+   - Determines jurisdiction (interstate/intrastate/local)
+   - Applies customer rating and vendor cost
+   - Calculates margin
+4. **BigQuery**: Stores enriched and rated CDRs in partitioned tables
+5. **Biller Service**: ETLs aggregated usage to NetSuite based on customer billing cycles
+6. **NetSuite**: Generates invoices and manages AR
+
+**SMS/MMS Flow:**
+- Jasmin creates MDRs → Same poller/BigQuery/NetSuite flow
+
+**Telco API Flow:**
+- Already in BigQuery → Biller ETLs to NetSuite
+
+**Vendor CDR Flow:**
+- Separate Kamailio pods for vendors → Track attempts, performance, actual costs
 
 **Billing Cycles (Best Practices Integration):**  
 - Prepaid: Instant balance updates in Redis; incorporate CSG's recommendation for multiple top-up options (e.g., API, portal, auto-recharge via Authorize.Net). Suspend with 24hr notice.  
@@ -41,11 +62,15 @@ Drawing from telecom billing guides (e.g., Telgoo5 and Metavshn), emphasize flex
 - Taxes/Fees: Avalara integration for real-time calc (e.g., USF at 20.8% Q4 2024); jurisdiction from LRN dips. Add E911 surcharges per DID.  
 - Disputes: Per LinkedIn best practices, implement amicable workflows: Automated CDR matching with vendor data; portal for customer disputes (e.g., export mismatched records).  
 
-**Integrations (Updated with NetSuite Focus):**  
-- **BigQuery:** Partitioned queries for cost-efficiency; stream usage in real-time.  
-- **Cloud SQL:** Rate tables with versioning (effective_date) for audit.  
-- **NetSuite:** Use SuiteTalk REST API for automated invoice creation (e.g., POST /record/v1/invoice with batch items). Sync via Knit-style automation: Hourly rollups for usage, real-time for payments. Handle e-invoicing for global compliance.  
-- **Others:** Pub/Sub for events; Redis for caches; HubSpot for customer sync; Avalara for taxes; SendGrid for notifications. Add payment gateways (Authorize.Net, Mustache) with API hooks for seamless AR.  
+**System Integrations:**  
+- **BigQuery:** Primary storage for all rated CDRs/MDRs - partitioned by date, clustered by customer
+- **CloudSQL/Redis:** Temporary storage for raw records from Kamailio/Jasmin
+- **NetSuite:** Receives aggregated usage mapped to SKUs - handles invoicing and AR only
+- **Telique API:** Real-time LRN lookups (critical dependency - calls fail without)
+- **LERG Database:** Rate center and OCN lookups
+- **Somos API:** RespOrg lookups for toll-free
+- **Avalara:** Tax calculations
+- **Authorize.Net/Mustache:** Payment processing
 
 **Key Challenges Addressed (With Research Insights):**  
 1. Complex Rating: Modular engines with telco logic (6/6 billing increments for voice); scale to 5000 TPS via sharding.  
@@ -56,14 +81,35 @@ Drawing from telecom billing guides (e.g., Telgoo5 and Metavshn), emphasize flex
 6. Reconciliation: Automated diffs with dispute escalation.  
 7. Customer Experience: CSG best practices – Personalized portals, multi-payment options, real-time visibility.  
 
-#### 2. Functional Requirements (Enhanced Architecture)
-**Recommended Architecture (Refined):**  
-Event-driven microservices with best-practice scalability: Extend /warp/services/ with billers; use Kubernetes autoscaling based on Pub/Sub backlog. Incorporate Salesforce strategies for wholesale: Connected ecosystem with API gateways for external integrations. Pattern:  
-- **Event Flow:** Usage → Pub/Sub → Biller → Rating → Charge → Aggregation → NetSuite.  
-- **Billers:** Product-specific (voice-biller, sms-biller, api-biller); shared common-rating lib with telco extensions (e.g., jurisdiction splits).  
-- **Rating Engine:** Real-time for prepaid; batch for postpaid. Cache rates in Redis; use BigQuery ML for tier predictions (future).  
-- **Aggregation/Reconciliation:** Central service with cron jobs; add dispute module querying BigQuery diffs.  
-- **NetSuite Pattern:** From Merge.dev guides: OAuth2 auth; batch POSTs for efficiency (e.g., up to 1000 items per call). Error handling: Retries with backoff; webhooks for invoice status updates.  
+#### 2. Core Services Architecture
+
+**Service Components:**
+
+1. **Routing Engine (Kamailio LuaJIT)**
+   - Captures all SIP pseudo variables
+   - Makes routing decisions
+   - Creates raw CDR with vendor selection
+   - Stores in Redis/CloudSQL
+
+2. **Poller Service (Python/Go)**
+   - Runs every minute
+   - Harvests raw CDRs/MDRs
+   - Enriches with external data (LRN, LERG, RespOrg)
+   - Determines jurisdiction and rate zone
+   - Applies rating (customer rate - vendor cost = margin)
+   - Stores in BigQuery
+
+3. **Biller Service (Python/TypeScript)**
+   - Runs daily at 2 AM
+   - Identifies customers to bill (based on cycle day)
+   - Extracts usage from BigQuery
+   - Maps to NetSuite SKUs
+   - ETLs to NetSuite via REST API
+
+4. **NetSuite**
+   - Receives pre-rated usage with SKUs
+   - Generates invoices
+   - Manages AR and collections
 
 **Detailed Components (Expanded):**  
 1. **Multiple Billing Engines:** Separate services; shared lib for common logic. Deployment: GKE with HPA (Horizontal Pod Autoscaler) for TPS spikes.  
@@ -101,14 +147,49 @@ Event-driven microservices with best-practice scalability: Extend /warp/services
 #### 4. Implementation Guidelines for Claude (With Expanded Code Scaffolds)
 Align with NestJS; incorporate NetSuite best practices (e.g., batch ops to reduce API calls).
 
-**Enhanced Shared Rating Engine:**
-```typescript
-// common-rating/rating-engine.ts
-import { PrismaClient } from '@prisma/client';
-import { BigQuery } from '@google-cloud/bigquery';
-import { Redis } from 'ioredis'; // For caching
+**CDR Schema Design:**
+```sql
+-- Raw CDR from Kamailio
+CREATE TABLE billing.raw_cdr (
+  -- Identifiers
+  id UUID PRIMARY KEY,
+  sip_uuid VARCHAR(128) NOT NULL,  -- SIP session UUID
+  sip_callid VARCHAR(128) NOT NULL,
+  
+  -- SIP Headers (Kamailio PVs)
+  sip_from VARCHAR(255),       -- $fu pseudo variable
+  sip_rpid VARCHAR(255),       -- $rpid
+  sip_contact VARCHAR(255),    -- $ct
+  sip_ruri VARCHAR(255),       -- $ru
+  sip_pai VARCHAR(255),        -- $pai
+  sip_pci VARCHAR(255),        -- $pci
+  
+  -- Basic Info
+  customer_ban VARCHAR(50),
+  raw_ani VARCHAR(24),
+  dni VARCHAR(24),
+  direction VARCHAR(20),       -- TERMINATING/ORIGINATING
+  
+  -- Routing Decision
+  selected_vendor VARCHAR(50),
+  vendor_trunk VARCHAR(50),
+  routing_partition VARCHAR(20),
+  
+  -- Timestamps
+  start_stamp TIMESTAMP,
+  answer_stamp TIMESTAMP,
+  end_stamp TIMESTAMP,
+  
+  -- Processing Flags
+  enriched BOOLEAN DEFAULT FALSE,
+  rated BOOLEAN DEFAULT FALSE,
+  exported_to_bq BOOLEAN DEFAULT FALSE
+);
+```
 
-export class EnhancedTelcoRatingEngine {
+**Poller Enrichment Logic:**
+```typescript
+export class CDRPoller {
   private redis: Redis;
   constructor(private prisma: PrismaClient, private bigquery: BigQuery) {
     this.redis = new Redis(process.env.REDIS_URL);
@@ -160,9 +241,9 @@ export class EnhancedTelcoRatingEngine {
 }
 ```
 
-**Voice Biller with Dispute Handling:**
+**Biller Service (ETL to NetSuite):**
 ```typescript
-// voice-biller/app.module.ts
+// biller-service/app.module.ts
 import { Module } from '@nestjs/common';
 import { PubSubModule } from '@google-cloud/pubsub'; // Custom or lib
 import { EnhancedTelcoRatingEngine } from '../common-rating';
@@ -187,50 +268,50 @@ export class VoiceBillerService {
 }
 ```
 
-**NetSuite Service (Batch-Optimized):**
+**SKU Mapping for NetSuite:**
 ```typescript
-// netsuite.service.ts
-import axios from 'axios';
+// SKU mapping for NetSuite
+export const SKU_MAPPING = {
+  // Voice Termination
+  'TERMINATING:DOMESTIC:INTERSTATE': 'SKU001',
+  'TERMINATING:DOMESTIC:INTRASTATE': 'SKU002',
+  'TERMINATING:DOMESTIC:LOCAL': 'SKU003',
+  'TERMINATING:TOLLFREE': 'SKU004',
+  'TERMINATING:INTERNATIONAL': 'SKU005',
+  
+  // Voice Origination
+  'ORIGINATING:DOMESTIC': 'SKU006',
+  'ORIGINATING:TOLLFREE': 'SKU007',
+  
+  // SMS/MMS
+  'SMS:OUTBOUND': 'SKU008',
+  'SMS:INBOUND': 'SKU009',
+  'MMS:OUTBOUND': 'SKU010',
+  'MMS:INBOUND': 'SKU011',
+  
+  // Telco API
+  'API:LRN': 'SKU012',
+  'API:CNAM': 'SKU013',
+  'API:LERG': 'SKU014',
+};
 
-export class NetSuiteService {
-  private baseUrl = 'https://<account>.suitetalk.api.netsuite.com/services/rest/record/v1';
-  private authHeader = { Authorization: `Bearer ${process.env.NETSUITE_OAUTH_TOKEN}` }; // OAuth2 best practice
-
-  async batchAddUsage(invoiceId: string, items: InvoiceItem[]) {
-    // Batch up to 1000 items per call for efficiency
-    const batches = this.chunkArray(items, 1000);
-    for (const batch of batches) {
-      const payload = { itemList: { item: batch.map(i => ({ item: { id: i.sku }, quantity: i.qty, rate: i.rate })) } };
-      try {
-        await axios.patch(`${this.baseUrl}/invoice/${invoiceId}`, payload, { headers: this.authHeader });
-      } catch (error) {
-        // Retry with exponential backoff (3 attempts)
-        await this.retryWithBackoff(() => this.batchAddUsage(invoiceId, batch));
-      }
-    }
-  }
-
-  private chunkArray(array: any[], size: number) {
-    // Utility for batching
-    return Array.from({ length: Math.ceil(array.length / size) }, (_, i) => array.slice(i * size, (i + 1) * size));
-  }
-
-  private async retryWithBackoff(fn: Function, attempts = 3, delay = 1000) {
-    // Implement backoff logic
-  }
-
-  async createEInvoice(customerId: string, period: string) {
-    // Use NetSuite e-invoicing features for compliance
-    const payload = { entity: { id: customerId }, tranDate: period };
-    return (await axios.post(`${this.baseUrl}/invoice`, payload, { headers: this.authHeader })).data.id;
-  }
-}
+// NetSuite receives only:
+// - Customer ID
+// - SKU
+// - Quantity (minutes/messages/queries)
+// - Pre-calculated amount
+// - Period dates
 ```
 
-**Next Steps for Claude:**  
-- Implement full services with the enhanced scaffolds.  
-- Add unit tests for margin/tax calcs; integrate dispute flows.  
-- Deploy and monitor with synthetic traffic; refine based on NetSuite API rate limits (e.g., 1000 calls/hour).  
+**Implementation Timeline:**  
+- Week 1-2: Kamailio routing engine CDR creation
+- Week 3-4: Poller service for enrichment and rating
+- Week 5-6: BigQuery storage and Biller ETL service
+- Week 7-8: NetSuite integration and testing
 
-This rewritten PRD is more robust, scalable, and aligned with industry standards. If further research or adjustments are needed, provide details.
+**Key Design Decisions:**
+- All complex telecom logic stays in WARP
+- NetSuite only handles standard financial operations
+- BigQuery is the system of record for all usage
+- Vendor CDRs tracked separately for performance analytics
 

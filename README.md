@@ -5,18 +5,27 @@ WARP is a carrier-grade SIP trunking and messaging platform designed for wholesa
 
 ## 📋 Quick Navigation
 
-### Documentation
+### Core Documentation
+- [Documentation Structure Guide](docs/README.md) - 📚 **START HERE** - Explains documentation organization
 - [Product Requirements](warp/docs/PRD.md) - Business requirements and features
 - [Architecture](warp/docs/ARCHITECTURE.md) - Technical architecture and design
-- [Hive-Mind Orchestration Guide](HIVEMIND_ORCHESTRATION_GUIDE.md) - Complete AI implementation guide
-- [Development Decisions](DEVELOPMENT_ENVIRONMENT_DECISIONS.md) - Framework and architecture decisions
 - [API Specification](warp/api/openapi.yaml) - OpenAPI 3.0.3 specification
 
-### Specialized Documentation
-- [Billing System](warp/docs/BILLING_SYSTEM.md) - Rating engine and NetSuite integration
+### Platform Documentation (`/docs/`)
+- [Architectural Decisions](docs/ARCHITECTURAL_DECISIONS.md) - Platform-wide architecture choices
+- [Development Decisions](docs/DEVELOPMENT_ENVIRONMENT_DECISIONS.md) - Framework and tooling decisions
+- [Environment Setup](docs/ENVIRONMENT_SETUP.md) - Development environment configuration
+- [Integration Matrix](docs/INTEGRATION_MATRIX.md) - External integrations overview
+- [Hive-Mind Orchestration Guide](docs/HIVEMIND_ORCHESTRATION_GUIDE.md) - AI implementation guide
+
+### WARP Service Documentation (`/warp/docs/`)
+- [Billing System](warp/docs/BILLING_SYSTEM.md) - Complete billing implementation
+- [Billing Architecture](warp/docs/BILLING_ARCHITECTURE.md) - Billing technical design
 - [BigQuery CDR Architecture](warp/docs/BIGQUERY_CDR_ARCHITECTURE.md) - Data pipeline design
-- [Homer Troubleshooting](warp/docs/HOMER_TROUBLESHOOTING.md) - SIP capture and debugging
-- [Environment Setup](docs/ENVIRONMENT_SETUP.md) - Configuration guide
+- [SIP Network Architecture](warp/docs/SIP_NETWORK_ARCHITECTURE.md) - SIP infrastructure
+- [SMS Architecture](warp/docs/SMS_ARCHITECTURE.md) - SMS/MMS system design
+- [Homer Architecture](warp/docs/HOMER_ARCHITECTURE.md) - SIP capture system
+- [Homer Troubleshooting](warp/docs/HOMER_TROUBLESHOOTING.md) - Debugging guide
 
 ## 🏗️ Technology Stack
 

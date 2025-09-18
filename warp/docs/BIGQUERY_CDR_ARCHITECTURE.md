@@ -55,11 +55,29 @@ CREATE TABLE `warp_telecom.cdrs`
   ani STRING NOT NULL,  -- Calling number
   dnis STRING NOT NULL, -- Called number
 
-  -- Routing information
-  lrn STRING,
-  ocn STRING,
-  lata STRING,
-  state STRING,
+  -- ANI (Calling Party) LRN/LERG information
+  ani_lrn STRING,
+  ani_ocn STRING,
+  ani_spid STRING,
+  ani_lata STRING,
+  ani_rate_center STRING,
+  ani_state STRING,
+  ani_carrier_name STRING,
+  
+  -- DNI (Called Party) LRN/LERG information
+  dni_lrn STRING,
+  dni_ocn STRING,
+  dni_spid STRING,
+  dni_lata STRING,
+  dni_rate_center STRING,
+  dni_state STRING,
+  dni_carrier_name STRING,
+  
+  -- Toll-free specific (applies to DNI)
+  ror_id STRING,        -- RespOrg ID
+  ror_name STRING,      -- RespOrg name
+  
+  -- Derived routing information
   zone STRING, -- INTERSTATE, INTRASTATE, LOCAL, INTERNATIONAL, TOLLFREE
   jurisdiction STRING,
 
@@ -331,14 +349,34 @@ class CDRIngestionPipeline:
     def enrich_cdr(self, cdr):
         """Enrich CDR with LRN, jurisdiction, and rating data"""
 
-        # LRN lookup
+        # LRN lookups for both ANI and DNI (NANPA calls)
+        if cdr.get('ani', '').startswith('1'):
+            ani_lrn_data = self.lrn_lookup(cdr['ani'])
+            cdr['ani_lrn'] = ani_lrn_data['lrn']
+            cdr['ani_ocn'] = ani_lrn_data['ocn']
+            cdr['ani_spid'] = ani_lrn_data['spid']
+            cdr['ani_lata'] = ani_lrn_data['lata']
+            cdr['ani_rate_center'] = ani_lrn_data['rate_center']
+            cdr['ani_state'] = ani_lrn_data['state']
+            cdr['ani_carrier_name'] = ani_lrn_data['carrier_name']
+        
         if cdr.get('dnis', '').startswith('1'):
-            cdr['lrn'] = self.lrn_lookup(cdr['dnis'])
-            cdr['ocn'], cdr['lata'] = self.get_ocn_lata(cdr['lrn'])
+            dni_lrn_data = self.lrn_lookup(cdr['dnis'])
+            cdr['dni_lrn'] = dni_lrn_data['lrn']
+            cdr['dni_ocn'] = dni_lrn_data['ocn']
+            cdr['dni_spid'] = dni_lrn_data['spid']
+            cdr['dni_lata'] = dni_lrn_data['lata']
+            cdr['dni_rate_center'] = dni_lrn_data['rate_center']
+            cdr['dni_state'] = dni_lrn_data['state']
+            cdr['dni_carrier_name'] = dni_lrn_data['carrier_name']
 
-        # Jurisdiction determination
+        # Jurisdiction determination based on ANI vs DNI comparison
         cdr['zone'] = self.determine_zone(cdr)
-        cdr['jurisdiction'] = self.determine_jurisdiction(cdr)
+        cdr['jurisdiction'] = self.determine_jurisdiction(
+            cdr.get('ani_ocn'), cdr.get('dni_ocn'),
+            cdr.get('ani_state'), cdr.get('dni_state'),
+            cdr.get('ani_lata'), cdr.get('dni_lata')
+        )
 
         # Apply rating
         rating = self.calculate_rate(cdr)
@@ -451,21 +489,27 @@ ORDER BY 1 DESC;
 ### 2. Billing Queries
 
 ```sql
--- Get unbilled usage for NetSuite export
+-- Get unbilled usage for NetSuite export with jurisdiction breakdown
 SELECT
   customer_id,
   trunk_id,
   zone,
+  jurisdiction,
   DATE(start_time) as usage_date,
   COUNT(*) as call_count,
   SUM(billable_seconds)/60.0 as billable_minutes,
-  SUM(rated_amount) as total_charges
+  SUM(rated_amount) as total_charges,
+  -- Additional metrics for analysis
+  COUNT(DISTINCT ani_state) as unique_originating_states,
+  COUNT(DISTINCT dni_state) as unique_destination_states,
+  COUNT(DISTINCT ani_ocn) as unique_originating_carriers,
+  COUNT(DISTINCT dni_ocn) as unique_destination_carriers
 FROM `warp_telecom.cdrs`
 WHERE DATE(start_time) BETWEEN @start_date AND @end_date
   AND customer_id = @customer_id
   AND invoice_id IS NULL
   AND is_test = FALSE
-GROUP BY 1, 2, 3, 4;
+GROUP BY 1, 2, 3, 4, 5;
 
 -- Message usage for billing
 SELECT
@@ -486,19 +530,25 @@ GROUP BY 1, 2, 3;
 ### 3. Analytics Queries
 
 ```sql
--- ASR/ACD by route
+-- ASR/ACD by route and jurisdiction
 SELECT
   selected_vendor,
   zone,
+  jurisdiction,
   COUNT(*) as attempts,
   SUM(IF(answer_time IS NOT NULL, 1, 0)) / COUNT(*) as asr,
   AVG(IF(answer_time IS NOT NULL, duration_seconds, NULL)) as acd,
   APPROX_QUANTILES(duration_seconds, 100)[OFFSET(50)] as median_duration,
   AVG(pdd_ms) as avg_pdd,
-  AVG(mos) as avg_mos
+  AVG(mos) as avg_mos,
+  -- Carrier distribution
+  COUNT(DISTINCT ani_ocn) as unique_ani_carriers,
+  COUNT(DISTINCT dni_ocn) as unique_dni_carriers,
+  -- Geographic distribution
+  COUNT(DISTINCT CONCAT(ani_state, '-', dni_state)) as unique_state_pairs
 FROM `warp_telecom.cdrs`
 WHERE DATE(start_time) = CURRENT_DATE()
-GROUP BY 1, 2
+GROUP BY 1, 2, 3
 HAVING attempts > 100
 ORDER BY asr DESC;
 

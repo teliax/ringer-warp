@@ -197,7 +197,7 @@ DELETE /api/v1/resources/{id}     # Delete
 - **Kamailio**: Shared pods across all customers
 - **RTPEngine**: Shared VM pool
 - **Isolation**: Logical (database), not physical
-- **Details**: See [SIP_NETWORK_ARCHITECTURE.md](./SIP_NETWORK_ARCHITECTURE.md)
+- **Details**: See [SIP_NETWORK_ARCHITECTURE.md](../warp/docs/SIP_NETWORK_ARCHITECTURE.md)
 
 ### IP Address Strategy
 - **Origination**: 3-5 static IPs via Cloud NAT
@@ -232,7 +232,7 @@ DELETE /api/v1/resources/{id}     # Delete
 - **SMSC Platform**: Jasmin (open-source, scalable)
 - **Carrier Integration**: Sinch via SMPP binds
 - **Customer Access**: REST API (90%) and SMPP (10%)
-- **Details**: See [SMS_ARCHITECTURE.md](./SMS_ARCHITECTURE.md)
+- **Details**: See [SMS_ARCHITECTURE.md](../warp/docs/SMS_ARCHITECTURE.md)
 
 ### SMS Routing Strategy
 - **A2P Messaging**: All outbound via Sinch
@@ -252,7 +252,7 @@ DELETE /api/v1/resources/{id}     # Delete
 - **Separate Billers**: Voice, SMS, Telco Data API each have dedicated billing services
 - **Rating Complexity**: Voice based on jurisdiction, NPANXX, not tied to routing partitions
 - **Balance Storage**: PostgreSQL for consistency (not Redis)
-- **Details**: See [BILLING_FLOWS.md](./BILLING_FLOWS.md) and [BILLING_PRD.md](../warp/docs/BILLING_PRD.md)
+- **Details**: See [BILLING_FLOWS.md](../warp/docs/BILLING_FLOWS.md) and [BILLING_PRD.md](../warp/docs/BILLING_PRD.md)
 
 ### Key Billing Principles
 - **BAN-Centric**: All billing cycles tied to Billing Account Number
