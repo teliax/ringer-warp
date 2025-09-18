@@ -246,6 +246,20 @@ DELETE /api/v1/resources/{id}     # Delete
 - **Campaign Management**: 10DLC templates and registration
 - **Rate Limiting**: Per-customer MPS limits
 
+## 15. Billing Architecture
+
+### Decision: Product-Specific Billers with Complex Rating
+- **Separate Billers**: Voice, SMS, Telco Data API each have dedicated billing services
+- **Rating Complexity**: Voice based on jurisdiction, NPANXX, not tied to routing partitions
+- **Balance Storage**: PostgreSQL for consistency (not Redis)
+- **Details**: See [BILLING_FLOWS.md](./BILLING_FLOWS.md) and [BILLING_PRD.md](../warp/docs/BILLING_PRD.md)
+
+### Key Billing Principles
+- **BAN-Centric**: All billing cycles tied to Billing Account Number
+- **Zero Rating Failure Tolerance**: Failed rating blocks calls
+- **NetSuite for Invoicing**: SKU-based, cannot handle complex voice rating
+- **Vendor-Specific Cycles**: Weekly (Telnyx), Monthly (Peerless, Sinch)
+
 ## Payment Processing Integration
 
 ### Decision: Dual Payment Processor Strategy
