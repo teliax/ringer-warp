@@ -5,6 +5,13 @@
 **Staging**: `https://staging-api.ringer.tel/v1`
 **Development**: `http://localhost:8080/v1`
 
+## Authentication Methods by Endpoint
+
+- **Portal Endpoints** (`/auth/*`, `/account/*`): Google Identity Platform OAuth2
+- **Management APIs** (`/customers/*`, `/trunks/*`, `/billing/*`): JWT with Redis cache
+- **Telco Data APIs** (`/telco/*`, `/lrn/*`, `/lerg/*`): API Keys via Cloud Armor
+- **Internal** (`/health/*`, `/metrics/*`): No auth (internal only)
+
 ## API Documentation
 - **OpenAPI Spec**: `/warp/api/openapi.yaml`
 - **Interactive Docs**: `https://api.ringer.tel/docs`

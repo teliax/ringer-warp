@@ -18,7 +18,9 @@
 
 | Service | Integration Type | Priority | Implementation |
 |---------|-----------------|----------|----------------|
-| Google Identity Platform | REST API | P0 | JWT validation |
+| Google Identity Platform | REST API | P0 | OAuth2 for portals |
+| Cloud Armor | CEL Rules | P0 | API key validation for Telco APIs |
+| Redis | Cache | P0 | JWT caching for Voice/SMS APIs |
 | Telique | REST API | P0 | LRN/LERG lookups |
 | TransUnion CNAM | REST API | P1 | Caller ID service |
 

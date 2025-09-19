@@ -71,10 +71,11 @@ This roadmap provides a structured approach for Claude Flow/Hive-mind to impleme
    - CORS handling
 
 2. **Auth Service** (Go)
-   - Google Identity Platform/Keycloak integration
-   - Token generation
-   - RBAC enforcement
-   - Session management
+   - Google Identity Platform for portal OAuth2
+   - JWT generation and caching in Redis
+   - API key management for Telco APIs
+   - Cloud Armor CEL rules configuration
+   - RBAC enforcement per auth method
 
 #### Endpoints to Implement:
 ```
