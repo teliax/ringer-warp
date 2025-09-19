@@ -37,6 +37,87 @@ Routing Dimensions:
 
 ### 2. Database-Driven Routing Engine
 
+#### Kamailio LuaJIT FFI Integration
+```lua
+-- Kamailio runs embedded LuaJIT with FFI for high-performance routing
+-- Located in: /etc/kamailio/lua/routing.lua
+
+local ffi = require("ffi")
+local C = ffi.C
+
+-- FFI definitions for direct C library calls
+ffi.cdef[[
+    int sr_kemi_exec_func(void* ctx, int idx);
+    char* get_ruri_user(void* msg);
+    char* get_from_user(void* msg);
+    int set_ruri(void* msg, const char* uri);
+    int append_branch(void* msg, const char* uri);
+]]
+
+-- Main routing function called from Kamailio
+function ksr_route_request(msg)
+    -- Extract call details using FFI for performance
+    local dni = ffi.string(C.get_ruri_user(msg))
+    local ani = ffi.string(C.get_from_user(msg))
+    
+    -- Call WARP LCR API (via HTTP client in Lua)
+    local routes = warp_lcr.get_routes({
+        dni = dni,
+        ani = ani,
+        customer_ban = KSR.pv.get("$avp(customer_ban)"),
+        trunk_id = KSR.pv.get("$avp(trunk_id)")
+    })
+    
+    -- Apply routes using Kamailio pseudo-variables
+    for i, route in ipairs(routes) do
+        if i == 1 then
+            -- Primary route
+            C.set_ruri(msg, route.dialstring)
+        else
+            -- Backup routes
+            C.append_branch(msg, route.dialstring)
+        end
+        
+        -- Store vendor info for CDR
+        KSR.pv.sets("$avp(vendor_id)", route.vendor_id)
+        KSR.pv.sets("$avp(rate)", tostring(route.rate))
+    end
+    
+    return 1  -- Continue routing
+end
+
+-- WARP LCR API client module
+local warp_lcr = {}
+
+function warp_lcr.get_routes(params)
+    -- HTTP request to WARP routing service
+    local http = require("resty.http")
+    local httpc = http.new()
+    
+    -- Connect to internal WARP API
+    local res, err = httpc:request_uri("http://warp-api.svc.cluster.local:8080/v1/routing/lcr", {
+        method = "POST",
+        headers = {
+            ["Content-Type"] = "application/json",
+            ["X-Internal-Auth"] = os.getenv("INTERNAL_API_KEY")
+        },
+        body = json.encode(params),
+        timeout = 50  -- 50ms timeout for routing decisions
+    })
+    
+    if not res then
+        -- Fallback to cached routes or default
+        return warp_lcr.get_cached_routes(params.dni)
+    end
+    
+    return json.decode(res.body).routes
+end
+
+-- Performance optimizations using LuaJIT
+local jit = require("jit")
+jit.opt.start("minstitch=10", "maxtrace=4000", "maxrecord=8000", "sizemcode=64", "maxmcode=4000")
+```
+
 #### Core SQL Procedure (Preserved from Kamailio)
 ```sql
 -- The heart of our LCR: get_lrn_rates procedure

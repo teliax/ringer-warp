@@ -277,6 +277,32 @@ Component Mapping:
 - Dispute management → disputes endpoint
 ```
 
+### Settings Pages (NEW - To Be Created)
+```typescript
+// Service Configuration Management
+Required Endpoints:
+- GET /admin/settings/services
+- POST /admin/settings/services
+- PATCH /admin/settings/services/{service_id}
+- DELETE /admin/settings/services/{service_id}
+- POST /admin/settings/services/{service_id}/test
+- GET /admin/settings/services/{service_id}/history
+
+Service Types:
+- telecom_services (LRN/LERG/CNAM, porting, toll-free)
+- messaging_vendors (SMPP configurations)
+- business_systems (CRM, ERP, tax)
+- payment_processors (credit card, ACH)
+- infrastructure (email, DNS, monitoring)
+
+Component Mapping:
+- ServiceConfigList → GET services by type
+- ServiceConfigForm → POST/PATCH service
+- CredentialsManager → Secret Manager integration
+- TestConnection → test endpoint
+- AuditHistory → history endpoint
+```
+
 ## WebSocket Events
 
 ### Customer Portal WebSocket Events

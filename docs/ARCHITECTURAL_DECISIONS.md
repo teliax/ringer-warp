@@ -111,7 +111,7 @@ Based on PRD review and planning discussions, the following architectural decisi
 
 ### Phase 3: SIP Platform Core (Week 5-6)
 **Agent 1 & 2 Collaboration**
-1. Kamailio deployment
+1. Kamailio deployment with LuaJIT FFI (high-performance routing)
 2. RTPEngine cluster
 3. Basic trunk provisioning
 4. Simple routing (no LCR yet)
@@ -217,6 +217,13 @@ DELETE /api/v1/resources/{id}     # Delete
 - **RTPEngine**: Shared VM pool
 - **Isolation**: Logical (database), not physical
 - **Details**: See [SIP_NETWORK_ARCHITECTURE.md](../warp/docs/SIP_NETWORK_ARCHITECTURE.md)
+
+### Kamailio Integration Architecture
+- **Routing Engine**: LuaJIT with FFI for C library performance
+- **API Communication**: HTTP calls from Lua to WARP services
+- **Performance**: Sub-50ms routing decisions via FFI optimizations
+- **Failover**: Cached routes in Lua when API unavailable
+- **Implementation**: See routing details in [LCR_ROUTING_ARCHITECTURE.md](LCR_ROUTING_ARCHITECTURE.md)
 
 ### IP Address Strategy
 - **Origination**: 3-5 static IPs via Cloud NAT

@@ -16,6 +16,7 @@ WARP is a carrier-grade SIP trunking and messaging platform designed for wholesa
 - [Development Decisions](docs/DEVELOPMENT_ENVIRONMENT_DECISIONS.md) - Framework and tooling decisions
 - [Environment Setup](docs/ENVIRONMENT_SETUP.md) - Development environment configuration
 - [Integration Matrix](docs/INTEGRATION_MATRIX.md) - External integrations overview
+- [Provider Modules Specification](docs/PROVIDER_MODULES_SPECIFICATION.md) - Plugin-based provider architecture
 - [Hive-Mind Orchestration Guide](docs/HIVEMIND_ORCHESTRATION_GUIDE.md) - AI implementation guide
 
 ### WARP Service Documentation (`/warp/docs/`)

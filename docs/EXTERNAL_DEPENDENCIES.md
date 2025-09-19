@@ -322,11 +322,21 @@ This document outlines ALL external service dependencies required for the WARP p
 
 ### Kamailio
 - **Version**: 5.7+
-- **Purpose**: SIP proxy and registrar
+- **Purpose**: SIP proxy and registrar with embedded routing engine
+- **Core Technology**: 
+  - **LuaJIT**: High-performance Lua runtime with FFI
+  - **FFI (Foreign Function Interface)**: Direct C library calls from Lua
+  - **KEMI**: Kamailio Embedded Interface for Lua scripting
 - **Dependencies**:
-  - Redis for state
+  - Redis for state management
   - PostgreSQL for configuration
-  - RTPEngine for media
+  - RTPEngine for media handling
+  - LuaJIT 2.1+ with FFI support
+  - lua-resty-http for API calls to WARP services
+- **Performance**:
+  - Sub-50ms routing decisions via FFI
+  - JIT compilation for hot code paths
+  - Direct memory access to SIP messages
 
 ### RTPEngine
 - **Purpose**: Media proxy and transcoding
