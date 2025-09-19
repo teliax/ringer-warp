@@ -116,8 +116,10 @@ GET  /auth/profile
    POST   /trunks/:id/ips
    ```
 
-3. **Kamailio Configuration** (Lua/Config)
-   - Database-driven routing
+3. **Kamailio Configuration** (LuaJIT with FFI)
+   - LuaJIT embedded routing with FFI for C performance
+   - HTTP calls to WARP API services from Lua
+   - Database-driven routing via API
    - HEP to Homer
    - Partition-based routing
    - Rate limiting

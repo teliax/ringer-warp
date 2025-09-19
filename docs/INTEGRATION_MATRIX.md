@@ -3,7 +3,7 @@
 ## Service Integration Ownership by Agent
 
 ### Agent 1: Infrastructure & Data
-**Owns GCP and database integrations**
+**Owns GCP infrastructure and database schema including service configuration tables**
 
 | Service | Integration Type | Priority | Implementation |
 |---------|-----------------|----------|----------------|
@@ -12,6 +12,7 @@
 | GCP Pub/Sub | Direct | P0 | Event streaming |
 | GCP Cloud Tasks | Direct | P1 | Job scheduling |
 | Memorystore Redis | Direct | P0 | Kamailio state |
+| Service Config Schema | Database | P0 | PostgreSQL tables for dynamic vendor management |
 
 ### Agent 2: Core Services
 **Owns authentication and telecom data**
@@ -21,24 +22,28 @@
 | Google Identity Platform | REST API | P0 | OAuth2 for portals |
 | Cloud Armor | CEL Rules | P0 | API key validation for Telco APIs |
 | Redis | Cache | P0 | JWT caching for Voice/SMS APIs |
-| Telique | REST API | P0 | LRN/LERG lookups |
+| Telique | REST API | P0 | LRN/LERG lookups (Critical for LCR) |
 | TransUnion CNAM | REST API | P1 | Caller ID service |
+| **LCR SQL Procedures** | **Database** | **P0** | **Preserve existing Kamailio routing logic** |
+| **Rate Tables** | **PostgreSQL** | **P0** | **Multi-dimensional rate lookup** |
+| **Override Engine** | **Database** | **P0** | **Customer-specific routing rules** |
 
 ### Agent 3: Integrations & Billing
-**Owns financial and messaging systems**
+**Owns financial and messaging systems - all configurable via admin UI**
 
 | Service | Integration Type | Priority | Implementation |
 |---------|-----------------|----------|----------------|
-| HubSpot CRM | REST + Webhooks | P0 | Customer data master |
-| NetSuite | REST + SuiteScript | P0 | Billing/Invoicing |
-| Avalara | REST API | P0 | Tax calculation |
-| Authorize.Net | SDK | P1 | Credit card processing |
-| Mustache/Plaid | REST API | P2 | ACH payments |
-| Sinch | SMPP + REST | P1 | SMS/Voice termination |
-| TCR | REST API | P1 | 10DLC registration |
-| Somos | REST/SOAP API | P1 | Toll-free management |
-| SendGrid | REST API | P1 | Email delivery |
-| Jasmin SMSC | Internal | P1 | SMS gateway |
+| Dynamic Service Manager | Database-driven | P0 | Fetch configs from PostgreSQL |
+| HubSpot CRM | REST + Webhooks | P0 | Admin-configurable |
+| NetSuite | REST + SuiteScript | P0 | Admin-configurable |
+| Avalara | REST API | P0 | Admin-configurable |
+| Authorize.Net | SDK | P1 | Admin-configurable |
+| Mustache/Plaid | REST API | P2 | Admin-configurable |
+| SMPP Vendors | SMPP Binds | P1 | Multiple vendors, admin-configurable |
+| TCR | REST API | P1 | Admin-configurable |
+| Somos | REST/SOAP API | P1 | Admin-configurable |
+| SendGrid | REST API | P1 | Admin-configurable |
+| Jasmin SMSC | Internal | P1 | SMS gateway with vendor routing |
 
 ### Agent 4: Frontend & Support
 **Owns customer-facing integrations**
@@ -47,7 +52,7 @@
 |---------|-----------------|----------|----------------|
 | HubSpot Service Hub | Widget + API | P1 | Support tickets (via CRM) |
 | Vercel | CI/CD | P0 | Frontend hosting |
-| Auth0 (Frontend) | SDK | P0 | User authentication |
+| Google Identity Platform | SDK | P0 | User authentication |
 
 ## Integration Sequence & Dependencies
 

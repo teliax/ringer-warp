@@ -28,7 +28,7 @@ CREATE SCHEMA IF NOT EXISTS audit;
 -- Users table (managed by Google Identity Platform, cached locally)
 CREATE TABLE auth.users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    auth0_id VARCHAR(255) UNIQUE NOT NULL,
+    firebase_uid VARCHAR(255) UNIQUE NOT NULL, -- Firebase Auth UID
     email VARCHAR(255) UNIQUE NOT NULL,
     email_verified BOOLEAN DEFAULT false,
     phone VARCHAR(20),
@@ -41,7 +41,7 @@ CREATE TABLE auth.users (
 );
 
 CREATE INDEX idx_auth_users_email ON auth.users(email);
-CREATE INDEX idx_auth_users_auth0_id ON auth.users(auth0_id);
+CREATE INDEX idx_auth_users_firebase_uid ON auth.users(firebase_uid);
 
 -- Roles
 CREATE TABLE auth.roles (

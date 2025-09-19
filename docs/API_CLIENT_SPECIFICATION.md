@@ -649,6 +649,39 @@ export class AdminApiClient extends BaseApiClient {
     });
   }
 
+  // ==================== Service Configuration Management ====================
+  async getServices(type?: ServiceType) {
+    return this.get<ServiceConfig[]>('/admin/settings/services', type ? { type } : undefined);
+  }
+
+  async getService(serviceId: string) {
+    return this.get<ServiceConfig>(`/admin/settings/services/${serviceId}`);
+  }
+
+  async createService(config: ServiceConfig) {
+    return this.post<ServiceConfig>('/admin/settings/services', config);
+  }
+
+  async updateService(serviceId: string, config: Partial<ServiceConfig>) {
+    return this.patch<ServiceConfig>(`/admin/settings/services/${serviceId}`, config);
+  }
+
+  async deleteService(serviceId: string) {
+    return this.delete(`/admin/settings/services/${serviceId}`);
+  }
+
+  async testService(serviceId: string) {
+    return this.post<TestResult>(`/admin/settings/services/${serviceId}/test`, {});
+  }
+
+  async getServiceHistory(serviceId: string) {
+    return this.get<AuditEntry[]>(`/admin/settings/services/${serviceId}/history`);
+  }
+
+  async rotateServiceCredentials(serviceId: string) {
+    return this.post(`/admin/settings/services/${serviceId}/rotate-credentials`, {});
+  }
+
   // ==================== Rate Management ====================
   async getRates(params?: {
     provider_id?: string;
