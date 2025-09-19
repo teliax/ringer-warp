@@ -98,6 +98,17 @@ Authorization: Bearer <token>
 - `GET /netsuite/mappings` - Get field mappings
 - `PUT /netsuite/mappings` - Update field mappings
 
+### Toll-Free Management (Somos)
+- `GET /numbers/tollfree/search` - Search available toll-free numbers
+- `POST /numbers/tollfree/reserve` - Reserve toll-free numbers
+- `POST /numbers/tollfree/provision` - Provision reserved numbers
+- `PUT /numbers/tollfree/{tfn}/routing` - Update toll-free routing
+- `POST /numbers/tollfree/{tfn}/sms/enable` - Enable SMS on toll-free
+- `GET /numbers/tollfree/{tfn}/status` - Get toll-free number status
+- `GET /resporg/entities` - List RespOrg entities
+- `GET /resporg/entities/{id}/roids` - Get entity ROIDs
+- `POST /resporg/transfer` - Initiate RespOrg transfer
+
 ## WebSocket Endpoints
 
 ### Real-time Events

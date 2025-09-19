@@ -363,6 +363,39 @@ export class CustomerApiClient extends BaseApiClient {
     return this.get<PortOrder>(`/numbers/port/${portId}/status`);
   }
 
+  // ==================== Toll-Free Numbers (Somos) ====================
+  async searchTollFreeNumbers(params: {
+    area_code?: string;
+    pattern?: string;
+    quantity?: number;
+    consecutive?: boolean;
+  }) {
+    return this.get<TollFreeNumber[]>('/numbers/tollfree/search', params);
+  }
+
+  async reserveTollFreeNumber(tfn: string) {
+    return this.post<ReservationResult>('/numbers/tollfree/reserve', { tfn });
+  }
+
+  async provisionTollFreeNumber(tfn: string, trunkId: string) {
+    return this.post<ProvisionResult>('/numbers/tollfree/provision', {
+      tfn,
+      trunk_id: trunkId
+    });
+  }
+
+  async updateTollFreeRouting(tfn: string, routing: RoutingConfig) {
+    return this.put(`/numbers/tollfree/${tfn}/routing`, routing);
+  }
+
+  async enableTollFreeSMS(tfn: string, options: SMSEnableOptions) {
+    return this.post(`/numbers/tollfree/${tfn}/sms/enable`, options);
+  }
+
+  async getTollFreeStatus(tfn: string) {
+    return this.get<TollFreeStatus>(`/numbers/tollfree/${tfn}/status`);
+  }
+
   // ==================== Messaging ====================
   async sendSMS(data: {
     from: string;
@@ -769,6 +802,44 @@ export class AdminApiClient extends BaseApiClient {
 
   async updateNetSuiteMappings(mappings: any) {
     return this.put('/netsuite/mappings', mappings);
+  }
+
+  // ==================== Somos Toll-Free Management ====================
+  async getRespOrgEntities() {
+    return this.get('/admin/resporg/entities');
+  }
+
+  async getEntityROIDs(entityId: string) {
+    return this.get(`/admin/resporg/entities/${entityId}/roids`);
+  }
+
+  async bulkReserveTollFree(numbers: string[], respOrgId: string) {
+    return this.post('/admin/numbers/tollfree/bulk/reserve', {
+      numbers,
+      resp_org_id: respOrgId
+    });
+  }
+
+  async bulkProvisionTollFree(provisions: Array<{
+    tfn: string;
+    customer_id: string;
+    routing: any;
+  }>) {
+    return this.post('/admin/numbers/tollfree/bulk/provision', { provisions });
+  }
+
+  async initiateTollFreeTransfer(tfn: string, newRespOrgId: string) {
+    return this.post('/admin/resporg/transfer', {
+      tfn,
+      new_resp_org_id: newRespOrgId
+    });
+  }
+
+  async getTollFreeInventory(params?: {
+    status?: string;
+    resp_org_id?: string;
+  }) {
+    return this.get('/admin/numbers/tollfree/inventory', params);
   }
 
   // ==================== System Monitoring ====================
