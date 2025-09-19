@@ -55,7 +55,7 @@ Build a carrier-grade, API-driven SIP trunking platform that enables wholesale t
   - Redis (caching and session state)
 
 #### Authentication & Authorization
-- **OAuth Provider**: Auth0 or Keycloak
+- **OAuth Provider**: Google Identity Platform or Keycloak
   - Multi-factor authentication (MFA)
   - SSO/SAML integration
   - JWT token management
@@ -105,7 +105,7 @@ Build a carrier-grade, API-driven SIP trunking platform that enables wholesale t
 ┌─────────────────────────────────────────────────────────┐
 │                    WARP API Layer                       │
 │   (Go/Rust microservices on GKE with Autopilot)        │
-│         OAuth (Auth0/Keycloak) + RBAC                   │
+│         OAuth (Google Identity Platform/Keycloak) + RBAC                   │
 └─────────────────────────────────────────────────────────┘
                             │
         ┌───────────────────┼───────────────────┐

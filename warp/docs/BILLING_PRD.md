@@ -134,7 +134,7 @@
 | Reconciliation | Recon Engine | Diff vs. vendors | BigQuery queries, reports to SendGrid/HubSpot |
 
 **Security/Compliance (Enhanced):**  
-- Auth: Auth0 with RBAC; encrypt sensitive data (e.g., rates).  
+- Auth: Google Identity Platform with RBAC; encrypt sensitive data (e.g., rates).  
 - Audit: Immutable logs in BigQuery; support for regulatory exports (e.g., USF filings).  
 - Best Practice: Add data anonymization for GDPR; zero-trust for API calls.  
 

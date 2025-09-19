@@ -40,7 +40,7 @@
 
 **Primary Tasks**:
 1. Implement NestJS API structure with Prisma ORM
-2. Build authentication with Auth0 integration
+2. Build authentication with Google Identity Platform integration
 3. Create trunk management APIs (customer & vendor)
 4. Implement LCR routing algorithm
 5. Build real-time rating engine
@@ -263,9 +263,9 @@ POSTGRES_USER=warp_dev
 POSTGRES_PASSWORD=[FILL_IN]
 
 # Auth (Required)
-AUTH0_DOMAIN=[FILL_IN]
-AUTH0_CLIENT_ID=[FILL_IN]
-AUTH0_CLIENT_SECRET=[FILL_IN]
+FIREBASE_AUTH_DOMAIN=[FILL_IN]
+FIREBASE_API_KEY=[FILL_IN]
+FIREBASE_PROJECT_ID=[FILL_IN]
 
 # External Services (Can mock if not available)
 TELIQUE_API_KEY=[FILL_IN or set MOCK_LRN_LOOKUPS=true]

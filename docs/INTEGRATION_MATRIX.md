@@ -18,7 +18,7 @@
 
 | Service | Integration Type | Priority | Implementation |
 |---------|-----------------|----------|----------------|
-| Auth0 | REST API | P0 | JWT validation |
+| Google Identity Platform | REST API | P0 | JWT validation |
 | Telique | REST API | P0 | LRN/LERG lookups |
 | TransUnion CNAM | REST API | P1 | Caller ID service |
 
@@ -51,7 +51,7 @@
 
 ```mermaid
 graph TD
-    A[Auth0 Setup] --> B[GCP Infrastructure]
+    A[Google Identity Platform Setup] --> B[GCP Infrastructure]
     B --> C[Database Schemas]
     C --> D[Core APIs]
     D --> E[Telique Integration]
@@ -68,7 +68,7 @@ graph TD
 
 ### Synchronous Integrations
 **Real-time response required**
-- Auth0 - Authentication checks
+- Google Identity Platform - Authentication checks
 - Telique - LRN lookups during call routing
 - Avalara - Tax calculation for quotes
 - Authorize.Net - Payment authorization
@@ -82,7 +82,7 @@ graph TD
 
 ### Webhook Recipients
 **We receive events from**
-- Auth0 - Login events
+- Google Identity Platform - Login events
 - Authorize.Net - Payment events
 - Mustache/Plaid - ACH status
 - Freshdesk - Ticket updates
@@ -100,7 +100,7 @@ graph TD
 
 | Service | Cache Location | TTL | Fallback |
 |---------|---------------|-----|----------|
-| Auth0 JWT | Redis | 1 hour | Re-authenticate |
+| Google Identity Platform JWT | Redis | 1 hour | Re-authenticate |
 | Telique LRN | Redis | 24 hours | Direct API call |
 | Telique LERG | PostgreSQL | 7 days | Batch update |
 | Avalara Tax Rates | Redis | 1 hour | Direct API call |
@@ -110,7 +110,7 @@ graph TD
 ## Error Handling & Circuit Breakers
 
 ### Critical Services (No fallback)
-- Auth0 - Authentication fails
+- Google Identity Platform - Authentication fails
 - GCP Core Services - Platform down
 
 ### Services with Fallback
@@ -154,7 +154,7 @@ graph TD
 ## Monitoring Requirements
 
 ### SLA Monitoring
-- Auth0: 99.9% uptime
+- Google Identity Platform: 99.9% uptime
 - NetSuite: 99.5% uptime
 - Telique: 99.99% for LRN
 - Sinch: 99.95% for SMPP
@@ -170,7 +170,7 @@ graph TD
 
 **Week 1-2**: Infrastructure
 - GCP setup (Agent 1)
-- Auth0 configuration (Agent 2)
+- Google Identity Platform configuration (Agent 2)
 
 **Week 3-4**: Core Telecom
 - Telique integration (Agent 2)

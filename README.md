@@ -45,7 +45,7 @@ WARP is a carrier-grade SIP trunking and messaging platform designed for wholesa
 - **Frontend**: Next.js/TypeScript/Tailwind (Vercel)
 
 ### Integrations
-- **Authentication**: Auth0/Keycloak
+- **Authentication**: Google Identity Platform (Firebase Auth)
 - **Billing**: NetSuite
 - **SMS Delivery**: Sinch
 - **Telecom Data**: Telique API
@@ -257,7 +257,7 @@ npx @openapitools/openapi-generator-cli generate \
 
 ### Common Issues
 - **Database Connection**: Check Cloud SQL proxy
-- **Authentication**: Verify Auth0/Keycloak config
+- **Authentication**: Verify Google Identity Platform config
 - **SIP Routing**: Check Kamailio logs and Homer
 - **Billing**: Verify NetSuite credentials
 

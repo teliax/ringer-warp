@@ -13,11 +13,11 @@ Based on PRD review and planning discussions, the following architectural decisi
 
 ## 2. Authentication Strategy
 
-### Decision: Auth0 for All Authentication
-- **Implementation**: Auth0 for both customer and admin portals
-- **Features**: MFA, SSO, JWT tokens, RBAC
-- **Alternative Considered**: Keycloak (more complex, self-hosted burden)
-- **Rationale**: Managed service, quick implementation, proven scale
+### Decision: Google Identity Platform for All Authentication
+- **Implementation**: Firebase Auth/Identity Platform for both customer and admin portals
+- **Features**: MFA, SSO, JWT tokens, RBAC, native GCP integration
+- **Alternative Considered**: Auth0 (external dependency, added latency), Keycloak (self-hosted burden)
+- **Rationale**: Native GCP service, no external latency, better integration, cost-effective
 
 ## 3. Service Communication
 
@@ -90,7 +90,7 @@ Based on PRD review and planning discussions, the following architectural decisi
 
 ### Phase 2: Authentication & API Gateway (Week 3-4)
 **Agent 2 Focus**
-1. Auth0 integration
+1. Google Identity Platform integration
 2. API Gateway with rate limiting
 3. OpenAPI documentation
 4. Basic customer CRUD
@@ -246,7 +246,28 @@ DELETE /api/v1/resources/{id}     # Delete
 - **Campaign Management**: 10DLC templates and registration
 - **Rate Limiting**: Per-customer MPS limits
 
-## 15. Billing Architecture
+## 15. Frontend Integration Architecture
+
+### Decision: API-First with Mock Data Replacement
+- **Frontend Status**: Polymet-generated UI templates ready for API integration
+- **Integration Pattern**: Replace mock data imports with API client calls
+- **State Management**: React Query for all API state
+- **Authentication**: Auth0 with JWT tokens
+- **WebSocket**: Real-time updates for metrics and status
+
+### Frontend-Backend Mapping
+- **Customer Portal**: Maps to customer-scoped endpoints
+- **Admin Portal**: Maps to admin endpoints with elevated permissions
+- **API Coverage**: All UI features must have corresponding API endpoints
+- **Documentation**: See FRONTEND_API_MAPPING.md for complete mapping
+
+### Implementation Strategy
+1. **Phase 1**: Implement base API client with auth
+2. **Phase 2**: Replace mock data with API calls
+3. **Phase 3**: Add WebSocket for real-time features
+4. **Phase 4**: Implement error handling and retry logic
+
+## 16. Billing Architecture
 
 ### Decision: Product-Specific Billers with Complex Rating
 - **Separate Billers**: Voice, SMS, Telco Data API each have dedicated billing services
@@ -259,6 +280,120 @@ DELETE /api/v1/resources/{id}     # Delete
 - **Zero Rating Failure Tolerance**: Failed rating blocks calls
 - **NetSuite for Invoicing**: SKU-based, cannot handle complex voice rating
 - **Vendor-Specific Cycles**: Weekly (Telnyx), Monthly (Peerless, Sinch)
+
+## 17. Secrets Management & Container Registry
+
+### Decision: Google Secret Manager for All Credentials
+- **All sensitive credentials** stored in Google Secret Manager
+- **No secrets in `.env` files** - only non-sensitive configuration
+- **Access pattern**: Applications use Application Default Credentials (ADC)
+- **Secret naming convention**: `projects/{project-id}/secrets/{service}-credentials/versions/latest`
+- **Rotation policy**: Automated rotation for database passwords, manual for API keys
+
+### Secret Categories
+1. **Authentication Secrets**
+   - Auth0 credentials → `auth0-credentials`
+   - JWT signing keys → `jwt-signing-key`
+
+2. **External API Credentials**
+   - Sinch (SMS) → `sinch-api-credentials`
+   - Telique (LRN/LERG) → `telique-api-credentials`
+   - NetSuite (ERP) → `netsuite-api-credentials`
+   - HubSpot (CRM) → `hubspot-api-credentials`
+   - Authorize.Net → `authorize-net-credentials`
+   - Mustache/Plaid → `mustache-api-credentials`
+   - Avalara (Tax) → `avalara-api-credentials`
+   - SendGrid (Email) → `sendgrid-api-credentials`
+
+3. **Infrastructure Secrets** (created during implementation)
+   - Database passwords → `cloudsql-{db}-password`
+   - Redis auth → `redis-auth-string`
+   - Service mesh tokens → `consul-tokens`
+
+### Decision: Google Artifact Registry for Container Images
+- **Use Google Artifact Registry** (NOT Container Registry which is deprecated)
+- **Registry location**: `us-central1-docker.pkg.dev`
+- **Repository structure**: `{location}-docker.pkg.dev/{project-id}/warp-platform/{service}:{tag}`
+- **Build for AMD64 architecture** (not ARM)
+- **Image scanning**: Enabled for vulnerability detection
+
+### Container Image Organization
+```
+us-central1-docker.pkg.dev/ringer-472421/warp-platform/
+├── api-gateway:latest
+├── billing-service:latest
+├── routing-service:latest
+├── kamailio:latest
+├── rtpengine:latest
+├── jasmin-smsc:latest
+└── homer:latest
+```
+
+## 18. Frontend Hosting (Vercel)
+
+### Decision: Vercel for React/Next.js Frontend Hosting
+- **Customer Portal**: Deployed to Vercel at console.ringer.tel
+- **Admin Portal**: Deployed to Vercel at admin.ringer.tel
+- **Build Variables**: Set in Vercel Dashboard, not `.env`
+- **Deployment**: Automatic from GitHub main branch
+
+### Vercel Configuration
+```
+# Vercel Project Settings (set in Dashboard)
+VERCEL_PROJECT_NAME_CUSTOMER=warp-customer-portal
+VERCEL_PROJECT_NAME_ADMIN=warp-admin-portal
+VERCEL_TEAM_ID=[your-team-id]
+
+# Build & Development Settings
+BUILD_COMMAND=npm run build
+OUTPUT_DIRECTORY=dist  # for Vite/React
+INSTALL_COMMAND=npm install
+DEVELOPMENT_COMMAND=npm run dev
+
+# Environment Variables (set in Vercel Dashboard)
+VITE_API_URL=https://api.ringer.tel/v1
+VITE_WS_URL=wss://api.ringer.tel/ws
+VITE_AUTH0_DOMAIN=warp.us.auth0.com
+VITE_AUTH0_CLIENT_ID=[from Auth0]
+VITE_ENVIRONMENT=production
+```
+
+### Frontend Framework Note
+- Using Vite + React (not Next.js)
+- Environment variables use `VITE_` prefix for client-side access
+- Vercel automatically handles Vite builds
+
+## 19. Error Tracking
+
+### Decision: Airbrake for Error Monitoring
+- **Choice**: Airbrake (based on team familiarity)
+- **Alternative Considered**: Sentry (more popular but team prefers Airbrake)
+- **Integration Points**:
+  - Frontend JavaScript errors
+  - Backend API errors
+  - Background job failures
+- **Configuration**: Error tracking key stored in Google Secret Manager
+
+### Airbrake Setup
+```
+# Secret Manager
+airbrake-credentials:
+  project_id: [project-id]
+  project_key: [project-key]
+  environment: production
+
+# Integration
+- Frontend: @airbrake/browser
+- Go Services: github.com/airbrake/gobrake/v5
+- Node Services: @airbrake/node
+```
+
+### Error Tracking Requirements
+- Capture stack traces with source maps
+- Group similar errors automatically
+- Alert on error rate spikes
+- Integration with PagerDuty for critical errors
+- 30-day error retention minimum
 
 ## Payment Processing Integration
 
@@ -304,7 +439,12 @@ DELETE /api/v1/resources/{id}     # Delete
 
 ### Agent 4: Frontend & Admin
 - Owns: Customer portal, Admin portal, Dashboards
-- Deliverables: React applications, Grafana configs
+- Deliverables: React applications with full API integration, Grafana configs
+- Key Tasks: 
+  - Implement API clients per API_CLIENT_SPECIFICATION.md
+  - Replace all mock data with real API calls per FRONTEND_API_MAPPING.md
+  - Setup Auth0 authentication
+  - Implement WebSocket for real-time updates
 
 ## Communication Protocol
 

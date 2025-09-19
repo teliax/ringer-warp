@@ -25,7 +25,7 @@ CREATE SCHEMA IF NOT EXISTS audit;
 -- AUTH SCHEMA - Authentication & Authorization
 -- ============================================
 
--- Users table (managed by Auth0, cached locally)
+-- Users table (managed by Google Identity Platform, cached locally)
 CREATE TABLE auth.users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     auth0_id VARCHAR(255) UNIQUE NOT NULL,

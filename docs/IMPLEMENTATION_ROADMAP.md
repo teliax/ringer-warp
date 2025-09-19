@@ -71,7 +71,7 @@ This roadmap provides a structured approach for Claude Flow/Hive-mind to impleme
    - CORS handling
 
 2. **Auth Service** (Go)
-   - Auth0/Keycloak integration
+   - Google Identity Platform/Keycloak integration
    - Token generation
    - RBAC enforcement
    - Session management

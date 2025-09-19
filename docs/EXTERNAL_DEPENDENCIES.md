@@ -245,7 +245,7 @@ This document outlines ALL external service dependencies required for the WARP p
 
 ## Authentication & Security
 
-### Auth0
+### Google Identity Platform
 - **Purpose**: Identity management and authentication
 - **Features**:
   - SSO/SAML integration
@@ -396,7 +396,7 @@ This document outlines ALL external service dependencies required for the WARP p
 
 | Service | Critical | Failover Strategy | Monthly Cost Estimate |
 |---------|----------|-------------------|----------------------|
-| Auth0 | Yes | Cache JWT validation | $500-2000/month |
+| Google Identity Platform | Yes | Cache JWT validation | $500-2000/month |
 | GCP Infrastructure | Yes | Multi-region failover | $5000-15000/month |
 | Telique | Yes | Cache LRN/LERG data | Usage-based (~$2000/mo) |
 | TransUnion CNAM | Yes | Cache CNAM data | $0.0035/dip |
@@ -413,7 +413,7 @@ This document outlines ALL external service dependencies required for the WARP p
 ## Integration Priority Order
 
 ### Phase 1 (MVP)
-1. Auth0 - Required for login
+1. Google Identity Platform - Required for login
 2. GCP Core Services - Infrastructure
 3. Telique - Required for routing
 
