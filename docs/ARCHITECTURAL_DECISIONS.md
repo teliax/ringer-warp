@@ -133,7 +133,7 @@ Based on PRD review and planning discussions, the following architectural decisi
 ### Phase 6: Advanced Routing (Week 11-12)
 **Agent 2 Focus**
 1. Partition-based routing
-2. LCR implementation
+2. LCR implementation (See [LCR_ROUTING_ARCHITECTURE.md](LCR_ROUTING_ARCHITECTURE.md))
 3. Telique integration
 4. Route testing tools
 
@@ -300,7 +300,203 @@ DELETE /api/v1/resources/{id}     # Delete
 - **NetSuite for Invoicing**: SKU-based, cannot handle complex voice rating
 - **Vendor-Specific Cycles**: Weekly (Telnyx), Monthly (Peerless, Sinch)
 
-## 17. Secrets Management & Container Registry
+## 17. Third-Party Service Configuration Management
+
+### Decision: Admin-Configurable Service Integrations
+- **All third-party services configurable via admin UI** - no hardcoded vendor dependencies
+- **Dynamic vendor management** - add/update/remove providers without code changes
+- **Service configurations stored in PostgreSQL** with full audit trails
+- **Credentials referenced from Google Secret Manager** but managed through admin portal
+- **Multi-vendor support with failover** for critical services
+
+### Service Configuration Architecture
+```yaml
+Admin UI Configuration Pages:
+  /admin/settings/telecom:      # LRN/LERG/CNAM, porting, toll-free
+  /admin/settings/messaging:    # SMPP vendors, SMS routing, 10DLC
+  /admin/settings/business:     # CRM, ERP, tax integrations  
+  /admin/settings/payments:     # Payment gateways, processors
+  /admin/settings/infrastructure: # Email, DNS, monitoring
+```
+
+### Configurable Service Categories
+
+#### Telecom Services
+- **LRN/LERG/CNAM**: Telique (provides all three via single API)
+- **Toll-free Management**: Somos API
+- **Number Porting**: Teliport API
+- **CNAM Provisioning**: TransUnion
+- **10DLC Registration**: TCR (The Campaign Registry)
+
+#### Messaging Vendors (SMPP)
+- **Multiple vendor support** with priority-based routing
+- **Per-vendor configuration**: host, port, credentials, binds
+- **Automatic failover** between vendors
+- **No Sinch REST API** - SMPP binds only
+
+#### Business Systems
+- **CRM**: HubSpot (customer data, support tickets)
+- **ERP/Billing**: NetSuite (invoicing, AR)
+- **Tax Calculation**: Avalara
+
+#### Payment Processing  
+- **Credit Cards**: Authorize.Net
+- **ACH Payments**: Mustache/Plaid
+
+#### Infrastructure Services
+- **Email Delivery**: SendGrid
+- **DNS Management**: Gandi
+- **Error Tracking**: Airbrake
+
+### Plugin-Based Provider Architecture
+
+Each provider will have its own module implementing a common interface, with provider-specific configuration schemas:
+
+```go
+// Common interface all providers must implement
+type ServiceProvider interface {
+    // Core methods
+    Initialize(config json.RawMessage) error
+    TestConnection() error
+    GetCapabilities() []Capability
+    GetConfigSchema() ConfigSchema
+    
+    // Provider-specific methods implemented per category
+    // e.g., LRNProvider, SMPPProvider, PaymentProvider, etc.
+}
+
+// Provider configuration schema definition
+type ConfigSchema struct {
+    Provider     string                 `json:"provider"`
+    Version      string                 `json:"version"`
+    Fields       []FieldDefinition      `json:"fields"`
+    Webhooks     []WebhookDefinition    `json:"webhooks"`
+    Capabilities map[string]interface{} `json:"capabilities"`
+}
+
+type FieldDefinition struct {
+    Name        string      `json:"name"`
+    Type        string      `json:"type"` // string, number, boolean, url, secret
+    Required    bool        `json:"required"`
+    Description string      `json:"description"`
+    Validation  string      `json:"validation"` // regex or validation rule
+    Encrypted   bool        `json:"encrypted"`   // if true, store in Secret Manager
+}
+```
+
+### Provider Module Examples
+
+```yaml
+# Telique Module Configuration
+telique:
+  credentials:
+    api_key: {type: secret, required: true}
+    account_id: {type: string, required: true}
+  settings:
+    api_url: {type: url, default: "https://api.telique.com/v1"}
+    enable_lrn: {type: boolean, default: true}
+    enable_lerg: {type: boolean, default: true}
+    enable_cnam: {type: boolean, default: true}
+    cache_ttl: {type: number, default: 3600}
+  capabilities: [lrn_lookup, lerg_lookup, cnam_lookup]
+
+# NetSuite Module Configuration  
+netsuite:
+  credentials:
+    account_id: {type: string, required: true}
+    consumer_key: {type: secret, required: true}
+    consumer_secret: {type: secret, required: true}
+    token_id: {type: secret, required: true}
+    token_secret: {type: secret, required: true}
+  settings:
+    subsidiary_id: {type: string, required: false}
+    location_id: {type: string, required: false}
+    department_id: {type: string, required: false}
+    class_id: {type: string, required: false}
+    custom_fields: {type: json, required: false}
+  webhooks:
+    invoice_created: {type: url, required: false}
+    payment_received: {type: url, required: false}
+  capabilities: [invoicing, payments, inventory, custom_records]
+
+# SMPP Vendor Module Configuration
+smpp_vendor:
+  credentials:
+    system_id: {type: string, required: true}
+    password: {type: secret, required: true}
+  settings:
+    host: {type: string, required: true}
+    port: {type: number, default: 2775}
+    system_type: {type: string, default: ""}
+    bind_type: {type: enum, values: [transceiver, transmitter, receiver]}
+    window_size: {type: number, default: 10}
+    enquire_link_interval: {type: number, default: 30}
+  capabilities: [sms_mt, sms_mo, delivery_receipts]
+```
+
+### Database Schema for Plugin-Based Configuration
+```sql
+CREATE TABLE service_providers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    provider_type VARCHAR(50) NOT NULL, -- 'telique', 'netsuite', 'hubspot', etc.
+    instance_name VARCHAR(100) NOT NULL UNIQUE, -- user-defined name
+    display_name VARCHAR(200),
+    module_version VARCHAR(20), -- version of the provider module
+    credentials JSONB, -- encrypted fields reference Secret Manager
+    settings JSONB, -- provider-specific settings
+    webhooks JSONB, -- webhook configurations
+    capabilities TEXT[], -- array of capabilities this instance provides
+    is_active BOOLEAN DEFAULT true,
+    is_primary BOOLEAN DEFAULT false, -- primary provider for its capability
+    priority INTEGER DEFAULT 0, -- for failover/load balancing
+    health_status VARCHAR(20) DEFAULT 'unknown', -- healthy, degraded, unhealthy
+    last_health_check TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    created_by VARCHAR(255),
+    updated_by VARCHAR(255),
+    UNIQUE(provider_type, instance_name)
+);
+
+CREATE TABLE provider_health_checks (
+    id BIGSERIAL PRIMARY KEY,
+    provider_id UUID REFERENCES service_providers(id),
+    check_time TIMESTAMP DEFAULT NOW(),
+    status VARCHAR(20),
+    response_time_ms INTEGER,
+    error_message TEXT,
+    metadata JSONB
+);
+
+CREATE TABLE provider_usage_stats (
+    provider_id UUID REFERENCES service_providers(id),
+    date DATE,
+    requests_count BIGINT DEFAULT 0,
+    errors_count BIGINT DEFAULT 0,
+    avg_response_time_ms INTEGER,
+    PRIMARY KEY (provider_id, date)
+);
+```
+
+### Implementation Pattern
+```go
+// Services fetch configuration from database
+func GetServiceConfig(serviceType string) (*ServiceConfig, error) {
+    var config ServiceConfig
+    err := db.QueryRow(`
+        SELECT * FROM service_configurations 
+        WHERE service_type = $1 AND is_active = true 
+        ORDER BY priority LIMIT 1
+    `, serviceType).Scan(&config)
+    
+    // Fetch credentials from Secret Manager
+    credentials, err := secretManager.GetSecret(config.CredentialsRef)
+    config.Credentials = credentials
+    return &config, nil
+}
+```
+
+## 18. Secrets Management & Container Registry
 
 ### Decision: Google Secret Manager for All Credentials
 - **All sensitive credentials** stored in Google Secret Manager
@@ -348,7 +544,7 @@ us-central1-docker.pkg.dev/ringer-472421/warp-platform/
 └── homer:latest
 ```
 
-## 18. Frontend Hosting (Vercel)
+## 19. Frontend Hosting (Vercel)
 
 ### Decision: Vercel for React/Next.js Frontend Hosting
 - **Customer Portal**: Deployed to Vercel at console.ringer.tel
@@ -382,7 +578,7 @@ VITE_ENVIRONMENT=production
 - Environment variables use `VITE_` prefix for client-side access
 - Vercel automatically handles Vite builds
 
-## 19. Error Tracking
+## 20. Error Tracking
 
 ### Decision: Airbrake for Error Monitoring
 - **Choice**: Airbrake (based on team familiarity)

@@ -45,26 +45,37 @@
    - JWT caching in Redis for management APIs
    - API key validation via Cloud Armor for Telco APIs
 3. Create trunk management APIs (customer & vendor)
-4. Implement LCR routing algorithm
+4. **Implement LCR routing algorithm (CRITICAL - See /docs/LCR_ROUTING_ARCHITECTURE.md)**:
+   - **PRESERVE existing SQL procedures (get_lrn_rates)**
+   - **Wrap SQL procedures in Go/NestJS service**
+   - **Integrate Telique for real-time LRN lookups**
+   - **Implement zone classification (Interstate/Intrastate/Local)**
+   - **Build override engine with hierarchical precedence**
+   - **Add vendor exclusion system**
+   - **Cache routing decisions in Redis (5 min TTL)**
 5. Build real-time rating engine
 
 ### Agent 3: Integrations & External Systems
-**Ownership**: All external service integrations
+**Ownership**: All external service integrations (admin-configurable)
 
 **Key Directories**:
+- `/warp/services/integrations/config/` - Dynamic service configuration (to create)
 - `/warp/services/integrations/hubspot/` - CRM sync (to create)
 - `/warp/services/integrations/netsuite/` - ERP/billing (to create)
-- `/warp/services/integrations/sinch/` - SMS gateway (to create)
-- `/warp/services/integrations/telique/` - LRN/LERG (to create)
-- `/warp/services/integrations/somos/` - Toll-free (to create)
+- `/warp/services/integrations/messaging/` - SMPP vendors (to create)
+- `/warp/services/integrations/telecom/` - Telique, Somos, etc. (to create)
+- `/warp/services/integrations/payments/` - Payment processors (to create)
 
 **Primary Tasks**:
-1. HubSpot CRM bidirectional sync
-2. NetSuite invoice generation and sync
-3. Authorize.Net payment processing
-4. Sinch SMS/MMS integration
-5. Telique LRN/LERG lookups
-6. Somos toll-free management
+1. Build plugin-based provider system (see PROVIDER_MODULES_SPECIFICATION.md)
+2. Create provider modules for each integration using API docs in `/docs/api_docs/`
+3. Implement dynamic configuration database schema
+4. Build provider selection and failover logic
+5. Create health monitoring system for all providers
+6. Implement webhook management for async events
+7. Build admin API endpoints for provider management
+8. Add caching layer for expensive operations (LRN lookups, etc.)
+9. Implement circuit breakers and retry logic
 
 ### Agent 4: Frontend & Monitoring
 **Ownership**: Customer portal, Admin portal, Monitoring
@@ -78,9 +89,16 @@
 **Primary Tasks**:
 1. Complete customer portal API integration
 2. Build admin portal for trunk management
-3. Implement real-time dashboards
-4. Deploy Homer for SIP capture
-5. Create Grafana dashboards from Prometheus metrics
+3. Create dynamic provider configuration UI:
+   - Dynamic form generation from provider schemas
+   - Credential management with Secret Manager integration
+   - Provider health status dashboard
+   - Test connection functionality for each provider
+   - Bulk configuration import/export
+   - Audit trail for configuration changes
+4. Implement real-time dashboards
+5. Deploy Homer for SIP capture
+6. Create Grafana dashboards from Prometheus metrics
 
 ## Execution Timeline
 
