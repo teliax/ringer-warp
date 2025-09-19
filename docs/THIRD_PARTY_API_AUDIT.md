@@ -88,14 +88,11 @@
   - Query endpoints
   - Authentication requirements
 
-##### 9. **Sinch** (SMS Gateway)
-- **Required for**: SMS/MMS delivery
-- **Needed specs**:
-  - SMS API endpoints
-  - MMS capabilities
-  - Delivery reports
-  - Inbound message handling
-  - Number provisioning
+##### 9. **SMPP Providers** (SMS Gateway)
+- **Required for**: SMS/MMS delivery via SMPP binds
+- **Configuration**: Through Provider Modules (no API documentation needed)
+- **Protocol**: SMPP v3.4/5.0
+- **Features**: Configured dynamically per provider in admin UI
 
 ##### 10. **TCR (The Campaign Registry)**
 - **Required for**: 10DLC compliance
@@ -125,7 +122,7 @@
 ### Priority 2 (Required for Launch)
 1. **NetSuite** - Invoicing and accounting
 2. **Teliport** - Number porting functionality
-3. **Sinch** - SMS capabilities
+3. **SMPP Providers** - SMS capabilities (configured via Provider Modules)
 4. **TCR** - 10DLC compliance
 
 ### Priority 3 (Post-Launch)
@@ -175,7 +172,7 @@ For each API, we need:
 
 ### Medium Complexity
 - HubSpot (extensive API but well-documented)
-- Sinch (straightforward SMS APIs)
+- SMPP Providers (standard protocol, configuration-driven)
 - Avalara (good SDKs available)
 
 ### Complex Integrations
