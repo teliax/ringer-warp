@@ -735,12 +735,40 @@ export class AdminApiClient extends BaseApiClient {
   }
 
   // ==================== NetSuite Integration ====================
+  async getNetSuiteAuthStatus() {
+    return this.get('/netsuite/auth/status');
+  }
+
+  async initNetSuiteOAuth() {
+    return this.post<{ auth_url: string }>('/netsuite/auth/init', {});
+  }
+
   async getNetSuiteSyncStatus() {
     return this.get('/netsuite/sync/status');
   }
 
-  async triggerNetSuiteSync() {
-    return this.post('/netsuite/sync/trigger', {});
+  async triggerNetSuiteSync(type?: 'customers' | 'invoices' | 'all') {
+    return this.post('/netsuite/sync/trigger', { type: type || 'all' });
+  }
+
+  async syncNetSuiteCustomer(customerId: string) {
+    return this.post(`/netsuite/customers/${customerId}/sync`, {});
+  }
+
+  async syncNetSuiteInvoice(invoiceId: string) {
+    return this.post(`/netsuite/invoices/${invoiceId}/sync`, {});
+  }
+
+  async getNetSuiteSyncHistory(params?: { limit?: number; offset?: number }) {
+    return this.get('/netsuite/sync/history', params);
+  }
+
+  async getNetSuiteMappings() {
+    return this.get('/netsuite/mappings');
+  }
+
+  async updateNetSuiteMappings(mappings: any) {
+    return this.put('/netsuite/mappings', mappings);
   }
 
   // ==================== System Monitoring ====================
@@ -800,6 +828,439 @@ export class AdminApiClient extends BaseApiClient {
 
 // Export singleton instance
 export const apiClient = new AdminApiClient();
+```
+
+## NetSuite API Client
+
+### File: `warp/services/netsuite/netsuite-client.ts`
+```typescript
+import { BaseApiClient, ApiResponse } from '@/shared/lib/api-client-base';
+import type {
+  NetSuiteCustomer,
+  NetSuiteInvoice,
+  NetSuitePayment,
+  NetSuiteItem,
+  NetSuiteJournalEntry,
+  NetSuiteSubsidiary,
+  NetSuiteCompanyInfo,
+  NetSuiteSyncStatus,
+  // ... other NetSuite types
+} from '@/types/netsuite';
+
+export interface NetSuiteConfig {
+  accountId: string;
+  baseUrl: string;
+  authUrl: string;
+  tokenUrl: string;
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+}
+
+export class NetSuiteApiClient {
+  private config: NetSuiteConfig;
+  private tokenManager: NetSuiteTokenManager;
+  private baseUrl: string;
+
+  constructor(config: NetSuiteConfig) {
+    this.config = config;
+    this.baseUrl = config.baseUrl;
+    this.tokenManager = new NetSuiteTokenManager(config);
+  }
+
+  // ==================== OAuth Management ====================
+  async initializeOAuth(state?: string): string {
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: this.config.clientId,
+      scope: 'rest_webservices',
+      redirect_uri: this.config.redirectUri,
+      state: state || this.generateState()
+    });
+    
+    return `${this.config.authUrl}?${params.toString()}`;
+  }
+
+  async handleCallback(code: string, state: string): Promise<void> {
+    const tokens = await this.exchangeCodeForTokens(code);
+    await this.tokenManager.saveTokens(tokens);
+  }
+
+  private async exchangeCodeForTokens(code: string) {
+    const response = await fetch(this.config.tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: this.config.redirectUri,
+        client_id: this.config.clientId,
+        client_secret: this.config.clientSecret
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to exchange authorization code');
+    }
+
+    return response.json();
+  }
+
+  // ==================== Request Handling ====================
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    const token = await this.tokenManager.getValidToken();
+    
+    const url = `${this.baseUrl}${endpoint}`;
+    const headers: HeadersInit = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...options.headers,
+    };
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers,
+      });
+
+      if (response.status === 401) {
+        // Token might be expired, try refresh
+        await this.tokenManager.refreshToken();
+        return this.request<T>(endpoint, options);
+      }
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new NetSuiteApiError(response.status, data);
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof NetSuiteApiError) throw error;
+      throw new Error(`NetSuite API request failed: ${error.message}`);
+    }
+  }
+
+  // ==================== Company Information ====================
+  async getCompanyInfo(): Promise<NetSuiteCompanyInfo> {
+    return this.request<NetSuiteCompanyInfo>('/config/v1/companyinformation');
+  }
+
+  // ==================== Subsidiaries ====================
+  async getSubsidiaries(params?: { limit?: number; offset?: number }) {
+    const query = params ? `?${new URLSearchParams(params as any)}` : '';
+    return this.request<{ items: NetSuiteSubsidiary[] }>(`/record/v1/subsidiary${query}`);
+  }
+
+  async getSubsidiary(id: string): Promise<NetSuiteSubsidiary> {
+    return this.request<NetSuiteSubsidiary>(`/record/v1/subsidiary/${id}`);
+  }
+
+  // ==================== Customers ====================
+  async getCustomers(params?: {
+    q?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const query = params ? `?${new URLSearchParams(params as any)}` : '';
+    return this.request<{ items: NetSuiteCustomer[] }>(`/record/v1/customer${query}`);
+  }
+
+  async getCustomer(id: string): Promise<NetSuiteCustomer> {
+    return this.request<NetSuiteCustomer>(`/record/v1/customer/${id}`);
+  }
+
+  async createCustomer(customer: Partial<NetSuiteCustomer>): Promise<NetSuiteCustomer> {
+    return this.request<NetSuiteCustomer>('/record/v1/customer', {
+      method: 'POST',
+      body: JSON.stringify(customer),
+    });
+  }
+
+  async updateCustomer(id: string, updates: Partial<NetSuiteCustomer>): Promise<NetSuiteCustomer> {
+    return this.request<NetSuiteCustomer>(`/record/v1/customer/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteCustomer(id: string): Promise<void> {
+    await this.request(`/record/v1/customer/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async searchCustomerByWarpId(warpId: string): Promise<NetSuiteCustomer | null> {
+    const query = `custentity_warp_customer_id IS "${warpId}"`;
+    const result = await this.getCustomers({ q: query, limit: 1 });
+    return result.items[0] || null;
+  }
+
+  // ==================== Invoices ====================
+  async getInvoices(params?: {
+    q?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const query = params ? `?${new URLSearchParams(params as any)}` : '';
+    return this.request<{ items: NetSuiteInvoice[] }>(`/record/v1/invoice${query}`);
+  }
+
+  async getInvoice(id: string): Promise<NetSuiteInvoice> {
+    return this.request<NetSuiteInvoice>(`/record/v1/invoice/${id}`);
+  }
+
+  async createInvoice(invoice: Partial<NetSuiteInvoice>): Promise<NetSuiteInvoice> {
+    return this.request<NetSuiteInvoice>('/record/v1/invoice', {
+      method: 'POST',
+      body: JSON.stringify(invoice),
+    });
+  }
+
+  async updateInvoice(id: string, updates: Partial<NetSuiteInvoice>): Promise<NetSuiteInvoice> {
+    return this.request<NetSuiteInvoice>(`/record/v1/invoice/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async searchInvoiceByWarpId(warpInvoiceId: string): Promise<NetSuiteInvoice | null> {
+    const query = `custbody_warp_invoice_id IS "${warpInvoiceId}"`;
+    const result = await this.getInvoices({ q: query, limit: 1 });
+    return result.items[0] || null;
+  }
+
+  // ==================== Payments ====================
+  async getPayments(params?: {
+    q?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const query = params ? `?${new URLSearchParams(params as any)}` : '';
+    return this.request<{ items: NetSuitePayment[] }>(`/record/v1/customerPayment${query}`);
+  }
+
+  async getPayment(id: string): Promise<NetSuitePayment> {
+    return this.request<NetSuitePayment>(`/record/v1/customerPayment/${id}`);
+  }
+
+  async createPayment(payment: Partial<NetSuitePayment>): Promise<NetSuitePayment> {
+    return this.request<NetSuitePayment>('/record/v1/customerPayment', {
+      method: 'POST',
+      body: JSON.stringify(payment),
+    });
+  }
+
+  // ==================== Items (Services/Products) ====================
+  async getServiceItems(params?: { limit?: number; offset?: number }) {
+    const query = params ? `?${new URLSearchParams(params as any)}` : '';
+    return this.request<{ items: NetSuiteItem[] }>(`/record/v1/serviceItem${query}`);
+  }
+
+  async createServiceItem(item: Partial<NetSuiteItem>): Promise<NetSuiteItem> {
+    return this.request<NetSuiteItem>('/record/v1/serviceItem', {
+      method: 'POST',
+      body: JSON.stringify(item),
+    });
+  }
+
+  async getNonInventoryItems(params?: { limit?: number; offset?: number }) {
+    const query = params ? `?${new URLSearchParams(params as any)}` : '';
+    return this.request<{ items: NetSuiteItem[] }>(`/record/v1/nonInventoryItem${query}`);
+  }
+
+  // ==================== Journal Entries ====================
+  async getJournalEntries(params?: {
+    q?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const query = params ? `?${new URLSearchParams(params as any)}` : '';
+    return this.request<{ items: NetSuiteJournalEntry[] }>(`/record/v1/journalEntry${query}`);
+  }
+
+  async createJournalEntry(entry: Partial<NetSuiteJournalEntry>): Promise<NetSuiteJournalEntry> {
+    return this.request<NetSuiteJournalEntry>('/record/v1/journalEntry', {
+      method: 'POST',
+      body: JSON.stringify(entry),
+    });
+  }
+
+  // ==================== Bulk Operations ====================
+  async bulkUpsertCustomers(customers: Partial<NetSuiteCustomer>[]): Promise<any> {
+    return this.request('/record/v1/customer/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ records: customers }),
+    });
+  }
+
+  async bulkCreateInvoices(invoices: Partial<NetSuiteInvoice>[]): Promise<any> {
+    return this.request('/record/v1/invoice/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ records: invoices }),
+    });
+  }
+
+  // ==================== Helper Methods ====================
+  private generateState(): string {
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+  }
+
+  async testConnection(): Promise<boolean> {
+    try {
+      await this.getCompanyInfo();
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async getSyncStatus(): Promise<NetSuiteSyncStatus> {
+    // This would be tracked in our database, not NetSuite
+    const response = await fetch('/api/netsuite/sync/status');
+    return response.json();
+  }
+}
+
+// Token Manager
+class NetSuiteTokenManager {
+  private config: NetSuiteConfig;
+  private redisKey = 'netsuite:tokens';
+  private refreshLock: Promise<any> | null = null;
+
+  constructor(config: NetSuiteConfig) {
+    this.config = config;
+  }
+
+  async getValidToken(): Promise<string> {
+    const tokens = await this.getTokens();
+    
+    if (!tokens) {
+      throw new Error('No NetSuite tokens available. Please authorize first.');
+    }
+
+    if (this.isTokenExpiring(tokens)) {
+      return await this.refreshToken();
+    }
+
+    return tokens.access_token;
+  }
+
+  async refreshToken(): Promise<string> {
+    // Prevent concurrent refresh attempts
+    if (this.refreshLock) {
+      const tokens = await this.refreshLock;
+      return tokens.access_token;
+    }
+
+    this.refreshLock = this.performRefresh();
+    try {
+      const tokens = await this.refreshLock;
+      return tokens.access_token;
+    } finally {
+      this.refreshLock = null;
+    }
+  }
+
+  private async performRefresh(): Promise<any> {
+    const tokens = await this.getTokens();
+    if (!tokens?.refresh_token) {
+      throw new Error('No refresh token available');
+    }
+
+    const response = await fetch(this.config.tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: tokens.refresh_token,
+        client_id: this.config.clientId,
+        client_secret: this.config.clientSecret,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to refresh NetSuite token');
+    }
+
+    const newTokens = await response.json();
+    await this.saveTokens({
+      ...newTokens,
+      refresh_token: newTokens.refresh_token || tokens.refresh_token,
+      expires_at: Date.now() + (newTokens.expires_in * 1000)
+    });
+
+    return newTokens;
+  }
+
+  async saveTokens(tokens: any): Promise<void> {
+    // Store in Redis or database with encryption
+    // This is a simplified version
+    const data = {
+      ...tokens,
+      expires_at: tokens.expires_at || Date.now() + (tokens.expires_in * 1000)
+    };
+    
+    // In production, encrypt before storing
+    await this.storeInRedis(this.redisKey, data);
+  }
+
+  private async getTokens(): Promise<any> {
+    // Retrieve from Redis or database
+    return await this.retrieveFromRedis(this.redisKey);
+  }
+
+  private isTokenExpiring(tokens: any): boolean {
+    // Refresh if less than 5 minutes remaining
+    const bufferTime = 5 * 60 * 1000;
+    return Date.now() >= (tokens.expires_at - bufferTime);
+  }
+
+  // Redis operations (simplified)
+  private async storeInRedis(key: string, data: any): Promise<void> {
+    // Implementation would use actual Redis client
+    localStorage.setItem(key, JSON.stringify(data));
+  }
+
+  private async retrieveFromRedis(key: string): Promise<any> {
+    // Implementation would use actual Redis client
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : null;
+  }
+}
+
+// Error handling
+class NetSuiteApiError extends Error {
+  constructor(
+    public statusCode: number,
+    public details: any
+  ) {
+    super(details.message || `NetSuite API error: ${statusCode}`);
+    this.name = 'NetSuiteApiError';
+  }
+}
+
+// Export singleton instance with configuration
+export const netsuiteClient = new NetSuiteApiClient({
+  accountId: process.env.NETSUITE_ACCOUNT_ID!,
+  baseUrl: process.env.NETSUITE_BASE_URL!,
+  authUrl: process.env.NETSUITE_AUTH_URL!,
+  tokenUrl: process.env.NETSUITE_TOKEN_URL!,
+  clientId: process.env.NETSUITE_CLIENT_ID!,
+  clientSecret: process.env.NETSUITE_CLIENT_SECRET!,
+  redirectUri: process.env.NETSUITE_REDIRECT_URI!,
+});
 ```
 
 ## WebSocket Client Implementation

@@ -86,6 +86,18 @@ Authorization: Bearer <token>
 - `PUT /webhooks/{id}` - Update webhook
 - `DELETE /webhooks/{id}` - Delete webhook
 
+### NetSuite Integration
+- `GET /netsuite/auth/status` - Check OAuth token status
+- `POST /netsuite/auth/init` - Initialize OAuth flow (admin only)
+- `GET /netsuite/callback` - OAuth callback handler
+- `POST /netsuite/sync/trigger` - Manually trigger sync
+- `GET /netsuite/sync/status` - Get sync job status
+- `GET /netsuite/sync/history` - Get sync history
+- `POST /netsuite/customers/sync` - Sync specific customer
+- `POST /netsuite/invoices/sync` - Sync specific invoice
+- `GET /netsuite/mappings` - Get field mappings
+- `PUT /netsuite/mappings` - Update field mappings
+
 ## WebSocket Endpoints
 
 ### Real-time Events
