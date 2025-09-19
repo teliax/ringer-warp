@@ -12,7 +12,35 @@ Comprehensive real-time metrics collection using Prometheus for all platform com
 
 ## Metrics Collection Points
 
-### 1. Call Metrics (Kamailio/RTPEngine)
+### 1. Authentication Metrics (Per Method)
+
+```prometheus
+# Authentication latency by method
+warp_auth_latency_ms{
+  method="oauth2|jwt_cached|api_key",
+  status="success|failure"
+}
+
+# Auth requests rate
+warp_auth_requests_per_second{
+  method="oauth2|jwt_cached|api_key",
+  endpoint_group="portal|management|telco"
+}
+
+# API key rate limits
+warp_api_key_rate_limit_remaining{
+  api_key_id="hashed_key",
+  limit="5000",
+  window="1s"
+}
+
+# Target SLAs:
+# - OAuth2 (portals): < 200ms
+# - JWT Cached (management): < 20ms  
+# - API Key (telco): < 5ms
+```
+
+### 2. Call Metrics (Kamailio/RTPEngine)
 
 #### Per-Call Metrics
 ```prometheus
@@ -118,7 +146,7 @@ warp_mos_score{
 }
 ```
 
-### 2. Financial Metrics
+### 3. Financial Metrics
 
 #### Usage & Spend
 ```prometheus
@@ -156,7 +184,7 @@ warp_margin_percentage{
 }
 ```
 
-### 3. SMS/Messaging Metrics
+### 4. SMS/Messaging Metrics
 
 ```prometheus
 # SMS sent counter
@@ -189,7 +217,7 @@ warp_sms_delivery_latency_seconds{
 }
 ```
 
-### 4. API & System Metrics
+### 5. API & System Metrics
 
 ```prometheus
 # API request rate
@@ -221,7 +249,7 @@ warp_auth_failures_total{
 }
 ```
 
-### 5. DIP (Real-time Query) Metrics
+### 6. DIP (Real-time Query) Metrics
 
 ```prometheus
 # LRN dip latency
@@ -248,7 +276,7 @@ warp_dip_cache_hit_ratio{
 }
 ```
 
-### 6. Infrastructure Metrics
+### 7. Infrastructure Metrics
 
 ```prometheus
 # Kamailio health

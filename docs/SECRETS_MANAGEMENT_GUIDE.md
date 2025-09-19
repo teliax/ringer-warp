@@ -23,9 +23,16 @@ projects/ringer-472421/secrets/{service}-credentials/versions/latest
 Based on the api_docs folder, the following third-party integrations require secrets:
 
 #### Authentication & Identity
-- **Google Identity Platform**: JWT authentication and user management
+- **Google Identity Platform**: OAuth2 for portals
   - Secret name: `gcp-identity-platform`
-  - Fields: domain, client_id, client_secret, audience
+  - Fields: api_key, auth_domain, project_id
+  - Used for: Customer/Admin portal authentication
+
+- **Telco API Keys**: High-performance API authentication
+  - Secret name: `telco-api-keys`
+  - Fields: JSON array of API key configurations
+  - Format: `[{"key_hash": "sha256_hash", "customer_id": "123", "rate_limit": 5000, "ip_allowlist": ["35.1.1.1"]}]`
+  - Used for: LRN/LERG/CNAM lookups at 5000+ TPS
 
 #### Telecom Core Services  
 - **Telique**: LRN/LERG/CNAM lookups

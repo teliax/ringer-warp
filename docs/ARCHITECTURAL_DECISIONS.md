@@ -13,11 +13,25 @@ Based on PRD review and planning discussions, the following architectural decisi
 
 ## 2. Authentication Strategy
 
-### Decision: Google Identity Platform for All Authentication
-- **Implementation**: Firebase Auth/Identity Platform for both customer and admin portals
-- **Features**: MFA, SSO, JWT tokens, RBAC, native GCP integration
-- **Alternative Considered**: Auth0 (external dependency, added latency), Keycloak (self-hosted burden)
-- **Rationale**: Native GCP service, no external latency, better integration, cost-effective
+### Decision: Hybrid Authentication Architecture
+- **Customer/Admin Portals**: Google Identity Platform (Firebase Auth)
+  - OAuth2 flow for interactive login
+  - JWT tokens with refresh mechanism
+  - MFA, SSO, RBAC support
+  - ~100-200ms latency acceptable for login flows
+  
+- **Voice/SMS APIs**: JWT with Redis caching
+  - JWT validation with 1-hour cache
+  - ~10-20ms latency for API calls
+  - Supports up to 2,000 TPS
+  
+- **Telco Data APIs (LRN/LERG)**: Cloud Armor with API Keys
+  - API key validation at edge using CEL expressions
+  - ~1-5ms latency (critical for routing decisions)
+  - Supports 5,000+ TPS
+  - No Identity Platform overhead
+
+- **Rationale**: Different authentication methods for different performance requirements. Interactive flows can tolerate Identity Platform latency, while high-TPS APIs need edge validation.
 
 ## 3. Service Communication
 
@@ -180,10 +194,15 @@ DELETE /api/v1/resources/{id}     # Delete
 ## 11. Security Decisions
 
 ### API Security
-- Bearer tokens (JWT from Auth0)
-- API rate limiting per customer
-- IP allowlisting available
-- Request signing for webhooks
+- **Portal Access**: Bearer tokens (JWT from Firebase Auth)
+- **Voice/SMS APIs**: Cached JWT validation (Redis)
+- **Telco Data APIs**: API keys validated by Cloud Armor CEL
+- **Rate Limiting**: 
+  - Portal: 100 req/min per user
+  - Voice/SMS: 1,000 req/min per customer
+  - Telco Data: 5,000 req/sec per API key
+- **IP Allowlisting**: Enforced at Cloud Armor for Telco APIs
+- **Request Signing**: For webhooks and sensitive operations
 
 ### Network Security
 - Private GKE cluster

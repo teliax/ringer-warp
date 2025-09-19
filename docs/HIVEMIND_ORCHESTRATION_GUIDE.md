@@ -40,7 +40,10 @@
 
 **Primary Tasks**:
 1. Implement NestJS API structure with Prisma ORM
-2. Build authentication with Google Identity Platform integration
+2. Build hybrid authentication system:
+   - Google Identity Platform for portals (OAuth2)
+   - JWT caching in Redis for management APIs
+   - API key validation via Cloud Armor for Telco APIs
 3. Create trunk management APIs (customer & vendor)
 4. Implement LCR routing algorithm
 5. Build real-time rating engine
