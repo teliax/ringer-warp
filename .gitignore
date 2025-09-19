@@ -133,3 +133,7 @@ temp/
 
 # Claude
 .claude/settings.local.json
+# OAuth Client Secrets - NEVER COMMIT
+warp/config/client_secret_*.json
+*.json.secret
+
