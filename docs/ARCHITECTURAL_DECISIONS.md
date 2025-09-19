@@ -278,7 +278,7 @@ DELETE /api/v1/resources/{id}     # Delete
 - **Frontend Status**: Polymet-generated UI templates ready for API integration
 - **Integration Pattern**: Replace mock data imports with API client calls
 - **State Management**: React Query for all API state
-- **Authentication**: Auth0 with JWT tokens
+- **Authentication**: Google Identity Platform (Firebase Auth) with JWT tokens
 - **WebSocket**: Real-time updates for metrics and status
 
 ### Frontend-Backend Mapping
@@ -514,7 +514,7 @@ func GetServiceConfig(serviceType string) (*ServiceConfig, error) {
 
 ### Secret Categories
 1. **Authentication Secrets**
-   - Auth0 credentials → `auth0-credentials`
+   - Google Identity Platform credentials → `google-identity-credentials`
    - JWT signing keys → `jwt-signing-key`
 
 2. **External API Credentials**
@@ -575,8 +575,9 @@ DEVELOPMENT_COMMAND=npm run dev
 # Environment Variables (set in Vercel Dashboard)
 VITE_API_URL=https://api.ringer.tel/v1
 VITE_WS_URL=wss://api.ringer.tel/ws
-VITE_AUTH0_DOMAIN=warp.us.auth0.com
-VITE_AUTH0_CLIENT_ID=[from Auth0]
+VITE_FIREBASE_API_KEY=[from Firebase]
+VITE_FIREBASE_AUTH_DOMAIN=[project-id].firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=[project-id]
 VITE_ENVIRONMENT=production
 ```
 
@@ -665,7 +666,7 @@ airbrake-credentials:
 - Key Tasks: 
   - Implement API clients per API_CLIENT_SPECIFICATION.md
   - Replace all mock data with real API calls per FRONTEND_API_MAPPING.md
-  - Setup Auth0 authentication
+  - Setup Google Identity Platform (Firebase Auth) authentication
   - Implement WebSocket for real-time updates
 
 ## Communication Protocol

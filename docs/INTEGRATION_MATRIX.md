@@ -52,7 +52,7 @@
 |---------|-----------------|----------|----------------|
 | HubSpot Service Hub | Widget + API | P1 | Support tickets (via CRM) |
 | Vercel | CI/CD | P0 | Frontend hosting |
-| Auth0 (Frontend) | SDK | P0 | User authentication |
+| Google Identity Platform | SDK | P0 | User authentication |
 
 ## Integration Sequence & Dependencies
 

@@ -211,7 +211,7 @@ func getSecret(secretName string) (string, error) {
 }
 
 // Usage
-auth0Config, err := getSecret("gcp-identity-platform")
+identityConfig, err := getSecret("gcp-identity-platform")
 ```
 
 #### Node.js/TypeScript Services
@@ -241,7 +241,7 @@ class SecretManager {
 
 // Usage
 const secretManager = new SecretManager();
-const auth0Config = JSON.parse(await secretManager.getSecret('gcp-identity-platform'));
+const identityConfig = JSON.parse(await secretManager.getSecret('gcp-identity-platform'));
 ```
 
 #### Python Services
@@ -263,7 +263,7 @@ def get_secret(secret_name: str) -> str:
     return payload
 
 # Usage
-auth0_config = json.loads(get_secret("gcp-identity-platform"))
+identity_config = json.loads(get_secret("gcp-identity-platform"))
 ```
 
 ## Google Artifact Registry Setup
@@ -411,10 +411,10 @@ export async function getConfig() {
   
   // Production: Load from Secret Manager
   const secretManager = new SecretManager();
-  const auth0 = JSON.parse(await secretManager.getSecret('gcp-identity-platform'));
+  const googleIdentity = JSON.parse(await secretManager.getSecret('gcp-identity-platform'));
   
   return {
-    auth0,
+    googleIdentity,
     // ... other production config
   };
 }
