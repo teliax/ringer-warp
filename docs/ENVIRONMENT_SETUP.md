@@ -53,10 +53,10 @@ Already configured via gcloud CLI, but ensure these are set:
 - `VERCEL_ORG_ID`: Found in team settings
 - `VERCEL_PROJECT_ID`: From project settings
 
-### 4. Auth0 or Keycloak (OAuth Provider)
+### 4. Google Identity Platform or Keycloak (OAuth Provider)
 
-#### Auth0 Setup
-1. Create application at [Auth0 Dashboard](https://manage.auth0.com)
+#### Google Identity Platform Setup
+1. Create application at [Google Identity Platform Dashboard](https://console.firebase.google.com)
 2. Configure as "Regular Web Application"
 3. Set callback URLs for your domain
 4. Create API audience
@@ -207,7 +207,7 @@ required_vars=(
   "POSTGRES_HOST"
   "REDIS_HOST"
   "SINCH_APP_KEY"
-  "AUTH0_DOMAIN"
+  "FIREBASE_AUTH_DOMAIN"
   "TELIQUE_API_KEY"
   "KAMAILIO_SERVICE_HOST"
   "JASMIN_HOST"
@@ -280,7 +280,7 @@ echo "✓ Environment validation complete"
 - **GCP Support**: Via Cloud Console
 - **Sinch Support**: support@sinch.com
 - **Telique Support**: api-support@telique.com
-- **Auth0 Support**: Via Dashboard
+- **Google Identity Platform Support**: Via Dashboard
 - **Internal**: ops@warp.io
 
 ## Next Steps

@@ -389,7 +389,7 @@ groups:
    - Or use TLS-enabled HEP (HEP over TLS)
 
 2. **Access Control**
-   - Homer UI behind Auth0
+   - Homer UI behind Google Identity Platform
    - API access via JWT tokens
    - Customer isolation (can only see own calls)
 

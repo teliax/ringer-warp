@@ -23,7 +23,7 @@ WARP is a carrier-grade SIP trunking and messaging platform built on Google Clou
 | SMSC | Jasmin | GKE | SMS/MMS gateway |
 | SIP Capture | Homer | GKE | Troubleshooting/Debug |
 | Service Discovery | Consul | GKE | Service mesh |
-| Auth | Auth0/Keycloak | Managed/GKE | OAuth/RBAC |
+| Auth | Google Identity Platform/Keycloak | Managed/GKE | OAuth/RBAC |
 
 ### Data Stores
 
@@ -158,7 +158,7 @@ Carrier Network
 ## Security Architecture
 
 ### Authentication & Authorization
-- **OAuth Provider**: Auth0 or Keycloak
+- **OAuth Provider**: Google Identity Platform or Keycloak
 - **Token Type**: JWT with refresh tokens
 - **MFA**: Required for admin roles
 - **RBAC**: 7 role types with granular permissions

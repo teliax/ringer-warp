@@ -70,7 +70,7 @@
 
 ### Architecture Patterns
 - [x] **API Style**: REST (external), potential gRPC (internal)
-- [x] **Authentication**: Auth0 for customers
+- [x] **Authentication**: Google Identity Platform for customers
 - [x] **Microservices**: Service-oriented architecture
 - [x] **Event Streaming**: Pub/Sub for CDR/MDR
 - [x] **Monitoring**: Prometheus + Grafana
@@ -79,7 +79,7 @@
 
 ### Credentials Needed
 - [ ] GCP Service Account JSON key
-- [ ] Auth0 credentials
+- [ ] Google Identity Platform credentials
 - [ ] Database passwords
 - [ ] External service API keys (can use mocks initially)
 
