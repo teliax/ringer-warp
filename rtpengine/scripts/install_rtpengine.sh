@@ -40,9 +40,13 @@ apt-get install -y \
     build-essential \
     git \
     curl \
+    wget \
+    pkg-config \
     libavcodec-dev \
     libavformat-dev \
     libavutil-dev \
+    libavfilter-dev \
+    libswresample-dev \
     libcurl4-openssl-dev \
     libglib2.0-dev \
     libhiredis-dev \
@@ -61,28 +65,56 @@ apt-get install -y \
     libmariadb-dev \
     libiptc-dev \
     libmnl-dev \
-    libevent-dev
+    libevent-dev \
+    libnetfilter-conntrack-dev \
+    libnfnetlink-dev \
+    libip4tc-dev \
+    libip6tc-dev \
+    libxtables-dev \
+    default-libmysqlclient-dev \
+    gperf \
+    libbencode-perl \
+    libcrypt-openssl-rsa-perl \
+    libcrypt-rijndael-perl \
+    libdigest-crc-perl \
+    libdigest-hmac-perl \
+    libio-multiplex-perl \
+    libio-socket-inet6-perl \
+    libjson-perl \
+    libnet-interface-perl \
+    libsocket6-perl
 
-echo -e "\n${YELLOW}Step 3: Adding Sipwise RTPEngine repository...${NC}"
-# Add Sipwise repository for RTPEngine
-echo "deb https://deb.sipwise.com/spce/mr11.5.1 bullseye main" > /etc/apt/sources.list.d/sipwise.list
+echo -e "\n${YELLOW}Step 3: Building RTPEngine from source...${NC}"
+# The Sipwise repository is deprecated, so we'll build from source
 
-# Add repository key
-curl -fsSL https://deb.sipwise.com/spce/sipwise-keyring-bootstrap.gpg | apt-key add -
+# Create build directory
+cd /usr/local/src
 
-# Update package list
-apt-get update
+# Clone RTPEngine repository
+if [ -d "rtpengine" ]; then
+    echo "RTPEngine directory already exists, pulling latest changes..."
+    cd rtpengine
+    git pull
+else
+    git clone https://github.com/sipwise/rtpengine.git
+    cd rtpengine
+fi
 
-echo -e "\n${YELLOW}Step 4: Installing RTPEngine...${NC}"
-apt-get install -y ngcp-rtpengine
+# Checkout stable release
+echo -e "${BLUE}Checking out stable release...${NC}"
+LATEST_TAG=$(git describe --tags --abbrev=0)
+git checkout $LATEST_TAG
 
-# Alternative: Build from source
-# echo -e "\n${YELLOW}Alternative: Building from source...${NC}"
-# cd /usr/local/src
-# git clone https://github.com/sipwise/rtpengine.git
-# cd rtpengine
-# make
-# make install
+echo -e "\n${YELLOW}Step 4: Building RTPEngine...${NC}"
+# Build the daemon
+make
+
+# Install
+make install
+
+# Install systemd service
+cp etc/rtpengine.service /etc/systemd/system/
+systemctl daemon-reload
 
 echo -e "\n${YELLOW}Step 5: Creating RTPEngine user and directories...${NC}"
 # Create rtpengine user if it doesn't exist
