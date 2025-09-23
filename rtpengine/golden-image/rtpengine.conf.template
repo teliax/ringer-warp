@@ -1,0 +1,162 @@
+# RTPEngine Production Configuration Template
+# Version: mr13.4.1
+# 
+# This is a production-ready configuration template for RTPEngine
+# Adjust values according to your environment and requirements
+
+[rtpengine]
+# Table ID for kernel forwarding table (0 = disabled)
+table = 0
+
+# Interfaces for RTP/RTCP traffic
+# Format: [NAME/]IP[!IP]
+# Use specific IPs instead of 0.0.0.0 in production
+interface = public/10.0.1.10!172.16.0.10
+interface = private/172.16.0.10!172.16.0.10
+
+# Control interfaces
+listen-ng = 127.0.0.1:22222
+listen-cli = 127.0.0.1:9900
+
+# Port range for RTP/RTCP
+port-min = 30000
+port-max = 40000
+
+# Number of worker threads (set to CPU cores)
+num-threads = 8
+
+# TOS value for outgoing packets
+tos = 184
+
+# Timeout values (in seconds)
+timeout = 60
+silent-timeout = 3600
+final-timeout = 10800
+
+# Fork into background
+foreground = false
+pidfile = /var/run/rtpengine/rtpengine.pid
+
+# Logging configuration
+log-level = 6
+log-facility = daemon
+log-facility-cdr = local1
+log-facility-rtcp = local2
+
+# Syslog identifier
+syslog-identifier = rtpengine
+
+# B2B User Agent - required for some operations
+b2b-url = http://127.0.0.1:8080/
+
+# Homer/HEP integration (optional)
+# homer = 127.0.0.1:9060
+# homer-id = 2001
+# homer-protocol = udp
+
+# Recording options
+recording-dir = /var/spool/rtpengine
+recording-method = proc
+recording-format = raw
+
+# Redis integration for distributed deployments (optional)
+# redis = 127.0.0.1:6379
+# redis-db = 0
+# redis-password = 
+# redis-allowed-errors = -1
+# redis-disable-time = 10
+# redis-cmd-timeout = 0
+# redis-connect-timeout = 1000
+
+# Graphite statistics (optional)
+# graphite = 127.0.0.1:2003
+# graphite-interval = 60
+# graphite-prefix = rtpengine
+
+# Maximum sessions limit
+max-sessions = 5000
+
+# Delete delay for kernel forwarding entries
+delete-delay = 30
+
+# Codec handling
+# Enabled codecs
+codec-allow = all
+
+# Transcoding options
+transcoding = yes
+
+# DTLS configuration
+dtls-passive = no
+
+# DTMF logging
+dtmf-log-dest = 127.0.0.1:5060
+
+# Jitter buffer settings
+jitter-buffer = 50
+jb-clock-drift = yes
+
+# Statistics interval
+stats-interval = 60
+
+# Kernel module options
+kernel-module = yes
+kernel-player = on
+kernel-recorder = on
+
+# Security options
+no-fallback = false
+reject-invalid-sdp = no
+
+# ICE processing
+ice-force = false
+ice-force-relay = false
+ice-lite = false
+ice-passive = false
+ice-controlling = false
+ice-reject = false
+
+# RTCP processing
+rtcp-split = false
+rtcp-mux-accept = true
+rtcp-mux-require = false
+rtcp-mux-offer = false
+
+# SRTP settings
+srtp-replay-protection = yes
+
+# Protocol support
+protocol = RTP/AVP
+protocol = RTP/AVPF
+protocol = RTP/SAVP
+protocol = RTP/SAVPF
+protocol = UDP/TLS/RTP/SAVP
+protocol = UDP/TLS/RTP/SAVPF
+
+[recording]
+# Recording daemon configuration
+output-storage = file
+output-dir = /var/spool/rtpengine/recordings
+output-format = wav
+# output-format = mp3
+resample-to = 8000
+mp3-bitrate = 32
+mix-method = mono
+
+# Metadata options
+metadata-file = true
+metadata-json = false
+
+# Buffering
+buffer-size = 65536
+num-threads = 4
+
+# File rotation
+output-single = false
+output-mixed = true
+output-rotation = 3600
+
+# Logging for recording daemon
+log-level = 6
+log-facility = daemon
+syslog-identifier = rtpengine-recording
