@@ -86,7 +86,8 @@ version: '3'
 
 services:
   rtpengine:
-    image: drachtio/rtpengine:latest
+    # Using official Sipwise image - they maintain this regularly
+    image: sipwise/rtpengine:latest
     restart: always
     network_mode: host
     privileged: true
@@ -94,6 +95,10 @@ services:
       - /etc/rtpengine/rtpengine.conf:/etc/rtpengine/rtpengine.conf:ro
       - /var/log/rtpengine:/var/log/rtpengine
       - /var/spool/rtpengine:/var/spool/rtpengine
+    environment:
+      - RUNTIME_INTERFACES=${INTERNAL_IP}
+      - RUNTIME_PORT_MIN=30000
+      - RUNTIME_PORT_MAX=40000
     command: rtpengine --config-file=/etc/rtpengine/rtpengine.conf --foreground
 EOF
 
