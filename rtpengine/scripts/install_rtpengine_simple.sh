@@ -28,7 +28,7 @@ INTERNAL_IP=$(hostname -I | awk '{print $1}')
 echo -e "${GREEN}Setting up RTPEngine on VM $VM_NUMBER${NC}"
 echo -e "${BLUE}Internal IP: $INTERNAL_IP${NC}"
 
-echo -e "\n${YELLOW}Step 1: Installing Docker...${NC}"
+echo -e "\n${YELLOW}Step 1: Installing Docker and Docker Compose...${NC}"
 # Install Docker if not present
 if ! command -v docker &> /dev/null; then
     curl -fsSL https://get.docker.com | bash
@@ -36,6 +36,16 @@ if ! command -v docker &> /dev/null; then
     systemctl start docker
 else
     echo "Docker already installed"
+fi
+
+# Install Docker Compose
+if ! command -v docker-compose &> /dev/null; then
+    echo "Installing Docker Compose..."
+    curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
+    ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+else
+    echo "Docker Compose already installed"
 fi
 
 echo -e "\n${YELLOW}Step 2: Creating RTPEngine directories...${NC}"
@@ -86,8 +96,8 @@ version: '3'
 
 services:
   rtpengine:
-    # Using official Sipwise image - they maintain this regularly
-    image: sipwise/rtpengine:latest
+    # Using drachtio/rtpengine - well-maintained community image
+    image: drachtio/rtpengine:latest
     restart: always
     network_mode: host
     privileged: true
@@ -128,8 +138,15 @@ echo -e "\n${YELLOW}Step 6: Setting up firewall rules...${NC}"
 iptables -A INPUT -p udp --dport 30000:40000 -j ACCEPT
 # Allow control port from Kamailio
 iptables -A INPUT -p udp --dport 22222 -s 10.0.0.0/8 -j ACCEPT
-# Save rules
-iptables-save > /etc/iptables/rules.v4 || true
+# Save rules - create directory if needed
+mkdir -p /etc/iptables
+if command -v netfilter-persistent &> /dev/null; then
+    netfilter-persistent save
+elif command -v iptables-save &> /dev/null; then
+    iptables-save > /etc/iptables/rules.v4
+else
+    echo "Warning: Could not save iptables rules permanently"
+fi
 
 echo -e "\n${YELLOW}Step 7: Starting RTPEngine...${NC}"
 cd /etc/rtpengine
