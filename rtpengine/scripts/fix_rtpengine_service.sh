@@ -95,11 +95,15 @@ sudo systemctl status rtpengine --no-pager
 
 # Test control port
 echo -e "\n${YELLOW}Testing control port...${NC}"
-if timeout 2 nc -u -z 0.0.0.0 22222 2>/dev/null; then
+if timeout 2 nc -u -z 127.0.0.1 22222 2>/dev/null; then
     echo -e "${GREEN}✓ Control port 22222 is now open${NC}"
 else
-    echo "Checking with netstat..."
-    sudo netstat -uln | grep 22222 || echo "Port 22222 not found"
+    echo "Checking actual listening ports..."
+    sudo ss -uln | grep -E "(2222|2223)" || echo "Control ports not found"
 fi
+
+# Show actual RTPEngine logs
+echo -e "\n${YELLOW}RTPEngine logs (last 20 lines):${NC}"
+sudo journalctl -u rtpengine -n 20 --no-pager | grep -v "PIDFile="
 
 echo -e "\n${GREEN}Service reconfigured!${NC}"
