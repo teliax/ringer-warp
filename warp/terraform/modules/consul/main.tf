@@ -39,6 +39,7 @@ resource "google_compute_instance" "consul_server" {
     instance_index     = count.index + 1
     encrypt_key        = random_id.consul_encrypt.b64_std
     project_id         = var.project_id
+    PROJECT_ID         = var.project_id
     consul_ui          = var.enable_consul_ui
   })
 
@@ -99,7 +100,7 @@ resource "google_compute_region_backend_service" "consul_backend" {
   health_checks = [google_compute_health_check.consul.id]
 
   dynamic "backend" {
-    for_each = google_compute_instance_group.consul_server
+    for_each = { for idx, ig in google_compute_instance_group.consul_server : idx => ig if idx < var.consul_server_count }
     content {
       group = backend.value.self_link
     }
@@ -200,7 +201,7 @@ resource "google_secret_manager_secret" "consul_encrypt_key" {
   project   = var.project_id
 
   replication {
-    automatic = true
+    auto {}
   }
 }
 

@@ -1,0 +1,39 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: homer-ingress
+  namespace: homer
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging-http01
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # WebSocket support for HOMER
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600"
+    nginx.ingress.kubernetes.io/websocket-services: "homer"
+    # Enable WebSocket proxying
+    nginx.ingress.kubernetes.io/upstream-vhost: "$host"
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - homer.ringer.tel
+    secretName: homer-tls
+  rules:
+  - host: homer.ringer.tel
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: homer
+            port:
+              number: 9080

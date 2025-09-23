@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: network-test
+  namespace: default
+  labels:
+    app: network-test
+    purpose: diagnostics
+spec:
+  containers:
+  - name: netshoot
+    image: nicolaka/netshoot:latest
+    command:
+      - sleep
+      - "3600"
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "100m"
+      limits:
+        memory: "128Mi"
+        cpu: "200m"
+    securityContext:
+      capabilities:
+        add:
+          - NET_ADMIN
+          - NET_RAW
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: network-test-scripts
+  namespace: default
+data:
+  test-cloudsql.sh: |
+    #!/bin/bash
+    echo "Testing Cloud SQL connectivity..."
+    nc -zv 10.126.0.3 5432
+    echo "Exit code: $?"
+    
+  test-dns.sh: |
+    #!/bin/bash
+    echo "Testing DNS resolution..."
+    echo "1. Kubernetes DNS:"
+    nslookup kubernetes.default
+    echo ""
+    echo "2. External DNS:"
+    nslookup google.com
+    echo ""
+    echo "3. Cloud SQL instance:"
+    nslookup warp-db.c.ringer-warp-v01.internal
+    
+  test-services.sh: |
+    #!/bin/bash
+    echo "Testing service connectivity..."
+    for ns in ringer-warp-v01 warp-core; do
+      echo "Namespace: $ns"
+      for svc in $(kubectl get svc -n $ns -o name | cut -d/ -f2); do
+        echo "  Testing $svc..."
+        timeout 2 nc -zv $svc.$ns.svc.cluster.local 5060 2>&1 | grep -E "(succeeded|refused|timed out)"
+      done
+      echo ""
+    done
+    
+  test-external.sh: |
+    #!/bin/bash
+    echo "Testing external connectivity..."
+    echo "1. HTTP:"
+    curl -s -o /dev/null -w "%{http_code}" https://www.google.com
+    echo ""
+    echo "2. DNS servers:"
+    dig @8.8.8.8 google.com +short
+    echo ""
+    echo "3. Trace route to 8.8.8.8:"
+    traceroute -m 5 8.8.8.8

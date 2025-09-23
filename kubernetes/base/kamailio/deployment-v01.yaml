@@ -1,0 +1,124 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kamailio
+  namespace: warp-core
+  labels:
+    app: kamailio
+    component: sip-proxy
+    app.kubernetes.io/name: kamailio
+    app.kubernetes.io/part-of: warp
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kamailio
+  template:
+    metadata:
+      labels:
+        app: kamailio
+        component: sip-proxy
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - kamailio
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: kamailio
+        image: us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/kamailio:v1.2
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: sip-udp
+          containerPort: 5060
+          protocol: UDP
+        - name: sip-tcp
+          containerPort: 5060
+          protocol: TCP
+        - name: sip-tls
+          containerPort: 5061
+          protocol: TCP
+        - name: ws
+          containerPort: 8080
+          protocol: TCP
+        - name: wss
+          containerPort: 8443
+          protocol: TCP
+        - name: metrics
+          containerPort: 9080
+          protocol: TCP
+        env:
+        - name: KAMAILIO_LOG_LEVEL
+          value: "2"
+        - name: DB_ENGINE
+          value: "PGSQL"
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: warp-db-credentials
+              key: host
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: "warp"
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: warp-db-credentials
+              key: username
+        - name: DB_PASS
+          valueFrom:
+            secretKeyRef:
+              name: warp-db-credentials
+              key: password
+        - name: REDIS_HOST
+          valueFrom:
+            secretKeyRef:
+              name: warp-redis-credentials
+              key: host
+        - name: REDIS_PORT
+          value: "6379"
+        - name: RTPENGINE_SOCK
+          value: "udp:10.0.1.2:2223,udp:10.0.1.3:2223,udp:10.0.1.4:2223"
+        - name: WITH_WEBSOCKET
+          value: "yes"
+        - name: WITH_NAT
+          value: "yes"
+        - name: WITH_AUTH
+          value: "yes"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2"
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - kamctl ping || exit 1
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - kamctl ping || exit 1
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3

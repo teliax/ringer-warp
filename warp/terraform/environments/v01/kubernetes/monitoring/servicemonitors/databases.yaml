@@ -1,0 +1,45 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: postgres-exporter
+  namespace: monitoring
+  labels:
+    app: postgres
+    release: warp-monitoring
+spec:
+  selector:
+    matchLabels:
+      app: postgres-exporter
+  namespaceSelector:
+    matchNames:
+    - default
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: instance
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: redis-exporter
+  namespace: monitoring
+  labels:
+    app: redis
+    release: warp-monitoring
+spec:
+  selector:
+    matchLabels:
+      app: redis-exporter
+  namespaceSelector:
+    matchNames:
+    - default
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: instance

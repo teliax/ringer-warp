@@ -1,0 +1,218 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: warp-api-gateway
+  namespace: ringer-warp-v01
+  labels:
+    app: api-gateway
+    component: api
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+  selector:
+    app: api-gateway
+    component: api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: ringer-warp-v01
+  labels:
+    app: api-gateway
+    component: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api-gateway
+      component: api
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+        component: api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: api-gateway
+        image: nginx:alpine
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: DATABASE_HOST
+          valueFrom:
+            secretKeyRef:
+              name: warp-db-credentials
+              key: host
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: warp-db-credentials
+              key: username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: warp-db-credentials
+              key: password
+        - name: REDIS_HOST
+          valueFrom:
+            secretKeyRef:
+              name: warp-redis-credentials
+              key: host
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: api-gateway-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-gateway-config
+  namespace: ringer-warp-v01
+data:
+  nginx.conf: |
+    user nginx;
+    worker_processes auto;
+    error_log /var/log/nginx/error.log warn;
+    pid /var/run/nginx.pid;
+
+    events {
+        worker_connections 1024;
+    }
+
+    http {
+        include /etc/nginx/mime.types;
+        default_type application/json;
+        
+        log_format json_combined escape=json
+          '{'
+            '"time_local":"$time_local",'
+            '"remote_addr":"$remote_addr",'
+            '"remote_user":"$remote_user",'
+            '"request":"$request",'
+            '"status": "$status",'
+            '"body_bytes_sent":"$body_bytes_sent",'
+            '"request_time":"$request_time",'
+            '"http_referrer":"$http_referer",'
+            '"http_user_agent":"$http_user_agent"'
+          '}';
+        
+        access_log /var/log/nginx/access.log json_combined;
+        
+        sendfile on;
+        tcp_nopush on;
+        keepalive_timeout 65;
+        gzip on;
+        
+        upstream kamailio {
+            server kamailio-sip:5060;
+        }
+        
+        server {
+            listen 8080;
+            server_name _;
+            
+            location /health {
+                access_log off;
+                return 200 '{"status":"ok"}';
+                add_header Content-Type application/json;
+            }
+            
+            location /api/v1/calls {
+                proxy_pass http://kamailio/api/calls;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+            
+            location /api/v1/messages {
+                proxy_pass http://kamailio/api/messages;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+            
+            location /api/v1/numbers {
+                proxy_pass http://kamailio/api/numbers;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+            
+            location / {
+                return 404 '{"error":"Not Found"}';
+                add_header Content-Type application/json;
+            }
+        }
+        
+        server {
+            listen 9090;
+            server_name _;
+            
+            location /metrics {
+                access_log off;
+                return 200 'nginx_up 1\n';
+                add_header Content-Type text/plain;
+            }
+        }
+    }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: warp-api-ingress
+  namespace: ringer-warp-v01
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.global-static-ip-name: "warp-api-ip"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  rules:
+  - host: api.warp.io
+    http:
+      paths:
+      - path: /*
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: warp-api-gateway
+            port:
+              number: 8080
+  tls:
+  - hosts:
+    - api.warp.io
+    secretName: api-warp-io-tls

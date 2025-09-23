@@ -1,0 +1,117 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: warp-db-init
+  namespace: warp-core
+  labels:
+    app: warp-db-init
+    component: database
+spec:
+  ttlSecondsAfterFinished: 3600  # Clean up after 1 hour
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: warp-db-init
+        component: database
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+      # Wait for database to be ready
+      - name: wait-for-db
+        image: postgres:15-alpine
+        env:
+        - name: PGHOST
+          value: "10.126.0.3"
+        - name: PGPORT
+          value: "5432"
+        - name: PGDATABASE
+          value: "warp"
+        - name: PGUSER
+          value: "warp"
+        - name: PGPASSWORD
+          value: ")T]!sXUi>SE+DeWt6a8Wmy*Q)A4q6R:}"
+        command:
+        - sh
+        - -c
+        - |
+          until pg_isready; do
+            echo "Waiting for database to be ready..."
+            sleep 2
+          done
+          echo "Database is ready!"
+      containers:
+      - name: schema-init
+        image: postgres:15-alpine
+        env:
+        - name: PGHOST
+          value: "10.126.0.3"
+        - name: PGPORT
+          value: "5432"
+        - name: PGDATABASE
+          value: "warp"
+        - name: PGUSER
+          value: "warp"
+        - name: PGPASSWORD
+          value: ")T]!sXUi>SE+DeWt6a8Wmy*Q)A4q6R:}"
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          echo "Starting database schema initialization..."
+          
+          # Function to check if schema exists
+          schema_exists() {
+            psql -tAc "SELECT 1 FROM pg_namespace WHERE nspname = '$1';" | grep -q 1
+          }
+          
+          # Check if any of the custom schemas already exist
+          if schema_exists 'accounts' || schema_exists 'auth' || schema_exists 'billing'; then
+            echo "Database schemas already exist. Checking if initialization is needed..."
+            
+            # Check if tables exist
+            TABLE_COUNT=$(psql -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema IN ('accounts', 'auth', 'billing', 'numbers', 'routing', 'cdr', 'messaging', 'audit', 'vendor_mgmt');")
+            
+            if [ "$TABLE_COUNT" -gt "0" ]; then
+              echo "Database already initialized with $TABLE_COUNT tables. Skipping initialization."
+              exit 0
+            fi
+          fi
+          
+          echo "Initializing database schema..."
+          
+          # Execute SQL files in order
+          for sql_file in /schema/*.sql; do
+            echo "Executing $(basename $sql_file)..."
+            psql -v ON_ERROR_STOP=1 -f "$sql_file"
+            if [ $? -eq 0 ]; then
+              echo "✓ Successfully executed $(basename $sql_file)"
+            else
+              echo "✗ Failed to execute $(basename $sql_file)"
+              exit 1
+            fi
+          done
+          
+          echo "Database schema initialization completed successfully!"
+          
+          # Verify installation
+          echo ""
+          echo "=== Schema Verification ==="
+          echo "Schemas created:"
+          psql -c "SELECT nspname FROM pg_namespace WHERE nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast') ORDER BY nspname;"
+          
+          echo ""
+          echo "Tables created per schema:"
+          psql -c "SELECT table_schema, COUNT(*) as table_count FROM information_schema.tables WHERE table_schema IN ('accounts', 'auth', 'billing', 'numbers', 'routing', 'cdr', 'messaging', 'audit', 'vendor_mgmt') GROUP BY table_schema ORDER BY table_schema;"
+          
+          echo ""
+          echo "Extensions installed:"
+          psql -c "SELECT extname, extversion FROM pg_extension WHERE extname NOT IN ('plpgsql') ORDER BY extname;"
+        volumeMounts:
+        - name: schema
+          mountPath: /schema
+      volumes:
+      - name: schema
+        configMap:
+          name: warp-db-schema

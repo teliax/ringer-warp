@@ -54,7 +54,7 @@
 
 ### Infrastructure
 - [x] **Cloud Provider**: Google Cloud Platform
-- [x] **Project ID**: `ringer-472421`
+- [x] **Project ID**: `ringer-warp-v01`
 - [x] **Database**: Cloud SQL (PostgreSQL)
 - [x] **Analytics**: BigQuery
 - [x] **Cache**: Redis (Memorystore)
@@ -103,7 +103,7 @@
 ### To Start Hive-Mind:
 
 1. **Fill in `.env.development`** with available credentials
-2. **Configure GCP access** with project ID `ringer-472421`
+2. **Configure GCP access** with project ID `ringer-warp-v01`
 3. **Deploy 4 Claude agents** with the HIVEMIND_ORCHESTRATION_GUIDE.md
 4. **Monitor progress** via coordination files in `/docs/coordination/`
 

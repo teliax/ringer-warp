@@ -1,0 +1,37 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kamailio
+  namespace: monitoring
+  labels:
+    app: kamailio
+    release: warp-monitoring
+spec:
+  selector:
+    matchLabels:
+      app: kamailio
+  namespaceSelector:
+    matchNames:
+    - default
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: instance
+    - sourceLabels: [__meta_kubernetes_namespace]
+      targetLabel: namespace
+    - sourceLabels: [__meta_kubernetes_service_name]
+      targetLabel: service
+  - port: xhttp
+    interval: 30s
+    path: /RPC/stats
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: instance
+    metricRelabelings:
+    - sourceLabels: [__name__]
+      regex: 'kamailio_(.+)'
+      targetLabel: __name__
+      replacement: 'sip_$1'

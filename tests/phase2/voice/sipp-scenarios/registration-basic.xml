@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!DOCTYPE scenario SYSTEM "sipp.dtd">
+
+<!-- Basic SIP Registration Test Scenario -->
+<scenario name="Basic Registration">
+  
+  <!-- Send REGISTER request -->
+  <send retrans="500">
+    <![CDATA[
+      REGISTER sip:[remote_ip] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      From: <sip:[service]@[remote_ip]>;tag=[pid]SIPpTag00[call_number]
+      To: <sip:[service]@[remote_ip]>
+      Call-ID: [call_id]
+      CSeq: 1 REGISTER
+      Contact: <sip:[service]@[local_ip]:[local_port];transport=[transport]>
+      Max-Forwards: 70
+      Expires: 3600
+      User-Agent: SIPp Test Client
+      Content-Length: 0
+
+    ]]>
+  </send>
+
+  <!-- Receive 401 Unauthorized (expected for authenticated registration) -->
+  <recv response="401" optional="true">
+    <action>
+      <ereg regexp="realm=\"([^\"]*)\""
+            search_in="hdr"
+            header="WWW-Authenticate"
+            assign_to="realm"/>
+      <ereg regexp="nonce=\"([^\"]*)\""
+            search_in="hdr"
+            header="WWW-Authenticate"
+            assign_to="nonce"/>
+    </action>
+  </recv>
+
+  <!-- Send REGISTER with Authorization -->
+  <send retrans="500" cond="$realm">
+    <![CDATA[
+      REGISTER sip:[remote_ip] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      From: <sip:[service]@[remote_ip]>;tag=[pid]SIPpTag00[call_number]
+      To: <sip:[service]@[remote_ip]>
+      Call-ID: [call_id]
+      CSeq: 2 REGISTER
+      Contact: <sip:[service]@[local_ip]:[local_port];transport=[transport]>
+      Max-Forwards: 70
+      Expires: 3600
+      User-Agent: SIPp Test Client
+      Authorization: Digest username="[service]",realm="[$realm]",nonce="[$nonce]",uri="sip:[remote_ip]",response="[authentication response]",algorithm=MD5
+      Content-Length: 0
+
+    ]]>
+  </send>
+
+  <!-- Receive 200 OK -->
+  <recv response="200" rtd="true">
+    <action>
+      <ereg regexp="expires=([0-9]+)"
+            search_in="hdr"
+            header="Contact"
+            assign_to="expires"/>
+    </action>
+  </recv>
+
+  <!-- Statistics -->
+  <ResponseTimeRepartition value="10, 20, 30, 40, 50, 100, 200"/>
+  <CallLengthRepartition value="10, 50, 100, 500, 1000, 5000, 10000"/>
+
+</scenario>

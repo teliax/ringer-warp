@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: telecom
+  labels:
+    name: telecom
+    app.kubernetes.io/part-of: warp
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: messaging
+  labels:
+    name: messaging
+    app.kubernetes.io/part-of: warp

@@ -1,0 +1,269 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: warp-db-init
+  namespace: warp-core
+  labels:
+    app: warp
+    component: database-init
+spec:
+  ttlSecondsAfterFinished: 3600  # Clean up after 1 hour
+  backoffLimit: 3
+  parallelism: 1
+  completions: 1
+  template:
+    metadata:
+      labels:
+        app: warp
+        component: database-init
+    spec:
+      restartPolicy: OnFailure
+      # Service account for potential RBAC needs
+      serviceAccountName: default
+      
+      # Init container to ensure database is ready
+      initContainers:
+      - name: wait-for-db
+        image: postgres:15-alpine
+        env:
+        - name: PGHOST
+          value: "10.126.0.3"
+        - name: PGPORT
+          value: "5432"
+        - name: PGDATABASE
+          value: "warp"
+        - name: PGUSER
+          value: "warp"
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: warp-db-credentials
+              key: password
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for database to be ready..."
+          max_attempts=60
+          attempt=1
+          
+          while [ $attempt -le $max_attempts ]; do
+            if pg_isready -q; then
+              echo "Database server is responding"
+              
+              # Test actual authentication
+              if psql -c "SELECT 1" > /dev/null 2>&1; then
+                echo "Successfully authenticated to database"
+                exit 0
+              else
+                echo "Database is up but authentication failed"
+                exit 1
+              fi
+            fi
+            
+            echo "Attempt $attempt/$max_attempts: Database not ready, waiting..."
+            sleep 5
+            attempt=$((attempt + 1))
+          done
+          
+          echo "Database failed to become ready after $max_attempts attempts"
+          exit 1
+      
+      # Main container to run schema initialization
+      containers:
+      - name: schema-init
+        image: postgres:15-alpine
+        env:
+        - name: PGHOST
+          value: "10.126.0.3"
+        - name: PGPORT
+          value: "5432"
+        - name: PGDATABASE
+          value: "warp"
+        - name: PGUSER
+          value: "warp"
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: warp-db-credentials
+              key: password
+        - name: SCHEMA_DIR
+          value: "/schema"
+        volumeMounts:
+        - name: schema
+          mountPath: /schema
+          readOnly: true
+        - name: init-scripts
+          mountPath: /scripts
+          readOnly: true
+        command: ["/scripts/init-database.sh"]
+        
+      volumes:
+      # Schema files from ConfigMap
+      - name: schema
+        configMap:
+          name: warp-db-schema
+          defaultMode: 0644
+      
+      # Initialization scripts
+      - name: init-scripts
+        configMap:
+          name: warp-db-init-scripts
+          defaultMode: 0755
+---
+# ConfigMap for initialization scripts
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: warp-db-init-scripts
+  namespace: warp-core
+data:
+  init-database.sh: |
+    #!/bin/bash
+    set -e
+    
+    # Colors for output
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'
+    NC='\033[0m'
+    
+    # Logging functions
+    log_info() {
+        echo -e "${BLUE}[INFO]${NC} $1"
+    }
+    
+    log_success() {
+        echo -e "${GREEN}[SUCCESS]${NC} $1"
+    }
+    
+    log_warning() {
+        echo -e "${YELLOW}[WARNING]${NC} $1"
+    }
+    
+    log_error() {
+        echo -e "${RED}[ERROR]${NC} $1"
+    }
+    
+    # Function to check if schema exists
+    schema_exists() {
+        local schema=$1
+        local result=$(psql -tAc "SELECT 1 FROM pg_namespace WHERE nspname = '$schema';" 2>/dev/null || echo "0")
+        [ "$result" = "1" ]
+    }
+    
+    # Function to get table count
+    get_table_count() {
+        local count=$(psql -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema IN ('accounts', 'auth', 'billing', 'numbers', 'routing', 'cdr', 'messaging', 'audit', 'vendor_mgmt');" 2>/dev/null || echo "0")
+        echo "$count"
+    }
+    
+    # Main execution
+    log_info "Starting WARP Database Schema Initialization"
+    log_info "Database: $PGHOST:$PGPORT/$PGDATABASE"
+    log_info "User: $PGUSER"
+    
+    # Check if already initialized
+    table_count=$(get_table_count)
+    if [ "$table_count" -gt 0 ]; then
+        log_warning "Database already contains $table_count tables"
+        log_info "Checking if initialization is complete..."
+        
+        # Verify key tables exist
+        missing_tables=0
+        for table_check in "accounts.accounts" "auth.api_keys" "numbers.phone_numbers" "routing.routes"; do
+            schema="${table_check%%.*}"
+            table="${table_check#*.}"
+            
+            if ! psql -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema = '$schema' AND table_name = '$table';" | grep -q 1; then
+                log_warning "Missing table: $table_check"
+                missing_tables=$((missing_tables + 1))
+            fi
+        done
+        
+        if [ "$missing_tables" -eq 0 ]; then
+            log_success "Database is already fully initialized"
+            exit 0
+        else
+            log_error "Database is partially initialized with $missing_tables missing tables"
+            exit 1
+        fi
+    fi
+    
+    log_info "Initializing database schema..."
+    
+    # Sort SQL files numerically
+    sql_files=($(ls -1 /schema/*.sql | sort -V))
+    
+    if [ ${#sql_files[@]} -eq 0 ]; then
+        log_error "No SQL files found in /schema"
+        exit 1
+    fi
+    
+    log_info "Found ${#sql_files[@]} SQL files to execute"
+    
+    # Execute each SQL file
+    failed=0
+    for sql_file in "${sql_files[@]}"; do
+        filename=$(basename "$sql_file")
+        log_info "Executing $filename..."
+        
+        # Execute with transaction and error handling
+        if psql -v ON_ERROR_STOP=1 --single-transaction -f "$sql_file" 2>&1; then
+            log_success "Successfully executed $filename"
+        else
+            log_error "Failed to execute $filename"
+            failed=1
+            break
+        fi
+    done
+    
+    if [ $failed -eq 0 ]; then
+        log_success "All SQL files executed successfully!"
+        
+        # Verify installation
+        echo ""
+        echo "=== Schema Verification ==="
+        echo "Schemas created:"
+        psql -c "SELECT nspname FROM pg_namespace WHERE nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast', 'public') ORDER BY nspname;"
+        
+        echo ""
+        echo "Tables per schema:"
+        psql -c "SELECT table_schema, COUNT(*) as table_count FROM information_schema.tables WHERE table_schema IN ('accounts', 'auth', 'billing', 'numbers', 'routing', 'cdr', 'messaging', 'audit', 'vendor_mgmt') GROUP BY table_schema ORDER BY table_schema;"
+        
+        echo ""
+        echo "Extensions installed:"
+        psql -c "SELECT extname, extversion FROM pg_extension WHERE extname NOT IN ('plpgsql') ORDER BY extname;"
+        
+        # Final summary
+        schema_count=$(psql -tAc "SELECT COUNT(DISTINCT nspname) FROM pg_namespace WHERE nspname IN ('accounts', 'auth', 'billing', 'numbers', 'routing', 'cdr', 'messaging', 'audit', 'vendor_mgmt');")
+        table_count=$(get_table_count)
+        ext_count=$(psql -tAc "SELECT COUNT(*) FROM pg_extension WHERE extname NOT IN ('plpgsql');")
+        
+        echo ""
+        log_success "=== Initialization Complete ==="
+        echo "Database initialized with:"
+        echo "  - $schema_count schemas"
+        echo "  - $table_count tables"
+        echo "  - $ext_count extensions"
+        
+        exit 0
+    else
+        log_error "Database initialization failed!"
+        exit 1
+    fi
+---
+# Secret for database credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: warp-db-credentials
+  namespace: warp-core
+type: Opaque
+stringData:
+  password: ")T]!sXUi>SE+DeWt6a8Wmy*Q)A4q6R:}"
+  username: "warp"
+  database: "warp"
+  host: "10.126.0.3"
+  port: "5432"

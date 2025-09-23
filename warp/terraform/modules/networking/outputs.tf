@@ -39,3 +39,13 @@ output "consul_subnet_name" {
   description = "Consul subnet name"
   value       = google_compute_subnetwork.consul_subnet.name
 }
+
+output "gke_pods_range_name" {
+  description = "GKE pods secondary range name"
+  value       = "gke-pods"
+}
+
+output "gke_services_range_name" {
+  description = "GKE services secondary range name"
+  value       = "gke-services"
+}

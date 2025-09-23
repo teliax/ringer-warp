@@ -1,0 +1,26 @@
+NGINX Ingress Migration Report
+==============================
+Date: Tue 23 Sep 2025 12:01:28 PM EDT
+NGINX Ingress IP: 34.72.20.183
+
+DNS Records Updated:
+-------------------
+  prometheus.ringer.tel:
+    Old IP: 35.224.246.74
+    New IP: 34.72.20.183
+  grafana.ringer.tel:
+    Old IP: 35.224.100.108
+    New IP: 34.72.20.183
+  homer.ringer.tel:
+    Old IP: 35.223.187.94
+    New IP: 34.72.20.183
+
+DNS Records Unchanged:
+---------------------
+  sip.ringer.tel: 35.188.144.139 (Kamailio LoadBalancer)
+  api-v2.ringer.tel: 34.41.135.92 (API LoadBalancer)
+
+Rollback Instructions:
+---------------------
+To rollback, run: ./rollback-nginx-migration.sh
+

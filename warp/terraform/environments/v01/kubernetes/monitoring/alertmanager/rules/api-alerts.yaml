@@ -1,0 +1,75 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: api-alerts
+  namespace: monitoring
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+  - name: api.rules
+    interval: 30s
+    rules:
+    # High API error rate
+    - alert: HighApiErrorRate
+      expr: |
+        (sum(rate(http_requests_total{job=~".*-api",status=~"5.."}[5m])) by (service) 
+         / 
+         sum(rate(http_requests_total{job=~".*-api"}[5m])) by (service)) > 0.01
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High API error rate for {{ $labels.service }}"
+        description: "API error rate is {{ $value | humanizePercentage }} for service {{ $labels.service }}"
+        
+    # Critical API error rate
+    - alert: CriticalApiErrorRate
+      expr: |
+        (sum(rate(http_requests_total{job=~".*-api",status=~"5.."}[5m])) by (service) 
+         / 
+         sum(rate(http_requests_total{job=~".*-api"}[5m])) by (service)) > 0.05
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Critical API error rate for {{ $labels.service }}"
+        description: "API error rate is {{ $value | humanizePercentage }} for service {{ $labels.service }}"
+        
+    # High API latency
+    - alert: HighApiLatency
+      expr: |
+        histogram_quantile(0.95, 
+          sum(rate(http_request_duration_seconds_bucket{job=~".*-api"}[5m])) by (service, le)
+        ) > 0.5
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High API latency for {{ $labels.service }}"
+        description: "95th percentile latency is {{ $value }}s for service {{ $labels.service }}"
+        
+    # API service down
+    - alert: ApiServiceDown
+      expr: |
+        up{job=~".*-api"} == 0
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "API service is down"
+        description: "{{ $labels.job }} on {{ $labels.instance }} has been down for more than 2 minutes"
+        
+    # Low API availability
+    - alert: LowApiAvailability
+      expr: |
+        (1 - (sum(rate(http_requests_total{job=~".*-api",status=~"5.."}[5m])) by (service) 
+         / 
+         sum(rate(http_requests_total{job=~".*-api"}[5m])) by (service))) < 0.99
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Low API availability for {{ $labels.service }}"
+        description: "API availability is {{ $value | humanizePercentage }} for service {{ $labels.service }}"

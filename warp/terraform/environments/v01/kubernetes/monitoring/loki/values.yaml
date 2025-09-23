@@ -1,0 +1,129 @@
+# Loki values for WARP log aggregation
+loki:
+  auth_enabled: false
+  
+  server:
+    http_listen_port: 3100
+    grpc_listen_port: 9095
+    
+  commonConfig:
+    replication_factor: 1
+    
+  storage:
+    type: filesystem
+    filesystem:
+      chunks_directory: /var/loki/chunks
+      rules_directory: /var/loki/rules
+      
+  limits_config:
+    enforce_metric_name: false
+    reject_old_samples: true
+    reject_old_samples_max_age: 168h
+    max_cache_freshness_per_query: 10m
+    retention_period: 720h
+    
+  schema_config:
+    configs:
+    - from: 2020-10-24
+      store: boltdb-shipper
+      object_store: filesystem
+      schema: v11
+      index:
+        prefix: index_
+        period: 24h
+        
+  ruler:
+    storage:
+      type: local
+      local:
+        directory: /loki/rules
+    rule_path: /loki/rules-temp
+    alertmanager_url: http://warp-monitoring-alertmanager:9093
+    ring:
+      kvstore:
+        store: inmemory
+        
+  distributor:
+    ring:
+      kvstore:
+        store: memberlist
+        
+  ingester:
+    lifecycler:
+      ring:
+        kvstore:
+          store: memberlist
+        replication_factor: 1
+    chunk_idle_period: 30m
+    chunk_retain_period: 1m
+    max_transfer_retries: 0
+    wal:
+      enabled: true
+      dir: /loki/wal
+      
+  memberlist:
+    join_members:
+    - loki-memberlist
+    
+persistence:
+  enabled: true
+  storageClassName: standard
+  size: 50Gi
+  
+serviceMonitor:
+  enabled: true
+  labels:
+    release: warp-monitoring
+    
+promtail:
+  enabled: true
+  config:
+    clients:
+    - url: http://loki:3100/loki/api/v1/push
+    
+    snippets:
+      pipelineStages:
+      - docker: {}
+      - match:
+          selector: '{app="kamailio"}'
+          stages:
+          - regex:
+              expression: '(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)\s+(?P<level>\w+)\s+(?P<message>.*)'
+          - labels:
+              level: level
+          - timestamp:
+              source: timestamp
+              format: RFC3339Nano
+              
+      - match:
+          selector: '{app="rtpengine"}'
+          stages:
+          - regex:
+              expression: '\[(?P<timestamp>[^\]]+)\]\s+(?P<level>\w+):\s+(?P<message>.*)'
+          - labels:
+              level: level
+              
+      - match:
+          selector: '{app=~".*-api"}'
+          stages:
+          - json:
+              expressions:
+                level: level
+                timestamp: timestamp
+                message: msg
+                service: service
+          - labels:
+              level: level
+              service: service
+              
+    snippets:
+      extraSelectorLabels:
+      - cluster
+      - namespace
+      - pod
+      - container
+      
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: warp-monitoring

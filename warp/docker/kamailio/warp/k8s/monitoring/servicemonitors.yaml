@@ -1,0 +1,109 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kamailio-ringer-warp
+  namespace: monitoring
+  labels:
+    app: kamailio
+    release: warp-monitoring
+spec:
+  selector:
+    matchLabels:
+      app: kamailio
+  namespaceSelector:
+    matchNames:
+    - ringer-warp-v01
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: instance
+    - sourceLabels: [__meta_kubernetes_namespace]
+      targetLabel: namespace
+    - sourceLabels: [__meta_kubernetes_service_name]
+      targetLabel: service
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kamailio-warp-core
+  namespace: monitoring
+  labels:
+    app: kamailio
+    release: warp-monitoring
+spec:
+  selector:
+    matchLabels:
+      app: kamailio
+  namespaceSelector:
+    matchNames:
+    - warp-core
+  endpoints:
+  - port: xhttp
+    interval: 30s
+    path: /metrics
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: instance
+    - sourceLabels: [__meta_kubernetes_namespace]
+      targetLabel: namespace
+    - sourceLabels: [__meta_kubernetes_service_name]
+      targetLabel: service
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: warp-api-gateway
+  namespace: monitoring
+  labels:
+    app: api-gateway
+    release: warp-monitoring
+spec:
+  selector:
+    matchLabels:
+      app: api-gateway
+  namespaceSelector:
+    matchNames:
+    - ringer-warp-v01
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: instance
+    - sourceLabels: [__meta_kubernetes_namespace]
+      targetLabel: namespace
+    - sourceLabels: [__meta_kubernetes_service_name]
+      targetLabel: service
+---
+# ServiceMonitor for RTPEngine when deployed
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: rtpengine-warp
+  namespace: monitoring
+  labels:
+    app: rtpengine
+    release: warp-monitoring
+spec:
+  selector:
+    matchLabels:
+      app: rtpengine
+  namespaceSelector:
+    matchNames:
+    - warp-core
+    - ringer-warp-v01
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: instance
+    - sourceLabels: [__meta_kubernetes_namespace]
+      targetLabel: namespace
+    - sourceLabels: [__meta_kubernetes_service_name]
+      targetLabel: service

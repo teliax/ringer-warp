@@ -1,0 +1,69 @@
+# Kamailio control tool configuration
+#
+# This file is used by kamctl and kamdbctl tools
+
+# Database type: MYSQL, PGSQL, ORACLE, DB_BERKELEY, DBTEXT, or DB2
+DBENGINE=PGSQL
+
+# Database host
+DBHOST=__DB_HOST__
+
+# Database port
+DBPORT=__DB_PORT__
+
+# Database name
+DBNAME=__DB_NAME__
+
+# Database read-only user
+DBROUSER=kamailio
+
+# Database read-write user
+DBUSER=__DB_USER__
+
+# Password for database read-only user
+DBROPW=__DB_PASS__
+
+# Password for database read-write user
+DBPW=__DB_PASS__
+
+# Database root user (used for database creation)
+DBROOTUSER=postgres
+
+# Database root password
+DBROOTPW=
+
+# Database access host (from where is kamctl used)
+DBACCESSHOST=
+
+# Database character set
+DBCHARSET=utf8
+
+# Aliases used for addresses and domains
+ALIASES_TYPE=DB
+
+# Type of aliases
+DBALIASES_TYPE=DB
+
+# Type of AVP database
+AVP_TYPE=DB
+
+# FIFO file
+OSER_FIFO=/var/run/kamailio/kamailio_fifo
+
+# PID file
+PID_FILE=/var/run/kamailio/kamailio.pid
+
+# Extra start options
+STARTOPTIONS=
+
+# SIP domain
+SIP_DOMAIN=__SIP_DOMAIN__
+
+# Kamailio installation directory
+INSTALLDIR=/
+
+# dir for some scripts
+TOOLDIR=/usr/share/kamailio/kamctl
+
+# ACL groups
+ACL_GROUPS="local ld int voicemail free-pstn"

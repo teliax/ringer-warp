@@ -1,0 +1,217 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: business-metrics-exporter-config
+  namespace: warp-api
+data:
+  config.yaml: |
+    # Business Metrics Exporter Configuration
+    database:
+      host: postgres-service.warp-api
+      port: 5432
+      name: warp_billing
+      user: warp_api
+      sslmode: require
+    
+    redis:
+      host: redis-service.warp-api
+      port: 6379
+      db: 0
+    
+    metrics:
+      port: 9100
+      path: /metrics
+      interval: 60s
+    
+    queries:
+      - name: business_revenue_total
+        help: "Total revenue by type"
+        type: counter
+        query: |
+          SELECT 
+            COALESCE(SUM(amount), 0) as value,
+            payment_type as type
+          FROM payments
+          WHERE created_at >= NOW() - INTERVAL '1 day'
+          GROUP BY payment_type
+        
+      - name: business_subscribers_active
+        help: "Number of active subscribers"
+        type: gauge
+        query: |
+          SELECT COUNT(*) as value
+          FROM subscribers
+          WHERE status = 'active'
+      
+      - name: business_minutes_total
+        help: "Total minutes used"
+        type: counter
+        query: |
+          SELECT 
+            COALESCE(SUM(duration_seconds)/60, 0) as value,
+            call_type
+          FROM call_records
+          WHERE created_at >= NOW() - INTERVAL '1 day'
+          GROUP BY call_type
+      
+      - name: business_calls_total
+        help: "Total calls by type"
+        type: counter
+        query: |
+          SELECT 
+            COUNT(*) as value,
+            call_type
+          FROM call_records
+          WHERE created_at >= NOW() - INTERVAL '1 hour'
+          GROUP BY call_type
+      
+      - name: business_calls_failed
+        help: "Failed calls"
+        type: counter
+        query: |
+          SELECT COUNT(*) as value
+          FROM call_records
+          WHERE created_at >= NOW() - INTERVAL '1 hour'
+          AND status = 'failed'
+      
+      - name: business_sms_total
+        help: "Total SMS by direction"
+        type: counter
+        query: |
+          SELECT 
+            COUNT(*) as value,
+            direction
+          FROM sms_records
+          WHERE created_at >= NOW() - INTERVAL '1 hour'
+          GROUP BY direction
+      
+      - name: business_customers_new
+        help: "New customers"
+        type: counter
+        query: |
+          SELECT COUNT(*) as value
+          FROM customers
+          WHERE created_at >= NOW() - INTERVAL '1 hour'
+      
+      - name: business_customers_churned
+        help: "Churned customers"
+        type: counter
+        query: |
+          SELECT COUNT(*) as value
+          FROM customers
+          WHERE status = 'cancelled'
+          AND updated_at >= NOW() - INTERVAL '1 hour'
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: business-metrics-exporter
+  namespace: warp-api
+  labels:
+    app: business-metrics-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: business-metrics-exporter
+  template:
+    metadata:
+      labels:
+        app: business-metrics-exporter
+        metrics: "true"
+    spec:
+      serviceAccountName: business-metrics-sa
+      containers:
+      - name: exporter
+        image: us-central1-docker.pkg.dev/ringer-472421/warp-core/business-metrics-exporter:latest
+        ports:
+        - containerPort: 9100
+          name: metrics
+        env:
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: password
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-credentials
+              key: password
+        volumeMounts:
+        - name: config
+          mountPath: /etc/exporter
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 9100
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 9100
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      volumes:
+      - name: config
+        configMap:
+          name: business-metrics-exporter-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: business-metrics-exporter
+  namespace: warp-api
+  labels:
+    app: business-metrics-exporter
+    metrics: "true"
+spec:
+  ports:
+  - port: 9100
+    targetPort: 9100
+    name: metrics
+  selector:
+    app: business-metrics-exporter
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: business-metrics-sa
+  namespace: warp-api
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: business-metrics-role
+  namespace: warp-api
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: business-metrics-rolebinding
+  namespace: warp-api
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: business-metrics-role
+subjects:
+- kind: ServiceAccount
+  name: business-metrics-sa
+  namespace: warp-api

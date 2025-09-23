@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-warp
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  sip-metrics.json: |
+$(cat /home/daldworth/repos/ringer-warp/warp/terraform/environments/v01/kubernetes/monitoring/grafana/dashboards/sip-metrics.json | sed 's/^/    /')
+  rtp-metrics.json: |
+$(cat /home/daldworth/repos/ringer-warp/warp/terraform/environments/v01/kubernetes/monitoring/grafana/dashboards/rtp-metrics.json | sed 's/^/    /')
+  api-performance.json: |
+$(cat /home/daldworth/repos/ringer-warp/warp/terraform/environments/v01/kubernetes/monitoring/grafana/dashboards/api-performance.json | sed 's/^/    /')

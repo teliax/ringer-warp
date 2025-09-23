@@ -1,0 +1,164 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kamailio
+  namespace: warp-core
+  labels:
+    app: kamailio
+    component: sip-proxy
+    app.kubernetes.io/name: kamailio
+    app.kubernetes.io/part-of: warp
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kamailio
+  template:
+    metadata:
+      labels:
+        app: kamailio
+        component: sip-proxy
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: cloudsql-proxy  # Use workload identity
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - kamailio
+              topologyKey: kubernetes.io/hostname
+      containers:
+      # Cloud SQL Proxy sidecar
+      - name: cloud-sql-proxy
+        image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.8.0
+        args:
+          - "--private-ip"
+          - "--port=5432"
+          - "PROJECT_ID:REGION:warp-dev-db"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
+      
+      # Main Kamailio container
+      - name: kamailio
+        image: kamailio/kamailio:5.7
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: sip-udp
+          containerPort: 5060
+          protocol: UDP
+        - name: sip-tcp
+          containerPort: 5060
+          protocol: TCP
+        - name: sip-tls
+          containerPort: 5061
+          protocol: TCP
+        - name: metrics
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: KAMAILIO_LOG_LEVEL
+          value: "2"
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: redis-config
+              key: host
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: redis-config
+              key: port
+        - name: POSTGRES_HOST
+          value: "127.0.0.1"  # Connect through proxy sidecar
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_DB
+          value: "warp"
+        - name: POSTGRES_USER
+          value: "warp"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: warp-db-credentials
+              key: password
+        - name: HOMER_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: homer-config
+              key: host
+        - name: HOMER_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: homer-config
+              key: port
+        volumeMounts:
+        - name: config
+          mountPath: /etc/kamailio
+          readOnly: true
+        - name: lua-scripts
+          mountPath: /etc/kamailio/lua
+          readOnly: true
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2"
+        # Update health checks to ensure database connectivity
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - |
+              kamctl ping && \
+              PGPASSWORD=$POSTGRES_PASSWORD psql -h 127.0.0.1 -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT 1" > /dev/null 2>&1
+          initialDelaySeconds: 45
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - |
+              kamctl ping && \
+              PGPASSWORD=$POSTGRES_PASSWORD psql -h 127.0.0.1 -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT 1" > /dev/null 2>&1
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 3
+      volumes:
+      - name: config
+        configMap:
+          name: kamailio-config
+          items:
+          - key: kamailio.cfg
+            path: kamailio.cfg
+      - name: lua-scripts
+        configMap:
+          name: kamailio-config
+          items:
+          - key: init.lua
+            path: init.lua

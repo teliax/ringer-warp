@@ -1,0 +1,180 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jasmin-smsc
+  namespace: messaging
+  labels:
+    app: jasmin
+    component: sms-gateway
+    app.kubernetes.io/name: jasmin
+    app.kubernetes.io/part-of: warp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: jasmin
+  template:
+    metadata:
+      labels:
+        app: jasmin
+        component: sms-gateway
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9100"
+        prometheus.io/path: "/metrics"
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - jasmin
+              topologyKey: kubernetes.io/hostname
+      initContainers:
+      - name: init-config
+        image: busybox:latest
+        command: ['sh', '-c']
+        args:
+        - |
+          # Substitute environment variables in config
+          cp /config-template/jasmin.cfg /config/jasmin.cfg
+          sed -i "s/\${REDIS_HOST}/$REDIS_HOST/g" /config/jasmin.cfg
+          sed -i "s/\${REDIS_PORT}/$REDIS_PORT/g" /config/jasmin.cfg
+          sed -i "s/\${RABBITMQ_HOST}/$RABBITMQ_HOST/g" /config/jasmin.cfg
+          sed -i "s/\${RABBITMQ_PORT}/$RABBITMQ_PORT/g" /config/jasmin.cfg
+          sed -i "s/\${JASMIN_ADMIN_PASSWORD}/$JASMIN_ADMIN_PASSWORD/g" /config/jasmin.cfg
+        env:
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: redis-config
+              key: host
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: redis-config
+              key: port
+        - name: RABBITMQ_HOST
+          value: "rabbitmq-service"
+        - name: RABBITMQ_PORT
+          value: "5672"
+        - name: JASMIN_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: jasmin-credentials
+              key: admin-password
+        volumeMounts:
+        - name: config-template
+          mountPath: /config-template
+        - name: config
+          mountPath: /config
+      containers:
+      - name: jasmin
+        image: jookies/jasmin:0.10
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: smpp
+          containerPort: 2775
+          protocol: TCP
+        - name: smpp-ssl
+          containerPort: 2776
+          protocol: TCP
+        - name: http-api
+          containerPort: 8080
+          protocol: TCP
+        - name: cli
+          containerPort: 8990
+          protocol: TCP
+        env:
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: redis-config
+              key: host
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: redis-config
+              key: port
+        - name: SINCH_HOST
+          valueFrom:
+            secretKeyRef:
+              name: sinch-credentials
+              key: host
+        - name: SINCH_PORT
+          valueFrom:
+            secretKeyRef:
+              name: sinch-credentials
+              key: port
+        - name: SINCH_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: sinch-credentials
+              key: username
+        - name: SINCH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: sinch-credentials
+              key: password
+        volumeMounts:
+        - name: config
+          mountPath: /etc/jasmin
+          readOnly: true
+        - name: interceptors
+          mountPath: /etc/jasmin/interceptors
+          readOnly: true
+        - name: logs
+          mountPath: /var/log/jasmin
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1"
+        livenessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      - name: metrics-exporter
+        image: prom/node-exporter:latest
+        ports:
+        - name: metrics
+          containerPort: 9100
+          protocol: TCP
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+      volumes:
+      - name: config-template
+        configMap:
+          name: jasmin-config
+          items:
+          - key: jasmin.cfg
+            path: jasmin.cfg
+      - name: config
+        emptyDir: {}
+      - name: interceptors
+        configMap:
+          name: jasmin-config
+          items:
+          - key: interceptor.py
+            path: interceptor.py
+      - name: logs
+        emptyDir: {}

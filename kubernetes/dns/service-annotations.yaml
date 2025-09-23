@@ -1,0 +1,103 @@
+# Example service annotations for automatic DNS updates with External DNS
+# Apply these annotations to your LoadBalancer services
+
+# For Kamailio SIP Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: kamailio-sip
+  namespace: voip
+  annotations:
+    # External DNS will create: sip.ringer.tel
+    external-dns.alpha.kubernetes.io/hostname: sip.ringer.tel
+    # Set TTL to 5 minutes for dynamic services
+    external-dns.alpha.kubernetes.io/ttl: "300"
+    # Also create SRV records for SIP
+    external-dns.alpha.kubernetes.io/target: "sip.ringer.tel"
+spec:
+  type: LoadBalancer
+  ports:
+    - name: sip-udp
+      port: 5060
+      protocol: UDP
+    - name: sip-tcp
+      port: 5060
+      protocol: TCP
+    - name: sip-tls
+      port: 5061
+      protocol: TCP
+
+---
+# For API Gateway Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: api
+  annotations:
+    # External DNS will create: api-v2.ringer.tel
+    external-dns.alpha.kubernetes.io/hostname: api-v2.ringer.tel
+    external-dns.alpha.kubernetes.io/ttl: "300"
+spec:
+  type: LoadBalancer
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+    - name: https
+      port: 443
+      targetPort: 8443
+
+---
+# For Grafana Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+  annotations:
+    # External DNS will create: grafana.ringer.tel
+    external-dns.alpha.kubernetes.io/hostname: grafana.ringer.tel
+    external-dns.alpha.kubernetes.io/ttl: "3600"
+spec:
+  type: LoadBalancer
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+
+---
+# For Prometheus Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: monitoring
+  annotations:
+    # External DNS will create: prometheus.ringer.tel
+    external-dns.alpha.kubernetes.io/hostname: prometheus.ringer.tel
+    external-dns.alpha.kubernetes.io/ttl: "3600"
+spec:
+  type: LoadBalancer
+  ports:
+    - name: http
+      port: 9090
+      targetPort: 9090
+
+---
+# For HOMER Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: homer
+  namespace: monitoring
+  annotations:
+    # External DNS will create: homer.ringer.tel
+    external-dns.alpha.kubernetes.io/hostname: homer.ringer.tel
+    external-dns.alpha.kubernetes.io/ttl: "3600"
+spec:
+  type: LoadBalancer
+  ports:
+    - name: http
+      port: 80
+      targetPort: 9080

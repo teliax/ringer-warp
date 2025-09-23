@@ -1,0 +1,156 @@
+# ServiceMonitor for Prometheus
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kong-metrics
+  namespace: kong
+  labels:
+    app: kong
+    prometheus: kube-prometheus
+spec:
+  selector:
+    matchLabels:
+      app: kong-gateway
+  endpoints:
+  - port: admin
+    path: /metrics
+    interval: 30s
+    scheme: http
+---
+# Grafana Dashboard ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kong-grafana-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "true"
+data:
+  kong-dashboard.json: |
+    {
+      "dashboard": {
+        "title": "Kong API Gateway",
+        "uid": "kong-gateway",
+        "panels": [
+          {
+            "title": "Request Rate",
+            "targets": [
+              {
+                "expr": "sum(rate(kong_http_requests_total[5m])) by (service, route)"
+              }
+            ]
+          },
+          {
+            "title": "Response Times",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, sum(rate(kong_request_duration_ms_bucket[5m])) by (service, route, le))"
+              }
+            ]
+          },
+          {
+            "title": "Error Rate",
+            "targets": [
+              {
+                "expr": "sum(rate(kong_http_requests_total{code=~\"5..\"}[5m])) by (service, route)"
+              }
+            ]
+          },
+          {
+            "title": "Active Connections",
+            "targets": [
+              {
+                "expr": "kong_nginx_connections_current{state=\"active\"}"
+              }
+            ]
+          },
+          {
+            "title": "Bandwidth",
+            "targets": [
+              {
+                "expr": "sum(rate(kong_bandwidth_bytes[5m])) by (direction, service)"
+              }
+            ]
+          },
+          {
+            "title": "Rate Limiting",
+            "targets": [
+              {
+                "expr": "sum(rate(kong_http_requests_total{code=\"429\"}[5m])) by (service, consumer)"
+              }
+            ]
+          }
+        ]
+      }
+    }
+---
+# Alert rules
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kong-alerts
+  namespace: kong
+  labels:
+    prometheus: kube-prometheus
+spec:
+  groups:
+  - name: kong.rules
+    interval: 30s
+    rules:
+    - alert: KongHighErrorRate
+      expr: |
+        (
+          sum(rate(kong_http_requests_total{code=~"5.."}[5m])) by (service)
+          /
+          sum(rate(kong_http_requests_total[5m])) by (service)
+        ) > 0.05
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High error rate on Kong service {{ $labels.service }}"
+        description: "{{ $labels.service }} has error rate of {{ $value | humanizePercentage }}"
+    
+    - alert: KongHighLatency
+      expr: |
+        histogram_quantile(0.95, sum(rate(kong_request_duration_ms_bucket[5m])) by (service, route, le)) > 1000
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High latency on Kong route {{ $labels.route }}"
+        description: "95th percentile latency is {{ $value }}ms"
+    
+    - alert: KongRateLimitExceeded
+      expr: |
+        sum(rate(kong_http_requests_total{code="429"}[5m])) by (consumer) > 10
+      for: 5m
+      labels:
+        severity: info
+      annotations:
+        summary: "Rate limit exceeded for consumer {{ $labels.consumer }}"
+        description: "{{ $labels.consumer }} is hitting rate limits"
+    
+    - alert: KongDatabaseConnectionError
+      expr: |
+        kong_database_reachable == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Kong database connection lost"
+        description: "Kong cannot connect to PostgreSQL database"
+    
+    - alert: KongHighMemoryUsage
+      expr: |
+        (
+          sum(container_memory_usage_bytes{pod=~"kong-gateway-.*"}) by (pod)
+          /
+          sum(container_spec_memory_limit_bytes{pod=~"kong-gateway-.*"}) by (pod)
+        ) > 0.8
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High memory usage on Kong pod {{ $labels.pod }}"
+        description: "Memory usage is {{ $value | humanizePercentage }} of limit"

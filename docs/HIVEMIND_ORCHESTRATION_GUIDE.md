@@ -3,7 +3,7 @@
 ## Project Status: READY FOR EXECUTION ✅
 
 ### Prerequisites Completed
-- ✅ GCP Project: `ringer-472421`
+- ✅ GCP Project: `ringer-warp-v01`
 - ✅ Framework Decisions: NestJS + Prisma + npm
 - ✅ Database Schemas: PostgreSQL defined
 - ✅ API Documentation: 100% coverage (except deferred ACH)
@@ -274,7 +274,7 @@ ringer-warp/
 Critical configs needed in `.env.development`:
 ```bash
 # GCP (Required)
-GCP_PROJECT_ID=ringer-472421
+GCP_PROJECT_ID=ringer-warp-v01
 GCP_SERVICE_ACCOUNT_KEY_PATH=/path/to/key.json
 
 # Database (Required)

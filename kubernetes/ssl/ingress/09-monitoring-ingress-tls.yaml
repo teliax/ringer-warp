@@ -1,0 +1,109 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: monitoring-ingress-tls
+  namespace: monitoring
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-staging  # Change to production after testing
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # Basic auth for monitoring services
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: monitoring-basic-auth
+    nginx.ingress.kubernetes.io/auth-realm: 'Monitoring Access'
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header X-Frame-Options "SAMEORIGIN" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+spec:
+  tls:
+  - hosts:
+    - grafana.ringer.tel
+    - grafana.ringer.net
+    secretName: grafana-tls-secret
+  - hosts:
+    - prometheus.ringer.tel
+    - prometheus.ringer.net
+    secretName: prometheus-tls-secret
+  - hosts:
+    - alerts.ringer.tel
+    - alertmanager.ringer.tel
+    secretName: alertmanager-tls-secret
+  rules:
+  # Grafana
+  - host: grafana.ringer.tel
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: warp-monitoring-grafana
+            port:
+              number: 80
+  - host: grafana.ringer.net
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: warp-monitoring-grafana
+            port:
+              number: 80
+  # Prometheus
+  - host: prometheus.ringer.tel
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: warp-monitoring-prometheus
+            port:
+              number: 9090
+  - host: prometheus.ringer.net
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: warp-monitoring-prometheus
+            port:
+              number: 9090
+  # AlertManager
+  - host: alerts.ringer.tel
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: warp-monitoring-alertmanager
+            port:
+              number: 9093
+  - host: alertmanager.ringer.tel
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: warp-monitoring-alertmanager
+            port:
+              number: 9093
+---
+# Basic auth secret for monitoring services
+apiVersion: v1
+kind: Secret
+metadata:
+  name: monitoring-basic-auth
+  namespace: monitoring
+type: Opaque
+data:
+  # Default: admin / ringer-monitoring
+  # Generate with: htpasswd -c auth admin
+  auth: YWRtaW46JGFwcjEkN1JXNy5YNjgkRGdIQ0JyWEhOcGNOZ0ZtM3RQVVJMMA==

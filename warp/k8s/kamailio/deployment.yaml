@@ -1,0 +1,278 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: warp-sip
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kamailio-secrets
+  namespace: warp-sip
+type: Opaque
+stringData:
+  db-password: "" # Will be populated from Google Secret Manager
+  kamailio-shared-secret: "" # For inter-node communication
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kamailio-config
+  namespace: warp-sip
+data:
+  DB_HOST: "34.42.208.57"
+  DB_PORT: "5432"
+  DB_NAME: "warp"
+  DB_USER: "warp"
+  SIP_DOMAIN: "ringer.tel"
+  WEBSOCKET_PORT: "8080"
+  TLS_PORT: "5061"
+  LOG_LEVEL: "2"
+  ENABLE_DEBUG: "0"
+  WARP_API_URL: "http://api-gateway.warp-api:8080"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kamailio
+  namespace: warp-sip
+  labels:
+    app: kamailio
+    component: sip-server
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: kamailio
+  template:
+    metadata:
+      labels:
+        app: kamailio
+        component: sip-server
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - kamailio
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: kamailio
+        image: us-central1-docker.pkg.dev/ringer-472421/warp-platform/kamailio:latest
+        imagePullPolicy: Always
+        ports:
+        - name: sip-udp
+          containerPort: 5060
+          protocol: UDP
+        - name: sip-tcp
+          containerPort: 5060
+          protocol: TCP
+        - name: sip-tls
+          containerPort: 5061
+          protocol: TCP
+        - name: websocket
+          containerPort: 8080
+          protocol: TCP
+        - name: websocket-tls
+          containerPort: 8443
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        env:
+        - name: DB_PASS
+          valueFrom:
+            secretKeyRef:
+              name: kamailio-secrets
+              key: db-password
+        - name: PUBLIC_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: PRIVATE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: RTPENGINE_LIST
+          value: "udp:rtpengine.warp-media:2223"
+        envFrom:
+        - configMapRef:
+            name: kamailio-config
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "2"
+        livenessProbe:
+          exec:
+            command:
+            - /usr/local/bin/healthcheck.sh
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - /usr/local/bin/healthcheck.sh
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        volumeMounts:
+        - name: kamailio-tls
+          mountPath: /etc/kamailio/tls
+          readOnly: true
+      - name: prometheus-exporter
+        image: florentchauveau/kamailio_exporter:latest
+        ports:
+        - name: metrics-export
+          containerPort: 9494
+          protocol: TCP
+        env:
+        - name: KAM_KAMCMD_PATH
+          value: /usr/sbin/kamcmd
+        - name: KAM_LISTEN_ADDRESS
+          value: ":9494"
+        - name: KAM_SOCKET_PATH
+          value: "unix:/var/run/kamailio/kamailio_ctl"
+        volumeMounts:
+        - name: kamailio-run
+          mountPath: /var/run/kamailio
+      volumes:
+      - name: kamailio-tls
+        secret:
+          secretName: kamailio-tls-certs
+          optional: true
+      - name: kamailio-run
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kamailio
+  namespace: warp-sip
+  labels:
+    app: kamailio
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+spec:
+  type: LoadBalancer
+  selector:
+    app: kamailio
+  ports:
+  - name: sip-udp
+    port: 5060
+    targetPort: 5060
+    protocol: UDP
+  - name: sip-tcp
+    port: 5060
+    targetPort: 5060
+    protocol: TCP
+  - name: sip-tls
+    port: 5061
+    targetPort: 5061
+    protocol: TCP
+  - name: websocket
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  - name: websocket-tls
+    port: 8443
+    targetPort: 8443
+    protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kamailio-internal
+  namespace: warp-sip
+  labels:
+    app: kamailio
+spec:
+  type: ClusterIP
+  selector:
+    app: kamailio
+  ports:
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  - name: rpc
+    port: 8000
+    targetPort: 8000
+    protocol: TCP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: kamailio-hpa
+  namespace: warp-sip
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: kamailio
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+      selectPolicy: Max
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kamailio-pdb
+  namespace: warp-sip
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: kamailio

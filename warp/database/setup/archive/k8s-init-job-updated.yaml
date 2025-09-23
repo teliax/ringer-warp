@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: warp-db-init
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: db-init
+        image: postgres:15
+        envFrom:
+        - secretRef:
+            name: cloudsql-db-credentials
+        - configMapRef:
+            name: cloudsql-config
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: password
+        command: ["/bin/bash"]
+        args:
+        - -c
+        - |
+          echo "Initializing database schema..."
+          cd /sql
+          
+          # Test connection
+          psql -h $host -U $username -d $database -c "SELECT version();"
+          
+          # Run initialization scripts
+          for script in *.sql; do
+            echo "Running $script..."
+            psql -h $host -U $username -d $database -f "$script"
+          done
+          
+          echo "Database initialization complete!"
+        volumeMounts:
+        - name: sql-scripts
+          mountPath: /sql
+      volumes:
+      - name: sql-scripts
+        configMap:
+          name: warp-db-init-scripts

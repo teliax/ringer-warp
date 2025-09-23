@@ -1,0 +1,32 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: api-gateway-tls
+  namespace: warp-api
+spec:
+  secretName: api-gateway-tls-secret
+  issuerRef:
+    name: letsencrypt-staging  # Change to letsencrypt-production after testing
+    kind: ClusterIssuer
+  commonName: api-v2.ringer.tel
+  dnsNames:
+  - api-v2.ringer.tel
+  - api.ringer.net
+  - warp-api-v2.ringer.tel
+  - warp-api.ringer.net
+---
+# Alternative: Use wildcard certificate
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-ringer-tel
+  namespace: warp-api
+spec:
+  secretName: wildcard-ringer-tel-tls
+  issuerRef:
+    name: letsencrypt-staging  # Change to letsencrypt-production after testing
+    kind: ClusterIssuer
+  commonName: '*.ringer.tel'
+  dnsNames:
+  - '*.ringer.tel'
+  - 'ringer.tel'

@@ -14,7 +14,7 @@ Cloud-first staging environment strategy - no local services required. All devel
 
 ## Staging Infrastructure
 
-### GCP Resources (Project: ringer-472421)
+### GCP Resources (Project: ringer-warp-v01)
 ```yaml
 Compute:
   - GKE Autopilot Cluster: warp-staging (us-central1)
@@ -110,7 +110,7 @@ curl https://sdk.cloud.google.com | bash
 
 # Authenticate with GCP
 gcloud auth login
-gcloud config set project ringer-472421
+gcloud config set project ringer-warp-v01
 
 # Get staging credentials
 gcloud container clusters get-credentials warp-staging --region us-central1
@@ -179,7 +179,7 @@ kubectl exec -it deploy/api-gateway -- npm run seed:staging
 ### Access Cloud SQL
 ```bash
 # Cloud SQL Proxy for direct access
-cloud_sql_proxy -instances=ringer-472421:us-central1:warp-staging-db
+cloud_sql_proxy -instances=ringer-warp-v01:us-central1:warp-staging-db
 
 # Connect with psql
 psql -h 127.0.0.1 -U warp_staging -d warp_staging
@@ -273,7 +273,7 @@ kubectl create secret generic api-secrets \
 
 ```bash
 # Deploy specific service
-kubectl set image deployment/api-gateway api-gateway=gcr.io/ringer-472421/api-gateway:$TAG
+kubectl set image deployment/api-gateway api-gateway=gcr.io/ringer-warp-v01/api-gateway:$TAG
 
 # Check deployment status
 kubectl rollout status deployment/api-gateway -n warp-staging
@@ -285,7 +285,7 @@ kubectl logs -f deployment/api-gateway -n warp-staging
 kubectl port-forward service/api-gateway 8080:80 -n warp-staging
 
 # Run one-off job
-kubectl run --rm -it debug --image=gcr.io/ringer-472421/api-gateway:latest -- /bin/bash
+kubectl run --rm -it debug --image=gcr.io/ringer-warp-v01/api-gateway:latest -- /bin/bash
 ```
 
 ## Troubleshooting

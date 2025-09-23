@@ -1,0 +1,93 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kamailio-metrics
+  namespace: warp-sip
+  labels:
+    app: kamailio
+    prometheus: kube-prometheus
+spec:
+  selector:
+    matchLabels:
+      app: kamailio
+  endpoints:
+  - port: metrics-export
+    interval: 30s
+    path: /metrics
+    relabelings:
+    - sourceLabels: [__address__]
+      targetLabel: __param_target
+    - sourceLabels: [__param_target]
+      targetLabel: instance
+    - targetLabel: __address__
+      replacement: localhost:9494
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kamailio-dashboard
+  namespace: warp-sip
+data:
+  kamailio-overview.json: |
+    {
+      "dashboard": {
+        "title": "Kamailio SIP Server Overview",
+        "uid": "kamailio-overview",
+        "panels": [
+          {
+            "title": "Active Calls",
+            "targets": [
+              {
+                "expr": "kamailio_dialog_active_dialogs"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0}
+          },
+          {
+            "title": "Registrations",
+            "targets": [
+              {
+                "expr": "kamailio_usrloc_registered_users"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0}
+          },
+          {
+            "title": "Call Rate (CPS)",
+            "targets": [
+              {
+                "expr": "rate(kamailio_tm_requests_total{method=\"INVITE\"}[1m])"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0}
+          },
+          {
+            "title": "Response Codes",
+            "targets": [
+              {
+                "expr": "rate(kamailio_sl_replies_total[5m])"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0}
+          },
+          {
+            "title": "Memory Usage",
+            "targets": [
+              {
+                "expr": "kamailio_shm_used_size / kamailio_shm_total_size * 100"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+          },
+          {
+            "title": "TCP Connections",
+            "targets": [
+              {
+                "expr": "kamailio_tcp_current_connections"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+          }
+        ]
+      }
+    }

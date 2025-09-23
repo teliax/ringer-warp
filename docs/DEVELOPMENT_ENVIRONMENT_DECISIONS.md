@@ -3,7 +3,7 @@
 ## 1. Infrastructure Decisions ✅
 
 ### Database Architecture
-**Decision**: All databases hosted in GCP Project "Ringer" (project-id: `ringer-472421`)
+**Decision**: All databases hosted in GCP Project "Ringer" (project-id: `ringer-warp-v01`)
 
 #### Database Usage by Service:
 1. **Cloud SQL (PostgreSQL)** - Primary Relational Database
@@ -209,14 +209,14 @@ clean:          ## Clean up
 # GCP commands
 gcp-auth:       ## Authenticate with GCP
 	gcloud auth login
-	gcloud config set project ringer-472421
+	gcloud config set project ringer-warp-v01
 
 gcp-deploy-dev: ## Deploy to GCP development
-	gcloud app deploy --project=ringer-472421 --version=dev
+	gcloud app deploy --project=ringer-warp-v01 --version=dev
 
 # Database commands
 db-proxy:       ## Start Cloud SQL proxy
-	cloud_sql_proxy -instances=ringer-472421:us-central1:ringer-db=tcp:5432
+	cloud_sql_proxy -instances=ringer-warp-v01:us-central1:ringer-db=tcp:5432
 
 db-backup:      ## Backup database
 	gcloud sql backups create --instance=ringer-db
@@ -258,7 +258,7 @@ DATABASE_URL="postgresql://user:password@localhost:5432/ringer_dev?schema=public
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| GCP Project | ringer-472421 | Provided |
+| GCP Project | ringer-warp-v01 | Provided |
 | Databases | Cloud SQL, BigQuery, Redis | GCP-native, scalable |
 | Package Manager | npm | Team preference |
 | API Framework | NestJS | Most robust, enterprise-ready |

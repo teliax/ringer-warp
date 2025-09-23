@@ -1,0 +1,46 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    # Let's Encrypt Staging server (for testing)
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: admin@ringer.tel  # Change to your email
+    privateKeySecretRef:
+      name: letsencrypt-staging-key
+    solvers:
+    # HTTP-01 challenge for standard domains
+    - http01:
+        ingress:
+          ingressClassName: nginx
+      selector:
+        dnsNames:
+        - 'api-v2.ringer.tel'
+        - 'api.ringer.net'
+        - 'grafana.ringer.tel'
+        - 'prometheus.ringer.tel'
+        - 'homer.ringer.tel'
+    # DNS-01 challenge for wildcard certificates using Gandi
+    - dns01:
+        gandi:
+          # Gandi API token should be stored in Google Secret Manager
+          # and synced to Kubernetes secret
+          apiTokenSecretRef:
+            name: gandi-api-token
+            key: api-token
+      selector:
+        dnsNames:
+        - '*.ringer.tel'
+        - '*.ringer.net'
+---
+# Secret for Gandi API token (to be created from Google Secret Manager)
+# This is a placeholder - actual secret should be synced from GSM
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gandi-api-token
+  namespace: cert-manager
+type: Opaque
+stringData:
+  api-token: "PLACEHOLDER_GANDI_API_TOKEN"  # Replace with actual token from GSM

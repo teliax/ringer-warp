@@ -1,0 +1,170 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kong-gateway
+  namespace: kong
+  labels:
+    app: kong-gateway
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kong-gateway
+  template:
+    metadata:
+      labels:
+        app: kong-gateway
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8001"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: kong-serviceaccount
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - kong-gateway
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: kong
+        image: kong:3.4
+        env:
+        # Database configuration
+        - name: KONG_DATABASE
+          value: postgres
+        - name: KONG_PG_HOST
+          value: postgres.kong.svc.cluster.local
+        - name: KONG_PG_PORT
+          value: "5432"
+        - name: KONG_PG_DATABASE
+          value: kong
+        - name: KONG_PG_USER
+          value: kong
+        - name: KONG_PG_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        # Kong configuration
+        - name: KONG_PROXY_LISTEN
+          value: "0.0.0.0:8000, 0.0.0.0:8443 ssl"
+        - name: KONG_ADMIN_LISTEN
+          value: "0.0.0.0:8001, 0.0.0.0:8444 ssl"
+        - name: KONG_STATUS_LISTEN
+          value: "0.0.0.0:8100"
+        - name: KONG_NGINX_WORKER_PROCESSES
+          value: "2"
+        - name: KONG_LOG_LEVEL
+          value: info
+        - name: KONG_PROXY_ACCESS_LOG
+          value: /dev/stdout
+        - name: KONG_PROXY_ERROR_LOG
+          value: /dev/stderr
+        - name: KONG_ADMIN_ACCESS_LOG
+          value: /dev/stdout
+        - name: KONG_ADMIN_ERROR_LOG
+          value: /dev/stderr
+        # Performance tuning
+        - name: KONG_UPSTREAM_KEEPALIVE_POOL_SIZE
+          value: "200"
+        - name: KONG_UPSTREAM_KEEPALIVE_MAX_REQUESTS
+          value: "100000"
+        - name: KONG_UPSTREAM_KEEPALIVE_IDLE_TIMEOUT
+          value: "60"
+        # Plugins
+        - name: KONG_PLUGINS
+          value: "bundled,prometheus"
+        # Security
+        - name: KONG_ADMIN_GUI_URL
+          value: "https://api-admin.ringer.tel"
+        - name: KONG_ADMIN_API_URI
+          value: "https://api-admin.ringer.tel"
+        ports:
+        - name: proxy
+          containerPort: 8000
+          protocol: TCP
+        - name: proxy-ssl
+          containerPort: 8443
+          protocol: TCP
+        - name: admin
+          containerPort: 8001
+          protocol: TCP
+        - name: admin-ssl
+          containerPort: 8444
+          protocol: TCP
+        - name: status
+          containerPort: 8100
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /status
+            port: 8100
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /status
+            port: 8100
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "1000m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: kong-gateway-hpa
+  namespace: kong
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: kong-gateway
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60

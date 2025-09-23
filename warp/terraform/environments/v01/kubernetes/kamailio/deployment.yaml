@@ -1,0 +1,202 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kamailio-config
+  namespace: ringer-warp-v01
+data:
+  kamctlrc: |
+    # Kamailio control configuration
+    SIP_DOMAIN=warp.io
+    DBENGINE=PGSQL
+    DBHOST=10.126.0.3
+    DBPORT=5432
+    DBNAME=warp
+    DBRWUSER=warp
+    INSTALL_EXTRA_TABLES=yes
+    INSTALL_PRESENCE_TABLES=yes
+    INSTALL_DBUID_TABLES=yes
+    CHARSET=utf8
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kamailio-sip
+  namespace: ringer-warp-v01
+  labels:
+    app: kamailio
+    component: sip-proxy
+spec:
+  type: LoadBalancer
+  loadBalancerSourceRanges:
+    - 0.0.0.0/0  # Allow all IPs - adjust for security
+  ports:
+  - name: sip-udp
+    port: 5060
+    protocol: UDP
+    targetPort: 5060
+  - name: sip-tcp
+    port: 5060
+    protocol: TCP
+    targetPort: 5060
+  - name: sip-tls
+    port: 5061
+    protocol: TCP
+    targetPort: 5061
+  - name: ws
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  - name: wss
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    app: kamailio
+    component: sip-proxy
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kamailio
+  namespace: ringer-warp-v01
+  labels:
+    app: kamailio
+    component: sip-proxy
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: kamailio
+      component: sip-proxy
+  template:
+    metadata:
+      labels:
+        app: kamailio
+        component: sip-proxy
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - kamailio
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: kamailio
+        image: kamailio/kamailio:5.7-alpine3.17
+        command: ["kamailio"]
+        args: ["-DD", "-E", "-M", "8", "-m", "128", "--", "-f", "/etc/kamailio/kamailio.cfg"]
+        ports:
+        - containerPort: 5060
+          name: sip-udp
+          protocol: UDP
+        - containerPort: 5060
+          name: sip-tcp
+          protocol: TCP
+        - containerPort: 5061
+          name: sip-tls
+          protocol: TCP
+        - containerPort: 8080
+          name: ws
+          protocol: TCP
+        - containerPort: 8443
+          name: wss
+          protocol: TCP
+        env:
+        - name: KAM_SIP_DOMAIN
+          value: "warp.io"
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: warp-db-credentials
+              key: host
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: warp-db-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: warp-db-credentials
+              key: password
+        - name: REDIS_HOST
+          valueFrom:
+            secretKeyRef:
+              name: warp-redis-credentials
+              key: host
+        volumeMounts:
+        - name: config
+          mountPath: /etc/kamailio/kamctlrc
+          subPath: kamctlrc
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "kamctl ping || exit 1"
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "kamctl ping || exit 1"
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+      - name: kamailio-exporter
+        image: florentchauveau/kamailio_exporter:latest
+        ports:
+        - containerPort: 9090
+          name: metrics
+        env:
+        - name: KAM_BINRPC_ENDPOINT
+          value: "tcp://localhost:2049"
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+      volumes:
+      - name: config
+        configMap:
+          name: kamailio-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kamailio-metrics
+  namespace: ringer-warp-v01
+  labels:
+    app: kamailio
+    component: metrics
+spec:
+  type: ClusterIP
+  ports:
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+  selector:
+    app: kamailio
+    component: sip-proxy

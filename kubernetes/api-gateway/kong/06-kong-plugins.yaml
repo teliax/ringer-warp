@@ -1,0 +1,224 @@
+# Global rate limiting plugin
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: global-rate-limit
+  namespace: kong
+config:
+  minute: 1000
+  hour: 10000
+  policy: local
+  limit_by: ip
+  hide_client_headers: false
+plugin: rate-limiting
+---
+# API key authentication plugin
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: api-key-auth
+  namespace: kong
+config:
+  key_names:
+  - X-API-Key
+  - apikey
+  hide_credentials: true
+  anonymous: ""
+  key_in_header: true
+  key_in_query: true
+  key_in_body: false
+  run_on_preflight: true
+plugin: key-auth
+---
+# JWT authentication plugin
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: jwt-auth
+  namespace: kong
+config:
+  uri_param_names:
+  - jwt
+  header_names:
+  - Authorization
+  claims_to_verify:
+  - exp
+  - iat
+  maximum_expiration: 3600
+  run_on_preflight: true
+plugin: jwt
+---
+# CORS plugin for API access
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: cors
+  namespace: kong
+config:
+  origins:
+  - https://app.ringer.tel
+  - https://portal.ringer.tel
+  - http://localhost:3000  # For development
+  methods:
+  - GET
+  - POST
+  - PUT
+  - DELETE
+  - PATCH
+  - OPTIONS
+  headers:
+  - Accept
+  - Accept-Version
+  - Content-Length
+  - Content-MD5
+  - Content-Type
+  - Date
+  - X-Auth-Token
+  - X-API-Key
+  - Authorization
+  exposed_headers:
+  - X-Auth-Token
+  - X-RateLimit-Limit
+  - X-RateLimit-Remaining
+  - X-RateLimit-Reset
+  credentials: true
+  max_age: 3600
+plugin: cors
+---
+# Request transformer for backward compatibility
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: request-transformer
+  namespace: kong
+config:
+  add:
+    headers:
+    - X-Kong-Proxy:true
+  remove:
+    headers:
+    - X-Internal-Header
+  rename:
+    headers:
+    - X-Legacy-Header:X-Modern-Header
+plugin: request-transformer
+---
+# IP restriction for SIP endpoints
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: ip-restriction-sip
+  namespace: kong
+config:
+  allow:
+  - 192.168.0.0/16  # Replace with actual customer IPs
+  - 10.0.0.0/8
+  deny: []
+  status: 403
+  message: "Access denied - IP not whitelisted"
+plugin: ip-restriction
+---
+# Response transformer for API versioning
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: response-transformer
+  namespace: kong
+config:
+  add:
+    headers:
+    - X-API-Version:1.0.0
+    - X-Kong-Proxy-Latency:$(kong_proxy_latency)
+  remove:
+    headers:
+    - Server
+    - X-Powered-By
+plugin: response-transformer
+---
+# Request validation against OpenAPI spec
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: request-validator
+  namespace: kong
+config:
+  body_schema: |
+    {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object"
+    }
+  allowed_content_types:
+  - application/json
+  - application/x-www-form-urlencoded
+  - multipart/form-data
+plugin: request-validator
+---
+# Prometheus metrics plugin
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: prometheus
+  namespace: kong
+config:
+  per_consumer: true
+  status_code_metrics: true
+  latency_metrics: true
+  bandwidth_metrics: true
+  upstream_health_metrics: true
+plugin: prometheus
+---
+# ACL (Access Control List) plugin
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: acl
+  namespace: kong
+config:
+  allow:
+  - admin
+  - customer_admin
+  - technical_user
+  hide_groups_header: true
+plugin: acl
+---
+# Request size limiting
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: request-size-limit
+  namespace: kong
+config:
+  allowed_payload_size: 10  # 10MB limit
+  size_unit: megabytes
+  require_content_length: false
+plugin: request-size-limiting
+---
+# Bot detection plugin
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: bot-detection
+  namespace: kong
+config:
+  allow:
+  - GoogleBot
+  - BingBot
+  deny:
+  - BadBot
+  - ScrapyBot
+plugin: bot-detection
+---
+# HTTP Log plugin for audit
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: http-log
+  namespace: kong
+config:
+  http_endpoint: http://logging-service.monitoring:8080/logs
+  method: POST
+  timeout: 10000
+  keepalive: 60000
+  flush_timeout: 2
+  retry_count: 10
+plugin: http-log

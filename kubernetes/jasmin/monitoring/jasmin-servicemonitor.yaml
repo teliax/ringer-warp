@@ -1,0 +1,129 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: jasmin-metrics
+  namespace: messaging
+  labels:
+    app: jasmin
+    prometheus: kube-prometheus
+spec:
+  selector:
+    matchLabels:
+      app: jasmin
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    scheme: http
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: rabbitmq-metrics
+  namespace: messaging
+  labels:
+    app: rabbitmq
+    prometheus: kube-prometheus
+spec:
+  selector:
+    matchLabels:
+      app: rabbitmq
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    scheme: http
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: redis-metrics
+  namespace: messaging
+  labels:
+    app: redis
+    prometheus: kube-prometheus
+spec:
+  selector:
+    matchLabels:
+      app: redis
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    scheme: http
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jasmin-grafana-dashboard
+  namespace: messaging
+  labels:
+    grafana_dashboard: "true"
+data:
+  jasmin-dashboard.json: |
+    {
+      "dashboard": {
+        "title": "Jasmin SMSC Monitoring",
+        "uid": "jasmin-smsc",
+        "version": 1,
+        "panels": [
+          {
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+            "id": 1,
+            "title": "Message Throughput",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(jasmin_messages_sent_total[5m])",
+                "legendFormat": "Sent",
+                "refId": "A"
+              },
+              {
+                "expr": "rate(jasmin_messages_received_total[5m])",
+                "legendFormat": "Received",
+                "refId": "B"
+              }
+            ]
+          },
+          {
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+            "id": 2,
+            "title": "SMPP Connections",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "jasmin_smpp_connections_active",
+                "legendFormat": "Active Connections",
+                "refId": "A"
+              }
+            ]
+          },
+          {
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+            "id": 3,
+            "title": "Queue Sizes",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rabbitmq_queue_messages{queue=~\"submit.sm.*\"}",
+                "legendFormat": "{{queue}}",
+                "refId": "A"
+              }
+            ]
+          },
+          {
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+            "id": 4,
+            "title": "Error Rates",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(jasmin_errors_total[5m])",
+                "legendFormat": "{{error_type}}",
+                "refId": "A"
+              }
+            ]
+          }
+        ]
+      }
+    }

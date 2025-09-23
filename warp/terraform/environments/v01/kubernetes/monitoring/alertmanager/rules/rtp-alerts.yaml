@@ -1,0 +1,84 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: rtp-alerts
+  namespace: monitoring
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+  - name: rtp.rules
+    interval: 30s
+    rules:
+    # High jitter
+    - alert: HighRtpJitter
+      expr: |
+        rtpengine_jitter_ms > 50
+      for: 5m
+      labels:
+        severity: warning
+        service: rtpengine
+      annotations:
+        summary: "High RTP jitter detected"
+        description: "RTP jitter is {{ $value }}ms on {{ $labels.instance }}"
+        
+    # Critical jitter
+    - alert: CriticalRtpJitter
+      expr: |
+        rtpengine_jitter_ms > 100
+      for: 2m
+      labels:
+        severity: critical
+        service: rtpengine
+      annotations:
+        summary: "Critical RTP jitter"
+        description: "RTP jitter is {{ $value }}ms on {{ $labels.instance }}"
+        
+    # High packet loss
+    - alert: HighPacketLoss
+      expr: |
+        (rate(rtpengine_packet_loss_total[5m]) / rate(rtpengine_packets_total[5m])) > 0.01
+      for: 5m
+      labels:
+        severity: warning
+        service: rtpengine
+      annotations:
+        summary: "High packet loss rate"
+        description: "Packet loss rate is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+        
+    # Critical packet loss
+    - alert: CriticalPacketLoss
+      expr: |
+        (rate(rtpengine_packet_loss_total[5m]) / rate(rtpengine_packets_total[5m])) > 0.05
+      for: 2m
+      labels:
+        severity: critical
+        service: rtpengine
+      annotations:
+        summary: "Critical packet loss"
+        description: "Packet loss rate is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+        
+    # High CPU usage
+    - alert: RtpEngineHighCpu
+      expr: |
+        (100 - (rtpengine_cpu_idle * 100)) > 80
+      for: 5m
+      labels:
+        severity: warning
+        service: rtpengine
+      annotations:
+        summary: "High RTPEngine CPU usage"
+        description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+        
+    # RTPEngine down
+    - alert: RtpEngineDown
+      expr: |
+        up{job="rtpengine"} == 0
+      for: 2m
+      labels:
+        severity: critical
+        service: rtpengine
+      annotations:
+        summary: "RTPEngine is down"
+        description: "RTPEngine instance {{ $labels.instance }} has been down for more than 2 minutes"

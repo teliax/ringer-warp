@@ -1,0 +1,157 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "sip-metrics",
+    "title": "SIP Infrastructure Monitoring",
+    "tags": ["sip", "kamailio", "voip"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 0,
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "datasource": "Prometheus",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
+        "id": 1,
+        "title": "SIP Call Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(sip_dialog_count[5m])",
+            "legendFormat": "{{instance}} - Calls/sec",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "datasource": "Prometheus",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        },
+        "id": 2,
+        "title": "Active Dialogs",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sip_dialog_active",
+            "legendFormat": "{{instance}} - Active Dialogs",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "datasource": "Prometheus",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        },
+        "id": 3,
+        "title": "SIP Response Codes",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(sip_responses_total[5m])",
+            "legendFormat": "{{instance}} - {{code}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "datasource": "Prometheus",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        },
+        "id": 4,
+        "title": "Registration Status",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sip_registrar_registered_users",
+            "legendFormat": "{{instance}} - Registered Users",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "datasource": "Prometheus",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 16
+        },
+        "id": 5,
+        "title": "SIP Transaction Latency",
+        "type": "heatmap",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, rate(sip_transaction_duration_seconds_bucket[5m]))",
+            "format": "heatmap",
+            "legendFormat": "{{le}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "datasource": "Prometheus",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 24
+        },
+        "id": 6,
+        "title": "Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sip_shared_memory_used_bytes / sip_shared_memory_total_bytes * 100",
+            "legendFormat": "{{instance}} - Shared Memory %",
+            "refId": "A"
+          },
+          {
+            "expr": "sip_private_memory_used_bytes / sip_private_memory_total_bytes * 100",
+            "legendFormat": "{{instance}} - Private Memory %",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "datasource": "Prometheus",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 24
+        },
+        "id": 7,
+        "title": "CPU Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(process_cpu_seconds_total{job=\"kamailio\"}[5m]) * 100",
+            "legendFormat": "{{instance}} - CPU %",
+            "refId": "A"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -15,7 +15,7 @@ This guide provides instructions for hive-mind agents on how to handle credentia
 
 ### Secret Naming Convention
 ```
-projects/ringer-472421/secrets/{service}-credentials/versions/latest
+projects/ringer-warp-v01/secrets/{service}-credentials/versions/latest
 ```
 
 ### Complete API Inventory and Required Secrets
@@ -135,7 +135,7 @@ echo -n '{
 }' | gcloud secrets create gcp-identity-platform \
     --data-file=- \
     --replication-policy="automatic" \
-    --project=ringer-472421
+    --project=ringer-warp-v01
 
 # Example: Create Telique credentials
 echo -n '{
@@ -145,7 +145,7 @@ echo -n '{
 }' | gcloud secrets create telique-credentials \
     --data-file=- \
     --replication-policy="automatic" \
-    --project=ringer-472421
+    --project=ringer-warp-v01
 ```
 
 ### Creating Internal Service Secrets (Automated by Infrastructure)
@@ -197,7 +197,7 @@ func getSecret(secretName string) (string, error) {
     defer client.Close()
 
     // Build the resource name
-    name := fmt.Sprintf("projects/ringer-472421/secrets/%s/versions/latest", secretName)
+    name := fmt.Sprintf("projects/ringer-warp-v01/secrets/%s/versions/latest", secretName)
     
     // Access the secret
     result, err := client.AccessSecretVersion(ctx, &secretmanagerpb.AccessSecretVersionRequest{
@@ -226,7 +226,7 @@ class SecretManager {
   }
   
   async getSecret(secretName: string): Promise<string> {
-    const name = `projects/ringer-472421/secrets/${secretName}/versions/latest`;
+    const name = `projects/ringer-warp-v01/secrets/${secretName}/versions/latest`;
     
     const [version] = await this.client.accessSecretVersion({ name });
     const payload = version.payload?.data?.toString();
@@ -254,7 +254,7 @@ def get_secret(secret_name: str) -> str:
     client = secretmanager.SecretManagerServiceClient()
     
     # Build the resource name
-    name = f"projects/ringer-472421/secrets/{secret_name}/versions/latest"
+    name = f"projects/ringer-warp-v01/secrets/{secret_name}/versions/latest"
     
     # Access the secret
     response = client.access_secret_version(request={"name": name})
@@ -275,7 +275,7 @@ gcloud artifacts repositories create warp-platform \
     --repository-format=docker \
     --location=us-central1 \
     --description="WARP platform container images" \
-    --project=ringer-472421
+    --project=ringer-warp-v01
 
 # Configure Docker authentication
 gcloud auth configure-docker us-central1-docker.pkg.dev
@@ -287,12 +287,12 @@ gcloud auth configure-docker us-central1-docker.pkg.dev
 # Build image for AMD64 architecture
 docker buildx build \
     --platform linux/amd64 \
-    -t us-central1-docker.pkg.dev/ringer-472421/warp-platform/api-gateway:latest \
+    -t us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:latest \
     -f Dockerfile \
     .
 
 # Push to Artifact Registry
-docker push us-central1-docker.pkg.dev/ringer-472421/warp-platform/api-gateway:latest
+docker push us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:latest
 ```
 
 ### Dockerfile Example
@@ -322,7 +322,7 @@ kind: ServiceAccount
 metadata:
   name: api-gateway-sa
   annotations:
-    iam.gke.io/gcp-service-account: api-gateway@ringer-472421.iam.gserviceaccount.com
+    iam.gke.io/gcp-service-account: api-gateway@ringer-warp-v01.iam.gserviceaccount.com
 
 ---
 apiVersion: apps/v1
@@ -335,12 +335,12 @@ spec:
       serviceAccountName: api-gateway-sa
       containers:
       - name: api-gateway
-        image: us-central1-docker.pkg.dev/ringer-472421/warp-platform/api-gateway:latest
+        image: us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:latest
         env:
         - name: GCP_PROJECT_ID
-          value: "ringer-472421"
+          value: "ringer-warp-v01"
         - name: SECRET_MANAGER_PROJECT
-          value: "ringer-472421"
+          value: "ringer-warp-v01"
         # No actual secrets in env vars!
 ```
 
@@ -348,9 +348,9 @@ spec:
 ```bash
 # Grant secret accessor role to service account
 gcloud secrets add-iam-policy-binding gcp-identity-platform \
-    --member="serviceAccount:api-gateway@ringer-472421.iam.gserviceaccount.com" \
+    --member="serviceAccount:api-gateway@ringer-warp-v01.iam.gserviceaccount.com" \
     --role="roles/secretmanager.secretAccessor" \
-    --project=ringer-472421
+    --project=ringer-warp-v01
 ```
 
 ## Vercel Frontend Deployment
@@ -392,7 +392,7 @@ module.exports = {
 ```bash
 # Set up Application Default Credentials
 gcloud auth application-default login
-gcloud config set project ringer-472421
+gcloud config set project ringer-warp-v01
 
 # Your local code will now use your Google credentials to access secrets
 ```
@@ -466,11 +466,11 @@ export async function getConfig() {
 ### Permission Denied on Secret Access
 ```bash
 # Check service account permissions
-gcloud secrets get-iam-policy gcp-identity-platform --project=ringer-472421
+gcloud secrets get-iam-policy gcp-identity-platform --project=ringer-warp-v01
 
 # Grant access if missing
 gcloud secrets add-iam-policy-binding gcp-identity-platform \
-    --member="serviceAccount:YOUR-SA@ringer-472421.iam.gserviceaccount.com" \
+    --member="serviceAccount:YOUR-SA@ringer-warp-v01.iam.gserviceaccount.com" \
     --role="roles/secretmanager.secretAccessor"
 ```
 
@@ -486,10 +486,10 @@ gcloud artifacts repositories list --location=us-central1
 ### Secret Not Found
 ```bash
 # List all secrets
-gcloud secrets list --project=ringer-472421
+gcloud secrets list --project=ringer-warp-v01
 
 # Check secret exists and has versions
-gcloud secrets versions list gcp-identity-platform --project=ringer-472421
+gcloud secrets versions list gcp-identity-platform --project=ringer-warp-v01
 ```
 
 ---

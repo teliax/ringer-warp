@@ -1,0 +1,106 @@
+# Jaeger values for WARP distributed tracing
+provisionDataStore:
+  cassandra: false
+  elasticsearch: false
+  kafka: false
+
+allInOne:
+  enabled: true
+  image: jaegertracing/all-in-one
+  tag: latest
+  
+  ingress:
+    enabled: true
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+    - jaeger.warp-monitoring.local
+    
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+      
+storage:
+  type: memory
+  options:
+    memory:
+      max-traces: 100000
+      
+collector:
+  service:
+    zipkin:
+      port: 9411
+    grpc:
+      port: 14250
+    tchannel:
+      port: 14267
+    http:
+      port: 14268
+      
+query:
+  serviceType: LoadBalancer
+  service:
+    port: 16686
+    
+agent:
+  enabled: true
+  daemonset:
+    useHostPort: true
+    
+  cmdlineParams: {}
+    
+  service:
+    hostPort: 5775
+    
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+      
+# Enable metrics for monitoring
+metrics:
+  serviceMonitor:
+    enabled: true
+    additionalLabels:
+      release: warp-monitoring
+      
+# OpenTelemetry integration for WARP services
+otel:
+  enabled: true
+  service:
+    name: jaeger-otel
+    type: ClusterIP
+  config: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    processors:
+      batch:
+        timeout: 10s
+        send_batch_size: 1024
+      memory_limiter:
+        check_interval: 5s
+        limit_mib: 512
+    exporters:
+      jaeger:
+        endpoint: jaeger-collector:14250
+        tls:
+          insecure: true
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [jaeger]

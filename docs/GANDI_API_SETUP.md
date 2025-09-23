@@ -51,13 +51,13 @@ echo ".env.staging" >> .gitignore
 gcloud secrets create gandi-api-key \
   --data-file=- \
   --replication-policy="automatic" \
-  --project=ringer-472421
+  --project=ringer-warp-v01
 
 # Type your API key and press Ctrl+D
 
 # Grant access to service accounts
 gcloud secrets add-iam-policy-binding gandi-api-key \
-  --member="serviceAccount:warp-dns-manager@ringer-472421.iam.gserviceaccount.com" \
+  --member="serviceAccount:warp-dns-manager@ringer-warp-v01.iam.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
 ```
 

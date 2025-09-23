@@ -543,7 +543,7 @@ func GetServiceConfig(serviceType string) (*ServiceConfig, error) {
 
 ### Container Image Organization
 ```
-us-central1-docker.pkg.dev/ringer-472421/warp-platform/
+us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/
 ├── api-gateway:latest
 ├── billing-service:latest
 ├── routing-service:latest

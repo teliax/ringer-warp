@@ -1,0 +1,180 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "business-metrics",
+    "title": "Business Metrics Dashboard",
+    "tags": ["business", "revenue", "usage"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 0,
+    "refresh": "1m",
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "datasource": "Prometheus",
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 0,
+          "y": 0
+        },
+        "id": 1,
+        "title": "Total Revenue Today",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(increase(business_revenue_total[24h]))",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "unit": "currencyUSD"
+        }
+      },
+      {
+        "datasource": "Prometheus",
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 8,
+          "y": 0
+        },
+        "id": 2,
+        "title": "Active Subscribers",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "business_subscribers_active",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "datasource": "Prometheus",
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 16,
+          "y": 0
+        },
+        "id": 3,
+        "title": "Total Minutes Today",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(increase(business_minutes_total[24h]))",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "datasource": "Prometheus",
+        "gridPos": {
+          "h": 10,
+          "w": 24,
+          "x": 0,
+          "y": 8
+        },
+        "id": 4,
+        "title": "Revenue Trend",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum by (type) (rate(business_revenue_total[1h]) * 3600)",
+            "legendFormat": "{{type}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "datasource": "Prometheus",
+        "gridPos": {
+          "h": 10,
+          "w": 12,
+          "x": 0,
+          "y": 18
+        },
+        "id": 5,
+        "title": "Call Volume by Type",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "sum by (call_type) (increase(business_calls_total[1h]))",
+            "legendFormat": "{{call_type}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "datasource": "Prometheus",
+        "gridPos": {
+          "h": 10,
+          "w": 12,
+          "x": 12,
+          "y": 18
+        },
+        "id": 6,
+        "title": "Average Call Duration",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.5, rate(business_call_duration_seconds_bucket[5m]))",
+            "legendFormat": "Median Duration",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(business_call_duration_seconds_bucket[5m]))",
+            "legendFormat": "95th Percentile",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "datasource": "Prometheus",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 28
+        },
+        "id": 7,
+        "title": "SMS Volume",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum by (direction) (rate(business_sms_total[5m]) * 300)",
+            "legendFormat": "{{direction}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "datasource": "Prometheus",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 28
+        },
+        "id": 8,
+        "title": "New vs Churned Customers",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "increase(business_customers_new[1h])",
+            "legendFormat": "New Customers",
+            "refId": "A"
+          },
+          {
+            "expr": "increase(business_customers_churned[1h])",
+            "legendFormat": "Churned Customers",
+            "refId": "B"
+          }
+        ]
+      }
+    ]
+  }
+}

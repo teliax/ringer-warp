@@ -1,0 +1,14 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ringer-tel-wildcard-staging
+  namespace: default
+spec:
+  secretName: ringer-tel-wildcard-tls
+  issuerRef:
+    name: letsencrypt-staging-dns01
+    kind: ClusterIssuer
+  commonName: "*.ringer.tel"
+  dnsNames:
+  - "*.ringer.tel"
+  - "ringer.tel"

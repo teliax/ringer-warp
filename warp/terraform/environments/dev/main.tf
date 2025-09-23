@@ -135,11 +135,28 @@ module "compute" {
   redis_port               = google_redis_instance.cache.port
 }
 
+# Service networking for Cloud SQL
+resource "google_compute_global_address" "private_ip_address" {
+  name          = "${local.project_name}-private-ip"
+  purpose       = "VPC_PEERING"
+  address_type  = "INTERNAL"
+  prefix_length = 16
+  network       = module.networking.vpc_id
+}
+
+resource "google_service_networking_connection" "private_vpc_connection" {
+  network                 = module.networking.vpc_id
+  service                 = "servicenetworking.googleapis.com"
+  reserved_peering_ranges = [google_compute_global_address.private_ip_address.name]
+}
+
 # Cloud SQL for CockroachDB (using PostgreSQL in dev for simplicity)
 resource "google_sql_database_instance" "main" {
   name             = "${local.project_name}-db"
   database_version = "POSTGRES_15"
   region           = var.region
+
+  depends_on = [google_service_networking_connection.private_vpc_connection]
 
   settings {
     tier = "db-f1-micro"  # Small instance for dev
@@ -186,7 +203,7 @@ resource "google_secret_manager_secret" "db_password" {
   secret_id = "${local.project_name}-db-password"
 
   replication {
-    automatic = true
+    auto {}
   }
 }
 
@@ -228,6 +245,39 @@ resource "google_storage_bucket" "recordings" {
   }
 }
 
+# Google Artifact Registry for container images
+resource "google_artifact_registry_repository" "warp_images" {
+  location      = var.region
+  repository_id = "${local.project_name}-images"
+  description   = "Docker repository for WARP container images"
+  format        = "DOCKER"
+
+  cleanup_policies {
+    id     = "keep-minimum-versions"
+    action = "KEEP"
+    most_recent_versions {
+      keep_count = 10
+    }
+  }
+
+  cleanup_policies {
+    id     = "delete-untagged"
+    action = "DELETE"
+    condition {
+      tag_state = "UNTAGGED"
+      older_than = "604800s" # 7 days
+    }
+  }
+}
+
+# Grant GKE service account access to Artifact Registry
+resource "google_artifact_registry_repository_iam_member" "gke_pull" {
+  location   = google_artifact_registry_repository.warp_images.location
+  repository = google_artifact_registry_repository.warp_images.name
+  role       = "roles/artifactregistry.reader"
+  member     = "serviceAccount:${module.gke.node_service_account}"
+}
+
 # Monitoring workspace
 resource "google_monitoring_dashboard" "warp" {
   dashboard_json = file("${path.module}/dashboards/main.json")
@@ -260,21 +310,32 @@ output "database_connection" {
   sensitive = true
 }
 
+output "artifact_registry_url" {
+  value = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.warp_images.repository_id}"
+}
+
 output "next_steps" {
   value = <<-EOT
     Development environment deployed successfully!
 
     Next steps:
     1. Configure kubectl:
-       gcloud container clusters get-credentials ${module.gke.cluster_name} --region ${var.region}
+       gcloud container clusters get-credentials ${module.gke.cluster_name} --region ${var.region} --project ${var.project_id}
 
-    2. Access Consul UI:
+    2. Configure Docker for Artifact Registry:
+       gcloud auth configure-docker ${var.region}-docker.pkg.dev
+
+    3. Access Consul UI:
        ${module.consul.consul_ui_url}
 
-    3. Deploy Kamailio to GKE:
+    4. Build and push container images:
+       docker build -t ${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.warp_images.repository_id}/kamailio:latest .
+       docker push ${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.warp_images.repository_id}/kamailio:latest
+
+    5. Deploy Kamailio to GKE:
        kubectl apply -k ../../../kubernetes/overlays/dev/
 
-    4. Test SIP connectivity:
+    6. Test SIP connectivity:
        RTPEngine IPs: ${join(", ", module.compute.rtpengine_external_ips)}
   EOT
 }

@@ -1,0 +1,70 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: warp-database-init-manual
+  namespace: warp
+spec:
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      name: warp-database-init-manual
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: db-init
+        image: postgres:15-alpine
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "Testing connection to database..."
+          export PGPASSWORD="${DB_PASSWORD}"
+          
+          # First try to connect
+          psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -c "SELECT version();" || {
+            echo "Connection failed. Database user might not exist."
+            echo "Please ensure the 'warp' user exists with the correct password."
+            echo "You may need to run terraform apply or manually create the user."
+            exit 1
+          }
+          
+          echo "Connection successful. Initializing schema..."
+          
+          # Execute schema files
+          for sql_file in /schema/*.sql; do
+            if [ -f "$sql_file" ]; then
+              echo "Executing: $sql_file"
+              psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -f "$sql_file" --echo-errors --single-transaction
+            fi
+          done
+          
+          echo "Database initialization completed!"
+        env:
+        - name: DB_HOST
+          value: "34.42.208.57"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: "warp"
+        - name: DB_USER
+          value: "warp"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-warp-password
+              key: password
+        volumeMounts:
+        - name: schema-files
+          mountPath: /schema
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: schema-files
+        configMap:
+          name: warp-schema-files

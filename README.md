@@ -3,6 +3,16 @@
 ## 🚀 Overview
 WARP is a carrier-grade SIP trunking and messaging platform designed for wholesale telecom carriers. It provides API-driven provisioning, real-time routing, comprehensive billing, and SMS/MMS/RCS capabilities.
 
+## 📊 Current Status
+**Project**: `ringer-warp-v01` (GCP)  
+**Phase 1**: ✅ **100% COMPLETE** (Infrastructure)  
+**Environment**: Production  
+**SSL/HTTPS**: ✅ Enabled for all web services  
+
+📄 **Status Reports**:
+- [CURRENT_STATUS.md](CURRENT_STATUS.md) - Live deployment status
+- [PHASE1_COMPLETE.md](PHASE1_COMPLETE.md) - Infrastructure completion report
+
 ## 📋 Quick Navigation
 
 ### Core Documentation
@@ -51,6 +61,23 @@ WARP is a carrier-grade SIP trunking and messaging platform designed for wholesa
 - **SMS Delivery**: Sinch
 - **Telecom Data**: Telique API
 
+## 🎉 Phase 1 Complete - Production Ready
+
+**Infrastructure Status**: ✅ Fully deployed and operational  
+**HTTPS Endpoints**: ✅ All services secured with SSL/TLS  
+**Monitoring**: ✅ Prometheus & Grafana accessible  
+
+### Production Endpoints
+- **API**: https://api-v2.ringer.tel
+- **Grafana**: https://grafana.ringer.tel  
+- **Prometheus**: https://prometheus.ringer.tel
+
+### Phase 2 Starting
+Focus on application deployment:
+- RTPEngine configuration
+- Jasmin SMSC deployment  
+- API Gateway implementation
+
 ## 🚦 Getting Started
 
 ### Prerequisites
@@ -64,29 +91,31 @@ WARP is a carrier-grade SIP trunking and messaging platform designed for wholesa
 - go >= 1.21
 ```
 
-### Environment Setup
-1. Copy environment template:
-```bash
-cp .env.example .env
-```
+### Accessing Production Environment
 
-2. Configure GCP project:
+1. **Configure kubectl**:
 ```bash
-export GCP_PROJECT_ID=your-project-id
+export GCP_PROJECT_ID=ringer-warp-v01
 gcloud config set project $GCP_PROJECT_ID
+gcloud container clusters get-credentials warp-kamailio-cluster --zone us-central1
 ```
 
-3. Initialize Terraform:
+2. **Access Services**:
 ```bash
-cd warp/terraform/environments/dev
-terraform init
-terraform plan
+# View all services
+kubectl get services --all-namespaces
+
+# Check SSL certificates
+kubectl get certificates --all-namespaces
+
+# Monitor pods
+kubectl get pods --all-namespaces
 ```
 
-4. Deploy infrastructure:
-```bash
-terraform apply
-```
+3. **Production URLs**:
+- Grafana: https://grafana.ringer.tel (admin/prom-operator)
+- Prometheus: https://prometheus.ringer.tel
+- API: https://api-v2.ringer.tel
 
 ## 📂 Project Structure
 
@@ -185,10 +214,11 @@ k6 run tests/load/scenarios.js
 
 ## 📊 Monitoring
 
-### Access Points
-- **Homer**: https://homer.warp.io - SIP troubleshooting
-- **Grafana**: https://grafana.warp.io - Metrics dashboards
-- **Portal**: https://app.warp.io - Customer interface
+### Production Access Points
+- **Grafana**: https://grafana.ringer.tel - Metrics dashboards  
+- **Prometheus**: https://prometheus.ringer.tel - Metrics queries
+- **API**: https://api-v2.ringer.tel - API endpoint
+- **Portal**: https://app.warp.io - Customer interface (Phase 2)
 
 ## 🔐 Security
 
@@ -270,8 +300,12 @@ Built for wholesale telecom carriers requiring enterprise-grade SIP trunking wit
 
 ---
 
-**Version**: 1.0.0
-**Status**: In Development
-**Target Launch**: Q2 2025
+**Version**: 1.0.0  
+**Phase 1 Status**: ✅ COMPLETE (Infrastructure)  
+**Phase 2 Status**: 🚧 Starting (Applications)  
+**Target Launch**: Q2 2025  
 
-For detailed implementation instructions, see [CLAUDE_FLOW_GUIDE.md](CLAUDE_FLOW_GUIDE.md)
+📚 **Key Documents**:
+- [PHASE1_COMPLETE.md](PHASE1_COMPLETE.md) - Infrastructure completion report
+- [CURRENT_STATUS.md](CURRENT_STATUS.md) - Live status updates
+- [HIVEMIND_ORCHESTRATION_GUIDE.md](HIVEMIND_ORCHESTRATION_GUIDE.md) - AI implementation guide

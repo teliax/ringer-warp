@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: jasmin-smpp-service
+  namespace: messaging
+  labels:
+    app: jasmin
+    component: sms-gateway
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+spec:
+  type: LoadBalancer
+  ports:
+  - name: smpp
+    port: 2775
+    targetPort: 2775
+    protocol: TCP
+  - name: smpp-ssl
+    port: 2776
+    targetPort: 2776
+    protocol: TCP
+  selector:
+    app: jasmin
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jasmin-http-service
+  namespace: messaging
+  labels:
+    app: jasmin
+    component: sms-gateway
+spec:
+  type: ClusterIP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+  ports:
+  - name: http-api
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  - name: cli
+    port: 8990
+    targetPort: 8990
+    protocol: TCP
+  - name: metrics
+    port: 9100
+    targetPort: 9100
+    protocol: TCP
+  selector:
+    app: jasmin

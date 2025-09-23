@@ -1,0 +1,52 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: sip-wildcard-tls
+  namespace: warp-core
+spec:
+  secretName: sip-wildcard-tls-secret
+  issuerRef:
+    name: letsencrypt-staging  # Change to letsencrypt-production after testing
+    kind: ClusterIssuer
+  commonName: '*.sip.ringer.tel'
+  dnsNames:
+  - '*.sip.ringer.tel'
+  - 'sip.ringer.tel'
+  - '*.sip.ringer.net'
+  - 'sip.ringer.net'
+---
+# For specific SIP endpoints
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kamailio-tls
+  namespace: warp-core
+spec:
+  secretName: kamailio-tls-secret
+  issuerRef:
+    name: letsencrypt-staging  # Change to letsencrypt-production after testing
+    kind: ClusterIssuer
+  commonName: sip.ringer.tel
+  dnsNames:
+  - sip.ringer.tel
+  - sip.ringer.net
+  - kamailio.ringer.tel
+  - proxy.sip.ringer.tel
+  - edge.sip.ringer.tel
+---
+# Certificate for ringer-warp-v01 namespace
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kamailio-tls
+  namespace: ringer-warp-v01
+spec:
+  secretName: kamailio-tls-secret
+  issuerRef:
+    name: letsencrypt-staging  # Change to letsencrypt-production after testing
+    kind: ClusterIssuer
+  commonName: sip-v01.ringer.tel
+  dnsNames:
+  - sip-v01.ringer.tel
+  - sip-test.ringer.tel
+  - sip-staging.ringer.tel

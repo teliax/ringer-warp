@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: warp-db-schema
+  namespace: warp-core
+data:
+  00_extensions.sql: |
+$(cat /home/daldworth/repos/ringer-warp/warp/database/schema/00_extensions.sql | sed 's/^/    /')
+  01_accounts.sql: |
+$(cat /home/daldworth/repos/ringer-warp/warp/database/schema/01_accounts.sql | sed 's/^/    /')
+  02_auth.sql: |
+$(cat /home/daldworth/repos/ringer-warp/warp/database/schema/02_auth.sql | sed 's/^/    /')
+  03_numbers.sql: |
+$(cat /home/daldworth/repos/ringer-warp/warp/database/schema/03_numbers.sql | sed 's/^/    /')
+  04_routing.sql: |
+$(cat /home/daldworth/repos/ringer-warp/warp/database/schema/04_routing.sql | sed 's/^/    /')
+  05_cdr.sql: |
+$(cat /home/daldworth/repos/ringer-warp/warp/database/schema/05_cdr.sql | sed 's/^/    /')
+  06_messaging.sql: |
+$(cat /home/daldworth/repos/ringer-warp/warp/database/schema/06_messaging.sql | sed 's/^/    /')
+  07_billing.sql: |
+$(cat /home/daldworth/repos/ringer-warp/warp/database/schema/07_billing.sql | sed 's/^/    /')
+  08_vendor_mgmt.sql: |
+$(cat /home/daldworth/repos/ringer-warp/warp/database/schema/08_vendor_mgmt.sql | sed 's/^/    /')
+  09_audit.sql: |
+$(cat /home/daldworth/repos/ringer-warp/warp/database/schema/09_audit.sql | sed 's/^/    /')
+  10_indexes_performance.sql: |
+$(cat /home/daldworth/repos/ringer-warp/warp/database/schema/10_indexes_performance.sql | sed 's/^/    /')
+  11_seed_data.sql: |
+$(cat /home/daldworth/repos/ringer-warp/warp/database/schema/11_seed_data.sql | sed 's/^/    /')

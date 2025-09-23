@@ -1,0 +1,68 @@
+# Kong database migrations job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kong-migrations
+  namespace: kong
+spec:
+  template:
+    metadata:
+      name: kong-migrations
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: kong-migrations
+        image: kong:3.4
+        env:
+        - name: KONG_DATABASE
+          value: postgres
+        - name: KONG_PG_HOST
+          value: postgres.kong.svc.cluster.local
+        - name: KONG_PG_PORT
+          value: "5432"
+        - name: KONG_PG_DATABASE
+          value: kong
+        - name: KONG_PG_USER
+          value: kong
+        - name: KONG_PG_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        command: ["kong", "migrations", "bootstrap"]
+---
+# Kong migrations upgrade job (run for version upgrades)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kong-migrations-upgrade
+  namespace: kong
+  annotations:
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "1"
+spec:
+  template:
+    metadata:
+      name: kong-migrations-upgrade
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: kong-migrations-upgrade
+        image: kong:3.4
+        env:
+        - name: KONG_DATABASE
+          value: postgres
+        - name: KONG_PG_HOST
+          value: postgres.kong.svc.cluster.local
+        - name: KONG_PG_PORT
+          value: "5432"
+        - name: KONG_PG_DATABASE
+          value: kong
+        - name: KONG_PG_USER
+          value: kong
+        - name: KONG_PG_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        command: ["kong", "migrations", "up", "-v"]

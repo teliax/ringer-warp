@@ -1,0 +1,47 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: grafana-tls
+  namespace: monitoring
+spec:
+  secretName: grafana-tls-secret
+  issuerRef:
+    name: letsencrypt-staging  # Change to letsencrypt-production after testing
+    kind: ClusterIssuer
+  commonName: grafana.ringer.tel
+  dnsNames:
+  - grafana.ringer.tel
+  - grafana.ringer.net
+  - monitoring.ringer.tel
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: prometheus-tls
+  namespace: monitoring
+spec:
+  secretName: prometheus-tls-secret
+  issuerRef:
+    name: letsencrypt-staging  # Change to letsencrypt-production after testing
+    kind: ClusterIssuer
+  commonName: prometheus.ringer.tel
+  dnsNames:
+  - prometheus.ringer.tel
+  - prometheus.ringer.net
+  - metrics.ringer.tel
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: alertmanager-tls
+  namespace: monitoring
+spec:
+  secretName: alertmanager-tls-secret
+  issuerRef:
+    name: letsencrypt-staging  # Change to letsencrypt-production after testing
+    kind: ClusterIssuer
+  commonName: alerts.ringer.tel
+  dnsNames:
+  - alerts.ringer.tel
+  - alertmanager.ringer.tel
+  - alerts.ringer.net

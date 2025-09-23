@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kamailio
+  namespace: telecom
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+      - name: kamailio
+        env:
+        - name: KAMAILIO_LOG_LEVEL
+          value: "3"  # More verbose for dev
+        - name: ENVIRONMENT
+          value: "development"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1"

@@ -1,6 +1,6 @@
 -- WARP Platform PostgreSQL Schema
 -- Database: Cloud SQL (PostgreSQL 15)
--- Project: ringer-472421
+-- Project: ringer-warp-v01
 
 -- ============================================
 -- EXTENSIONS

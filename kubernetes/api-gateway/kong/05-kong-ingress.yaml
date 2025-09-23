@@ -1,0 +1,82 @@
+# Ingress for Kong Admin API (internal access only)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kong-admin-ingress
+  namespace: kong
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # Restrict to internal IPs only
+    nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+    # Basic auth for additional security
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: kong-admin-basic-auth
+    nginx.ingress.kubernetes.io/auth-realm: 'Kong Admin API'
+spec:
+  tls:
+  - hosts:
+    - api-admin.ringer.tel
+    secretName: kong-admin-tls
+  rules:
+  - host: api-admin.ringer.tel
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: kong-admin
+            port:
+              number: 8001
+---
+# Basic auth secret for Kong Admin API
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kong-admin-basic-auth
+  namespace: kong
+type: Opaque
+data:
+  # admin:KongAdmin123! (use htpasswd to generate)
+  auth: YWRtaW46JGFwcjEkSVhJTDdGOUkkRkRYVkNyNkdQMVpnLnNYRHNML3JNMA==
+---
+# Ingress for API Gateway (handled by Kong itself, not nginx)
+# This is just for documentation purposes - Kong handles its own routing
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kong-proxy-ingress
+  namespace: kong
+  annotations:
+    kubernetes.io/ingress.class: kong
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+  - hosts:
+    - api.ringer.tel
+    - api-v2.ringer.tel
+    secretName: api-gateway-tls
+  rules:
+  - host: api.ringer.tel
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: warp-api
+            port:
+              number: 8080
+  - host: api-v2.ringer.tel
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: warp-api
+            port:
+              number: 8080

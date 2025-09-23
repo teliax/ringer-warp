@@ -1,0 +1,112 @@
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      cloud.google.com/neg: '{"ingress":true}'
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"labels":{"app":"kamailio","component":"sip-proxy","protocol":"tcp"},"name":"kamailio-sip-tcp","namespace":"warp-core"},"spec":{"loadBalancerSourceRanges":["0.0.0.0/0"],"ports":[{"name":"sip-tcp","port":5060,"protocol":"TCP","targetPort":5060},{"name":"sip-tls","port":5061,"protocol":"TCP","targetPort":5061},{"name":"ws","port":8080,"protocol":"TCP","targetPort":8080},{"name":"wss","port":8443,"protocol":"TCP","targetPort":8443}],"selector":{"app":"kamailio"},"type":"LoadBalancer"}}
+    creationTimestamp: "2025-09-23T11:41:27Z"
+    finalizers:
+    - gke.networking.io/l4-netlb-v1
+    - service.kubernetes.io/load-balancer-cleanup
+    labels:
+      app: kamailio
+      component: sip-proxy
+      protocol: tcp
+    name: kamailio-sip-tcp
+    namespace: warp-core
+    resourceVersion: "1758627737843551017"
+    uid: 0f97aa1c-f8ca-4ac3-8072-04064f370fa1
+  spec:
+    allocateLoadBalancerNodePorts: true
+    clusterIP: 10.2.131.156
+    clusterIPs:
+    - 10.2.131.156
+    externalTrafficPolicy: Cluster
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    loadBalancerSourceRanges:
+    - 0.0.0.0/0
+    ports:
+    - name: sip-tcp
+      nodePort: 31847
+      port: 5060
+      protocol: TCP
+      targetPort: 5060
+    - name: sip-tls
+      nodePort: 32764
+      port: 5061
+      protocol: TCP
+      targetPort: 5061
+    - name: ws
+      nodePort: 31787
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    - name: wss
+      nodePort: 30787
+      port: 8443
+      protocol: TCP
+      targetPort: 8443
+    selector:
+      app: kamailio
+    sessionAffinity: None
+    type: LoadBalancer
+  status:
+    loadBalancer:
+      ingress:
+      - ip: 34.41.176.225
+        ipMode: VIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      cloud.google.com/neg: '{"ingress":true}'
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"labels":{"app":"kamailio","component":"sip-proxy","protocol":"udp"},"name":"kamailio-sip-udp","namespace":"warp-core"},"spec":{"loadBalancerSourceRanges":["0.0.0.0/0"],"ports":[{"name":"sip-udp","port":5060,"protocol":"UDP","targetPort":5060}],"selector":{"app":"kamailio"},"type":"LoadBalancer"}}
+    creationTimestamp: "2025-09-23T11:41:26Z"
+    finalizers:
+    - gke.networking.io/l4-netlb-v1
+    - service.kubernetes.io/load-balancer-cleanup
+    labels:
+      app: kamailio
+      component: sip-proxy
+      protocol: udp
+    name: kamailio-sip-udp
+    namespace: warp-core
+    resourceVersion: "1758627725928639005"
+    uid: b0195646-40fc-450f-8c06-f9882700aa85
+  spec:
+    allocateLoadBalancerNodePorts: true
+    clusterIP: 10.2.193.0
+    clusterIPs:
+    - 10.2.193.0
+    externalTrafficPolicy: Cluster
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    loadBalancerSourceRanges:
+    - 0.0.0.0/0
+    ports:
+    - name: sip-udp
+      nodePort: 32013
+      port: 5060
+      protocol: UDP
+      targetPort: 5060
+    selector:
+      app: kamailio
+    sessionAffinity: None
+    type: LoadBalancer
+  status:
+    loadBalancer:
+      ingress:
+      - ip: 34.61.253.247
+        ipMode: VIP
+kind: List
+metadata:
+  resourceVersion: ""

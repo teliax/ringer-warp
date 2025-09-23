@@ -1,0 +1,73 @@
+global:
+  resolve_timeout: 5m
+  # Remove any SMTP configuration if email_configs are not properly configured
+  
+inhibit_rules:
+- equal:
+  - namespace
+  - alertname
+  source_matchers:
+  - severity = critical
+  target_matchers:
+  - severity =~ warning|info
+- equal:
+  - namespace
+  - alertname
+  source_matchers:
+  - severity = warning
+  target_matchers:
+  - severity = info
+- equal:
+  - namespace
+  source_matchers:
+  - alertname = InfoInhibitor
+  target_matchers:
+  - severity = info
+- target_matchers:
+  - alertname = InfoInhibitor
+
+receivers:
+- name: default-receiver
+  # Webhook receiver for basic alerting
+  webhook_configs:
+  - url: 'http://localhost:9093/alerts'  # Placeholder - replace with actual webhook
+    send_resolved: true
+    
+- name: critical-receiver
+  webhook_configs:
+  - url: 'http://localhost:9093/critical'  # Placeholder - replace with actual webhook
+    send_resolved: true
+    
+- name: sip-team
+  webhook_configs:
+  - url: 'http://localhost:9093/sip'  # Placeholder - replace with actual webhook
+    send_resolved: true
+    
+- name: media-team
+  webhook_configs:
+  - url: 'http://localhost:9093/media'  # Placeholder - replace with actual webhook
+    send_resolved: true
+
+route:
+  group_by:
+  - alertname
+  - cluster
+  - service
+  group_interval: 10s
+  group_wait: 10s
+  receiver: default-receiver
+  repeat_interval: 12h
+  routes:
+  - continue: true
+    match:
+      severity: critical
+    receiver: critical-receiver
+  - match:
+      service: kamailio
+    receiver: sip-team
+  - match:
+      service: rtpengine
+    receiver: media-team
+
+templates:
+- /etc/alertmanager/config/*.tmpl

@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: warp-common-config
+  namespace: telecom
+data:
+  # Project Configuration
+  PROJECT_ID: "ringer-472421"
+  ENVIRONMENT: "dev"
+  REGION: "us-central1"
+  
+  # Service Discovery
+  CONSUL_DATACENTER: "gcp-us-central1"
+  CONSUL_SERVICE_PREFIX: "warp"
+  
+  # Logging Configuration
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+  
+  # Monitoring
+  PROMETHEUS_ENABLED: "true"
+  METRICS_PORT: "9090"
+  
+  # Homer Integration
+  HEP_ENABLED: "true"
+  HEP_VERSION: "3"
+  HEP_TRANSPORT: "udp"

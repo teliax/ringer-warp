@@ -1,0 +1,9 @@
+# Simplified Jaeger values for WARP
+provisionDataStore:
+  cassandra: false
+
+allInOne:
+  enabled: true
+  
+storage:
+  type: memory

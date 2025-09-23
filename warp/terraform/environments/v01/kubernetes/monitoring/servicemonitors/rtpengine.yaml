@@ -1,0 +1,31 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: rtpengine
+  namespace: monitoring
+  labels:
+    app: rtpengine
+    release: warp-monitoring
+spec:
+  selector:
+    matchLabels:
+      app: rtpengine
+  namespaceSelector:
+    matchNames:
+    - default
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: instance
+    - sourceLabels: [__meta_kubernetes_namespace]
+      targetLabel: namespace
+    - sourceLabels: [__meta_kubernetes_service_name]
+      targetLabel: service
+    metricRelabelings:
+    - sourceLabels: [__name__]
+      regex: 'rtpengine_(.+)'
+      targetLabel: metric_name
+      replacement: '$1'

@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kamailio-sip
+  namespace: telecom
+  labels:
+    app: kamailio
+    component: sip-proxy
+  annotations:
+    service.beta.kubernetes.io/external-traffic: OnlyLocal
+spec:
+  type: LoadBalancer
+  loadBalancerIP: "" # Will be assigned by GCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800  # 3 hours
+  ports:
+  - name: sip-udp
+    port: 5060
+    targetPort: 5060
+    protocol: UDP
+  - name: sip-tcp
+    port: 5060
+    targetPort: 5060
+    protocol: TCP
+  - name: sip-tls
+    port: 5061
+    targetPort: 5061
+    protocol: TCP
+  selector:
+    app: kamailio
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kamailio-metrics
+  namespace: telecom
+  labels:
+    app: kamailio
+    component: sip-proxy
+spec:
+  type: ClusterIP
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: kamailio

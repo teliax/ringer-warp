@@ -1,0 +1,175 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: warp-db-init-scripts
+data:
+  01-create-sms-schema.sql: |
+    -- Use the existing SQL file content
+    -- This will be populated from the actual files
+  02-create-provider-schema.sql: |
+    -- Use the existing SQL file content
+  04-create-indexes.sql: |
+    -- Use the existing SQL file content
+  05-initial-data.sql: |
+    -- Use the existing SQL file content
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: warp-db-init
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: db-init
+        image: postgres:15
+        env:
+        # Use warp user for schema creation (has owner privileges)
+        - name: PGHOST
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-warp-credentials
+              key: host
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-warp-credentials
+              key: username
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-warp-credentials
+              key: password
+        - name: PGDATABASE
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-warp-credentials
+              key: database
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          echo "=== Database Initialization Starting ==="
+          echo "Host: $PGHOST"
+          echo "Database: $PGDATABASE"
+          echo "User: $PGUSER"
+          
+          # Test connection
+          psql -c "SELECT version();"
+          
+          # Initialize schemas
+          echo "Creating SMS schema..."
+          psql << 'EOSQL'
+          -- SMS Schema
+          CREATE SCHEMA IF NOT EXISTS sms;
+          
+          CREATE TABLE IF NOT EXISTS sms.messages (
+              message_id BIGSERIAL PRIMARY KEY,
+              external_id VARCHAR(255) UNIQUE,
+              from_number VARCHAR(20) NOT NULL,
+              to_number VARCHAR(20) NOT NULL,
+              message_text TEXT,
+              direction VARCHAR(10) CHECK (direction IN ('inbound', 'outbound')),
+              status VARCHAR(50),
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+          
+          CREATE TABLE IF NOT EXISTS sms.routing_rules (
+              rule_id SERIAL PRIMARY KEY,
+              pattern VARCHAR(255),
+              provider VARCHAR(100),
+              priority INTEGER DEFAULT 0,
+              active BOOLEAN DEFAULT true,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+          
+          CREATE INDEX IF NOT EXISTS idx_messages_from_to ON sms.messages(from_number, to_number);
+          CREATE INDEX IF NOT EXISTS idx_messages_created ON sms.messages(created_at);
+          CREATE INDEX IF NOT EXISTS idx_messages_status ON sms.messages(status);
+          EOSQL
+          
+          echo "Creating provider schema..."
+          psql << 'EOSQL'
+          -- Provider Schema
+          CREATE SCHEMA IF NOT EXISTS provider;
+          
+          CREATE TABLE IF NOT EXISTS provider.configurations (
+              config_id SERIAL PRIMARY KEY,
+              provider_name VARCHAR(100) UNIQUE NOT NULL,
+              api_endpoint VARCHAR(500),
+              auth_type VARCHAR(50),
+              credentials JSONB,
+              active BOOLEAN DEFAULT true,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+          
+          CREATE TABLE IF NOT EXISTS provider.rate_limits (
+              limit_id SERIAL PRIMARY KEY,
+              provider_name VARCHAR(100) REFERENCES provider.configurations(provider_name),
+              requests_per_second INTEGER,
+              requests_per_minute INTEGER,
+              requests_per_hour INTEGER,
+              concurrent_requests INTEGER,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+          EOSQL
+          
+          echo "Creating indexes..."
+          psql << 'EOSQL'
+          -- Performance indexes
+          CREATE INDEX IF NOT EXISTS idx_routing_active ON sms.routing_rules(active) WHERE active = true;
+          CREATE INDEX IF NOT EXISTS idx_provider_active ON provider.configurations(active) WHERE active = true;
+          EOSQL
+          
+          echo "Inserting initial data..."
+          psql << 'EOSQL'
+          -- Initial providers
+          INSERT INTO provider.configurations (provider_name, api_endpoint, auth_type, active)
+          VALUES 
+              ('twilio', 'https://api.twilio.com/2010-04-01', 'basic', true),
+              ('messagebird', 'https://rest.messagebird.com', 'bearer', true),
+              ('sinch', 'https://sms.api.sinch.com/xms/v1', 'bearer', true)
+          ON CONFLICT (provider_name) DO NOTHING;
+          
+          -- Default routing rules
+          INSERT INTO sms.routing_rules (pattern, provider, priority, active)
+          VALUES
+              ('^\\+1', 'twilio', 100, true),
+              ('^\\+44', 'messagebird', 100, true),
+              ('.*', 'sinch', 50, true)
+          ON CONFLICT DO NOTHING;
+          EOSQL
+          
+          echo "Setting permissions for application user..."
+          psql << 'EOSQL'
+          -- Grant permissions to warp_app user
+          GRANT USAGE ON SCHEMA sms TO warp_app;
+          GRANT USAGE ON SCHEMA provider TO warp_app;
+          GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA sms TO warp_app;
+          GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA provider TO warp_app;
+          GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA sms TO warp_app;
+          GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA provider TO warp_app;
+          
+          -- Grant read-only permissions to warp_readonly
+          GRANT USAGE ON SCHEMA sms TO warp_readonly;
+          GRANT USAGE ON SCHEMA provider TO warp_readonly;
+          GRANT SELECT ON ALL TABLES IN SCHEMA sms TO warp_readonly;
+          GRANT SELECT ON ALL TABLES IN SCHEMA provider TO warp_readonly;
+          
+          -- Verify schemas
+          SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ('sms', 'provider');
+          
+          -- Verify tables
+          SELECT schemaname, tablename FROM pg_tables WHERE schemaname IN ('sms', 'provider') ORDER BY schemaname, tablename;
+          EOSQL
+          
+          echo "=== Database Initialization Complete ==="
+          echo "Schemas created: sms, provider"
+          echo "Tables created: messages, routing_rules, configurations, rate_limits"
+          echo "Initial data loaded"
+          echo "Permissions granted to warp_app and warp_readonly users"

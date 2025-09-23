@@ -1,0 +1,28 @@
+steps:
+  # Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build',
+      '-t', 'us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/kamailio:v1.2',
+      '-t', 'us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/kamailio:latest',
+      '-f', 'Dockerfile',
+      '.'
+    ]
+
+  # Push the v1.2 tag
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/kamailio:v1.2']
+
+  # Push the latest tag
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/kamailio:latest']
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+  
+timeout: '1200s'
+
+images:
+  - 'us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/kamailio:v1.2'
+  - 'us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/kamailio:latest'

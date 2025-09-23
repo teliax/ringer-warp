@@ -1,0 +1,48 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: warp-database-init
+  namespace: warp
+spec:
+  ttlSecondsAfterFinished: 3600  # Clean up after 1 hour
+  template:
+    metadata:
+      name: warp-database-init
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: db-init
+        image: us-central1-docker.pkg.dev/ringer-472421/warp-platform/database-init:latest
+        env:
+        - name: DB_HOST
+          value: "34.42.208.57"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: "warp"
+        - name: DB_USER
+          value: "warp"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-warp-password
+              key: password
+        - name: LOAD_SEED_DATA
+          value: "false"  # Set to true for dev/test environments
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+# Secret for database password (to be created separately)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudsql-warp-password
+  namespace: warp
+type: Opaque
+stringData:
+  password: "REPLACE_WITH_ACTUAL_PASSWORD"

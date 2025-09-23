@@ -1,0 +1,72 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: sip-alerts
+  namespace: monitoring
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+  - name: sip.rules
+    interval: 30s
+    rules:
+    # High SIP error rate
+    - alert: HighSipErrorRate
+      expr: |
+        (rate(kamailio_sip_errors_total[5m]) / rate(kamailio_sip_requests_total[5m])) > 0.05
+      for: 5m
+      labels:
+        severity: warning
+        service: kamailio
+      annotations:
+        summary: "High SIP error rate detected"
+        description: "SIP error rate is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+        
+    # Critical SIP error rate
+    - alert: CriticalSipErrorRate
+      expr: |
+        (rate(kamailio_sip_errors_total[5m]) / rate(kamailio_sip_requests_total[5m])) > 0.10
+      for: 2m
+      labels:
+        severity: critical
+        service: kamailio
+      annotations:
+        summary: "Critical SIP error rate"
+        description: "SIP error rate is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+        
+    # Low active registrations
+    - alert: LowActiveRegistrations
+      expr: |
+        kamailio_active_registrations < 100
+      for: 10m
+      labels:
+        severity: warning
+        service: kamailio
+      annotations:
+        summary: "Low number of active SIP registrations"
+        description: "Only {{ $value }} active registrations on {{ $labels.instance }}"
+        
+    # High call setup time
+    - alert: HighCallSetupTime
+      expr: |
+        histogram_quantile(0.95, rate(kamailio_call_setup_duration_seconds_bucket[5m])) > 2
+      for: 5m
+      labels:
+        severity: warning
+        service: kamailio
+      annotations:
+        summary: "High call setup time"
+        description: "95th percentile call setup time is {{ $value }}s on {{ $labels.instance }}"
+        
+    # No new calls
+    - alert: NoNewCalls
+      expr: |
+        rate(kamailio_sip_calls_total[5m]) == 0
+      for: 15m
+      labels:
+        severity: warning
+        service: kamailio
+      annotations:
+        summary: "No new SIP calls"
+        description: "No new calls processed in the last 15 minutes on {{ $labels.instance }}"

@@ -1,0 +1,12 @@
+# Ignore actual secret files
+overlays/dev/secrets/*.env
+!overlays/dev/secrets/*.env.example
+overlays/prod/secrets/*.env
+!overlays/prod/secrets/*.env.example
+
+# Temporary files
+*.tmp
+*.bak
+
+# Kustomize build output
+_build/

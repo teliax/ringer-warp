@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana-ingress
+  namespace: monitoring
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging-http01
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # Optional: Add basic auth for Grafana
+    # nginx.ingress.kubernetes.io/auth-type: basic
+    # nginx.ingress.kubernetes.io/auth-secret: grafana-basic-auth
+    # nginx.ingress.kubernetes.io/auth-realm: 'Authentication Required - Grafana'
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - grafana.ringer.tel
+    secretName: grafana-tls
+  rules:
+  - host: grafana.ringer.tel
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: warp-monitoring-grafana
+            port:
+              number: 80

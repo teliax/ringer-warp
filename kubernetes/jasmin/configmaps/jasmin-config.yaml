@@ -1,0 +1,556 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jasmin-config
+  namespace: messaging
+data:
+  jasmin.cfg: |
+    # Jasmin SMS Gateway Configuration
+    # Core Configuration for SMPP Gateway
+    
+    [DEFAULT]
+    # Logging Configuration
+    log_level = INFO
+    log_file = /var/log/jasmin/jasmin.log
+    log_rotate = W0
+    log_format = %(asctime)s %(levelname)-8s %(process)d %(message)s
+    log_date_format = %Y-%m-%d %H:%M:%S
+    
+    # Process Management
+    pid_file = /var/run/jasmin/jasmin.pid
+    
+    [redis-client]
+    # Redis for caching and session management
+    host = redis-service
+    port = 6379
+    dbid = 1
+    poolsize = 20
+    timeout = 30
+    
+    [amqp-broker]
+    # RabbitMQ for message queue
+    host = rabbitmq-service
+    port = 5672
+    vhost = /
+    username = jasmin
+    password = jasmin-pass  # Will be replaced by init container
+    heartbeat = 60
+    connection_loss_retry = true
+    connection_failure_retry = true
+    connection_retry_delay = 10
+    # Performance tuning
+    channel_max = 100
+    frame_max = 131072
+    
+    [smpp-server]
+    # SMPP Server for inbound client connections
+    bind_host = 0.0.0.0
+    bind_port = 2775
+    bind_port_ssl = 2776
+    ssl_certificate = /etc/jasmin/ssl/cert.pem
+    ssl_privatekey = /etc/jasmin/ssl/key.pem
+    
+    # Server settings
+    enquire_link_interval = 30
+    max_binds = 100
+    
+    # Throttling and rate limiting
+    submit_sm_throughput = 1000
+    submit_sm_count = 100000
+    
+    # Message settings
+    dlr_expiry = 86400
+    validity_period = 1440
+    
+    [http-api]
+    # HTTP API Configuration
+    bind_host = 0.0.0.0
+    bind_port = 8080
+    access_log = true
+    log_file = /var/log/jasmin/http-access.log
+    log_format = combined
+    
+    # Authentication
+    auth_required = true
+    
+    # Rate limiting
+    throughput_per_worker = 1000
+    max_workers = 10
+    
+    [jcli]
+    # Jasmin Command Line Interface
+    bind_host = 0.0.0.0
+    bind_port = 8990
+    authentication = true
+    admin_username = admin
+    admin_password = jasmin-admin  # Will be replaced by init container
+    
+    [dlr-lookup]
+    # Delivery Receipt Configuration
+    lookup_retry_delay = 10
+    lookup_max_retries = 2
+    
+    [message-persistence]
+    # Message store settings
+    store_type = redis
+    expire_time = 86400
+
+  interceptor.py: |
+    """
+    Jasmin Interceptor for Message Processing
+    Handles 10DLC compliance, number validation, and routing logic
+    """
+    import re
+    import redis
+    import json
+    import logging
+    from datetime import datetime, timezone
+    import hashlib
+    
+    # Configure logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    
+    # Redis connection
+    r = redis.Redis(host='redis-service', port=6379, db=2, decode_responses=True)
+    
+    class MessageInterceptor:
+        def __init__(self):
+            self.us_pattern = re.compile(r'^1\d{10}$')
+            self.shortcode_pattern = re.compile(r'^\d{5,6}$')
+            
+        def clean_number(self, number):
+            """Clean and normalize phone numbers"""
+            # Remove any non-numeric characters
+            cleaned = re.sub(r'[^\d]', '', number)
+            
+            # Handle different formats
+            if cleaned.startswith('00'):
+                cleaned = cleaned[2:]
+            elif cleaned.startswith('+'):
+                cleaned = cleaned[1:]
+            
+            # Add US country code if missing
+            if len(cleaned) == 10 and not cleaned.startswith('1'):
+                cleaned = '1' + cleaned
+            
+            return cleaned
+        
+        def validate_10dlc(self, source, destination, content, user_id):
+            """Validate 10DLC compliance for US traffic"""
+            # Skip if not US long code
+            if not self.us_pattern.match(source) or self.shortcode_pattern.match(source):
+                return True, "Not 10DLC"
+            
+            # Check campaign registration
+            campaign_key = f"10dlc:campaign:{source}:{user_id}"
+            campaign = r.get(campaign_key)
+            
+            if not campaign:
+                logger.warning(f"Unregistered 10DLC campaign for {source}")
+                return False, "10DLC_CAMPAIGN_NOT_REGISTERED"
+            
+            campaign_data = json.loads(campaign)
+            
+            # Check rate limits
+            rate_key = f"10dlc:rate:{source}:{datetime.now(timezone.utc).strftime('%Y%m%d%H')}"
+            current_rate = r.incr(rate_key)
+            r.expire(rate_key, 3600)  # 1 hour window
+            
+            hourly_limit = campaign_data.get('hourly_limit', 1000)
+            if current_rate > hourly_limit:
+                logger.warning(f"10DLC rate limit exceeded for {source}: {current_rate}/{hourly_limit}")
+                return False, "10DLC_RATE_LIMIT_EXCEEDED"
+            
+            # Check daily cap
+            daily_key = f"10dlc:daily:{source}:{datetime.now(timezone.utc).strftime('%Y%m%d')}"
+            daily_count = r.incr(daily_key)
+            r.expire(daily_key, 86400)  # 24 hours
+            
+            daily_limit = campaign_data.get('daily_limit', 10000)
+            if daily_count > daily_limit:
+                logger.warning(f"10DLC daily limit exceeded for {source}: {daily_count}/{daily_limit}")
+                return False, "10DLC_DAILY_LIMIT_EXCEEDED"
+            
+            # Content filtering
+            if campaign_data.get('content_filter'):
+                filters = campaign_data['content_filter']
+                content_lower = content.lower()
+                
+                # Check forbidden words
+                for word in filters.get('forbidden_words', []):
+                    if word.lower() in content_lower:
+                        return False, f"10DLC_FORBIDDEN_CONTENT:{word}"
+                
+                # Check required opt-out
+                if filters.get('require_opt_out', True):
+                    opt_out_keywords = ['stop', 'unsubscribe', 'cancel', 'quit']
+                    has_opt_out = any(keyword in content_lower for keyword in opt_out_keywords)
+                    if not has_opt_out:
+                        return False, "10DLC_MISSING_OPT_OUT"
+            
+            return True, "OK"
+        
+        def calculate_segments(self, content, encoding='gsm'):
+            """Calculate SMS segments"""
+            if encoding == 'gsm':
+                # GSM 7-bit encoding
+                single_sms_length = 160
+                multi_sms_length = 153
+            else:
+                # Unicode encoding
+                single_sms_length = 70
+                multi_sms_length = 67
+            
+            content_length = len(content)
+            
+            if content_length <= single_sms_length:
+                return 1
+            else:
+                return (content_length + multi_sms_length - 1) // multi_sms_length
+        
+        def get_route_rate(self, source, destination, route_id):
+            """Get routing rate based on number types"""
+            # Determine destination country
+            if destination.startswith('1'):
+                country = 'US'
+            else:
+                # Simplified - would need full country code mapping
+                country = 'INTL'
+            
+            # Determine source type
+            if self.shortcode_pattern.match(source):
+                source_type = 'shortcode'
+            elif self.us_pattern.match(source):
+                source_type = '10dlc'
+            else:
+                source_type = 'intl'
+            
+            # Get rate from Redis cache or default
+            rate_key = f"rate:{route_id}:{country}:{source_type}"
+            rate = r.get(rate_key)
+            
+            if rate:
+                return float(rate)
+            
+            # Default rates (in USD)
+            default_rates = {
+                'US': {
+                    'shortcode': 0.0075,
+                    '10dlc': 0.0050,
+                    'intl': 0.0100
+                },
+                'INTL': {
+                    'shortcode': 0.0500,
+                    '10dlc': 0.0500,
+                    'intl': 0.0800
+                }
+            }
+            
+            return default_rates.get(country, {}).get(source_type, 0.0100)
+    
+    # Global interceptor instance
+    interceptor = MessageInterceptor()
+    
+    def jasmin_interception(smpp_request, routable, user, logger):
+        """
+        Main interception function called by Jasmin
+        
+        Args:
+            smpp_request: The SMPP PDU (submit_sm)
+            routable: The routable object containing routing info
+            user: The user account sending the message
+            logger: Jasmin logger instance
+        """
+        try:
+            # Extract message details
+            source = interceptor.clean_number(smpp_request.params.get('source_addr', ''))
+            destination = interceptor.clean_number(smpp_request.params.get('destination_addr', ''))
+            content = smpp_request.params.get('short_message', b'').decode('utf-8', errors='ignore')
+            user_id = user.uid if user else 'unknown'
+            
+            # Set cleaned numbers back
+            smpp_request.params['source_addr'] = source
+            smpp_request.params['destination_addr'] = destination
+            
+            # 10DLC Compliance Check
+            if destination.startswith('1'):  # US destination
+                compliant, reason = interceptor.validate_10dlc(source, destination, content, user_id)
+                if not compliant:
+                    logger.error(f"10DLC compliance failed: {reason}")
+                    # Create error PDU response
+                    smpp_request.params['command_status'] = 0x00000400  # ESME_RSUBMITFAIL
+                    return False
+            
+            # Calculate message segments
+            segments = interceptor.calculate_segments(content)
+            
+            # Get routing information
+            route_id = routable.route.cid if hasattr(routable, 'route') else 'default'
+            rate = interceptor.get_route_rate(source, destination, route_id)
+            
+            # Create billing record
+            billing_data = {
+                'message_id': smpp_request.params.get('sm_id', ''),
+                'account_id': user_id,
+                'source': source,
+                'destination': destination,
+                'segments': segments,
+                'rate': rate,
+                'total_cost': rate * segments,
+                'route_id': route_id,
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+                'type': 'MT'  # Mobile Terminated
+            }
+            
+            # Store billing record
+            r.lpush('billing:queue', json.dumps(billing_data))
+            
+            # Add message tracking
+            tracking_data = {
+                'status': 'submitted',
+                'submitted_at': datetime.now(timezone.utc).isoformat(),
+                'segments': segments,
+                'route': route_id
+            }
+            r.setex(
+                f"msg:tracking:{billing_data['message_id']}", 
+                86400,  # 24 hour TTL
+                json.dumps(tracking_data)
+            )
+            
+            # Log successful processing
+            logger.info(f"Message processed: {source} -> {destination} ({segments} segments, ${rate * segments:.4f})")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Interceptor error: {str(e)}")
+            return True  # Allow message through on error
+
+  routing-rules.py: |
+    """
+    Jasmin Routing Rules Configuration
+    Define routing logic for different carriers and number types
+    """
+    
+    # Routing priority (lower number = higher priority)
+    ROUTING_RULES = [
+        {
+            'order': 10,
+            'name': 'US_Shortcode_Premium',
+            'filter': {
+                'source_pattern': r'^\d{5,6}$',  # Shortcodes
+                'destination_pattern': r'^1\d{10}$'  # US numbers
+            },
+            'connector': 'sinch_premium',
+            'rate': 0.0075
+        },
+        {
+            'order': 20,
+            'name': 'US_10DLC_Registered',
+            'filter': {
+                'source_pattern': r'^1\d{10}$',  # US long codes
+                'destination_pattern': r'^1\d{10}$',  # US numbers
+                'has_campaign': True  # Must have registered 10DLC campaign
+            },
+            'connector': 'sinch_10dlc',
+            'rate': 0.0050
+        },
+        {
+            'order': 30,
+            'name': 'International_Premium',
+            'filter': {
+                'destination_pattern': r'^(?!1)\d{10,15}$'  # Non-US numbers
+            },
+            'connector': 'sinch_international',
+            'rate': 0.0800
+        },
+        {
+            'order': 100,
+            'name': 'Default_Route',
+            'filter': {},  # Matches everything
+            'connector': 'sinch_primary',
+            'rate': 0.0100
+        }
+    ]
+    
+    # Failover configuration
+    FAILOVER_ROUTES = {
+        'sinch_primary': ['sinch_secondary', 'bandwidth_primary'],
+        'sinch_10dlc': ['sinch_primary', 'twilio_10dlc'],
+        'sinch_premium': ['twilio_shortcode'],
+        'sinch_international': ['twilio_international', 'sinch_primary']
+    }
+
+  init-jasmin.sh: |
+    #!/bin/bash
+    # Initialize Jasmin with Sinch connectors and routing rules
+    
+    set -e
+    
+    echo "Waiting for Jasmin to start..."
+    sleep 30
+    
+    # Function to execute jCli commands
+    execute_jcli() {
+        local commands=$1
+        expect << EOF
+    spawn telnet localhost 8990
+    expect "Username:"
+    send "admin\r"
+    expect "Password:"
+    send "$JASMIN_ADMIN_PASSWORD\r"
+    expect ">"
+    $commands
+    send "quit\r"
+    EOF
+    }
+    
+    echo "Creating Sinch SMPP connectors..."
+    
+    # Add Sinch Primary Connector
+    execute_jcli '
+    send "smppccm -a\r"
+    expect "Adding a new connector:"
+    send "cid sinch_primary\r"
+    expect ">"
+    send "host $SINCH_HOST\r"
+    expect ">"
+    send "port $SINCH_PORT\r"
+    expect ">"
+    send "username $SINCH_USERNAME\r"
+    expect ">"
+    send "password $SINCH_PASSWORD\r"
+    expect ">"
+    send "bind transceiver\r"
+    expect ">"
+    send "submit_throughput 100\r"
+    expect ">"
+    send "systemType smpp\r"
+    expect ">"
+    send "logLevel 20\r"
+    expect ">"
+    send "enquireLinkInterval 30\r"
+    expect ">"
+    send "reconnectOnConnectionLoss yes\r"
+    expect ">"
+    send "reconnectOnConnectionFailure yes\r"
+    expect ">"
+    send "ok\r"
+    expect "Successfully added"
+    '
+    
+    # Add Sinch 10DLC Connector (if different credentials)
+    execute_jcli '
+    send "smppccm -a\r"
+    expect "Adding a new connector:"
+    send "cid sinch_10dlc\r"
+    expect ">"
+    send "host $SINCH_10DLC_HOST\r"
+    expect ">"
+    send "port $SINCH_10DLC_PORT\r"
+    expect ">"
+    send "username $SINCH_10DLC_USERNAME\r"
+    expect ">"
+    send "password $SINCH_10DLC_PASSWORD\r"
+    expect ">"
+    send "bind transceiver\r"
+    expect ">"
+    send "submit_throughput 50\r"
+    expect ">"
+    send "systemType 10dlc\r"
+    expect ">"
+    send "ok\r"
+    expect "Successfully added"
+    '
+    
+    echo "Creating routing rules..."
+    
+    # Add US Shortcode Route
+    execute_jcli '
+    send "mtrouter -a\r"
+    expect "Adding a new route:"
+    send "order 10\r"
+    expect ">"
+    send "type StaticMTRoute\r"
+    expect ">"
+    send "filters source_addr=^\d{5,6}$;destination_addr=^1\d{10}$\r"
+    expect ">"
+    send "connector smppc(sinch_premium)\r"
+    expect ">"
+    send "rate 0.0075\r"
+    expect ">"
+    send "ok\r"
+    expect "Successfully added"
+    '
+    
+    # Add 10DLC Route
+    execute_jcli '
+    send "mtrouter -a\r"
+    expect "Adding a new route:"
+    send "order 20\r"
+    expect ">"
+    send "type StaticMTRoute\r"
+    expect ">"
+    send "filters source_addr=^1\d{10}$;destination_addr=^1\d{10}$\r"
+    expect ">"
+    send "connector smppc(sinch_10dlc)\r"
+    expect ">"
+    send "rate 0.0050\r"
+    expect ">"
+    send "ok\r"
+    expect "Successfully added"
+    '
+    
+    # Add International Route
+    execute_jcli '
+    send "mtrouter -a\r"
+    expect "Adding a new route:"
+    send "order 30\r"
+    expect ">"
+    send "type StaticMTRoute\r"
+    expect ">"
+    send "filters destination_addr=^(?!1)\d{10,15}$\r"
+    expect ">"
+    send "connector smppc(sinch_primary)\r"
+    expect ">"
+    send "rate 0.0080\r"
+    expect ">"
+    send "ok\r"
+    expect "Successfully added"
+    '
+    
+    # Add Default Route
+    execute_jcli '
+    send "mtrouter -a\r"
+    expect "Adding a new route:"
+    send "order 100\r"
+    expect ">"
+    send "type DefaultRoute\r"
+    expect ">"
+    send "connector smppc(sinch_primary)\r"
+    expect ">"
+    send "rate 0.0100\r"
+    expect ">"
+    send "ok\r"
+    expect "Successfully added"
+    '
+    
+    # Start connectors
+    execute_jcli '
+    send "smppccm -1 sinch_primary\r"
+    expect "Successfully started"
+    send "smppccm -1 sinch_10dlc\r"
+    expect "Successfully started"
+    '
+    
+    echo "Jasmin initialization complete!"
+    
+    # Show configuration
+    execute_jcli '
+    send "smppccm -l\r"
+    expect ">"
+    send "mtrouter -l\r"
+    expect ">"
+    '

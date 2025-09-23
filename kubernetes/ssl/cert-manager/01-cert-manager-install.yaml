@@ -1,0 +1,13 @@
+# Install cert-manager v1.16.2
+# This manifest installs cert-manager with all CRDs and components
+# Apply with: kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.yaml
+#
+# Or use the local copy below after downloading:
+# wget https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.yaml -O cert-manager-v1.16.2.yaml
+#
+# To install:
+# kubectl apply -f cert-manager-v1.16.2.yaml
+#
+# To verify installation:
+# kubectl get pods --namespace cert-manager
+# kubectl get crd | grep cert-manager

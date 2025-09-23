@@ -1,0 +1,210 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: warp-alerts
+  namespace: monitoring
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+  - name: sip.rules
+    interval: 30s
+    rules:
+    - alert: HighSIPFailureRate
+      expr: |
+        (
+          sum(rate(sip_responses_total{code=~"5.."}[5m]))
+          /
+          sum(rate(sip_responses_total[5m]))
+        ) > 0.05
+      for: 5m
+      labels:
+        severity: critical
+        service: kamailio
+      annotations:
+        summary: "High SIP failure rate detected"
+        description: "SIP 5xx error rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+
+    - alert: KamailioDown
+      expr: up{job="kamailio"} == 0
+      for: 1m
+      labels:
+        severity: critical
+        service: kamailio
+      annotations:
+        summary: "Kamailio instance is down"
+        description: "Kamailio instance {{ $labels.instance }} has been down for more than 1 minute"
+
+    - alert: HighMemoryUsage
+      expr: |
+        (
+          sip_shared_memory_used_bytes / sip_shared_memory_total_bytes
+        ) > 0.9
+      for: 5m
+      labels:
+        severity: warning
+        service: kamailio
+      annotations:
+        summary: "High memory usage in Kamailio"
+        description: "Kamailio shared memory usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+    - alert: LowRegisteredUsers
+      expr: sip_registrar_registered_users < 10
+      for: 10m
+      labels:
+        severity: warning
+        service: kamailio
+      annotations:
+        summary: "Low number of registered users"
+        description: "Only {{ $value }} users registered on {{ $labels.instance }}"
+
+  - name: rtp.rules
+    interval: 30s
+    rules:
+    - alert: RTPEngineDown
+      expr: up{job="rtpengine"} == 0
+      for: 1m
+      labels:
+        severity: critical
+        service: rtpengine
+      annotations:
+        summary: "RTPEngine instance is down"
+        description: "RTPEngine instance {{ $labels.instance }} has been down for more than 1 minute"
+
+    - alert: HighPacketLoss
+      expr: |
+        (
+          rate(rtp_packets_lost[5m]) 
+          / 
+          rate(rtp_packets_total[5m])
+        ) > 0.03
+      for: 5m
+      labels:
+        severity: warning
+        service: rtpengine
+      annotations:
+        summary: "High RTP packet loss detected"
+        description: "RTP packet loss is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+    - alert: HighJitter
+      expr: |
+        histogram_quantile(0.99, rate(rtp_jitter_milliseconds_bucket[5m])) > 50
+      for: 5m
+      labels:
+        severity: warning
+        service: rtpengine
+      annotations:
+        summary: "High RTP jitter detected"
+        description: "99th percentile jitter is {{ $value }}ms on {{ $labels.instance }}"
+
+    - alert: RTPPortExhaustion
+      expr: |
+        (
+          rtp_ports_used / rtp_ports_available
+        ) > 0.9
+      for: 5m
+      labels:
+        severity: critical
+        service: rtpengine
+      annotations:
+        summary: "RTP port exhaustion imminent"
+        description: "RTP port usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+  - name: business.rules
+    interval: 60s
+    rules:
+    - alert: RevenueDropAlert
+      expr: |
+        (
+          sum(rate(business_revenue_total[1h])) 
+          < 
+          sum(rate(business_revenue_total[1h] offset 1d)) * 0.8
+        )
+      for: 30m
+      labels:
+        severity: warning
+        service: business
+      annotations:
+        summary: "Revenue drop detected"
+        description: "Current hourly revenue is 20% lower than same time yesterday"
+
+    - alert: HighCallFailureRate
+      expr: |
+        (
+          sum(rate(business_calls_failed[5m]))
+          /
+          sum(rate(business_calls_total[5m]))
+        ) > 0.1
+      for: 5m
+      labels:
+        severity: critical
+        service: business
+      annotations:
+        summary: "High call failure rate"
+        description: "Call failure rate is {{ $value | humanizePercentage }}"
+
+    - alert: HighChurnRate
+      expr: |
+        (
+          increase(business_customers_churned[24h])
+          /
+          business_subscribers_active
+        ) > 0.05
+      for: 1h
+      labels:
+        severity: warning
+        service: business
+      annotations:
+        summary: "High customer churn rate"
+        description: "Daily churn rate is {{ $value | humanizePercentage }}"
+
+  - name: infrastructure.rules
+    interval: 30s
+    rules:
+    - alert: ConsulDown
+      expr: up{job="consul"} == 0
+      for: 1m
+      labels:
+        severity: critical
+        service: consul
+      annotations:
+        summary: "Consul server is down"
+        description: "Consul server {{ $labels.instance }} has been down for more than 1 minute"
+
+    - alert: APIHighLatency
+      expr: |
+        histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{job="warp-api"}[5m])) > 1
+      for: 5m
+      labels:
+        severity: warning
+        service: api
+      annotations:
+        summary: "High API latency detected"
+        description: "99th percentile API latency is {{ $value }}s for {{ $labels.handler }}"
+
+    - alert: DatabaseConnectionFailure
+      expr: |
+        rate(database_connection_errors_total[5m]) > 0.1
+      for: 5m
+      labels:
+        severity: critical
+        service: database
+      annotations:
+        summary: "Database connection failures"
+        description: "Database connection error rate is {{ $value }} errors/sec"
+
+    - alert: HomerStorageNearFull
+      expr: |
+        (
+          pg_database_size_bytes{datname="homer"}
+          /
+          pg_settings_shared_buffers_bytes
+        ) > 0.8
+      for: 30m
+      labels:
+        severity: warning
+        service: homer
+      annotations:
+        summary: "Homer database storage nearly full"
+        description: "Homer database is using {{ $value | humanizePercentage }} of allocated storage"

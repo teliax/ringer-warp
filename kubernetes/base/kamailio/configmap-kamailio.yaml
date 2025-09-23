@@ -1,0 +1,420 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kamailio-config
+  namespace: telecom
+data:
+  kamailio.cfg: |
+    #!KAMAILIO
+    ####### Global Parameters #########
+    
+    debug=2
+    log_stderror=no
+    log_facility=LOG_LOCAL0
+    
+    # Set the following to listen on specific IPs only
+    listen=udp:0.0.0.0:5060
+    listen=tcp:0.0.0.0:5060
+    listen=tls:0.0.0.0:5061
+    
+    # Number of children processes
+    children=8
+    
+    # Max UDP packet size
+    udp4_raw_mtu=1500
+    
+    # DNS parameters
+    dns=yes
+    rev_dns=no
+    dns_cache_init=on
+    dns_use_search_list=no
+    
+    # Memory sizes
+    mhomed=1
+    tcp_children=8
+    
+    ####### Modules Section ########
+    
+    # Basic modules
+    loadmodule "sl.so"
+    loadmodule "tm.so"
+    loadmodule "tmx.so"
+    loadmodule "rr.so"
+    loadmodule "pv.so"
+    loadmodule "maxfwd.so"
+    loadmodule "textops.so"
+    loadmodule "siputils.so"
+    loadmodule "xlog.so"
+    loadmodule "sanity.so"
+    loadmodule "ctl.so"
+    loadmodule "acc.so"
+    loadmodule "dispatcher.so"
+    
+    # Lua integration
+    loadmodule "app_lua.so"
+    
+    # Database modules
+    loadmodule "db_postgres.so"
+    loadmodule "sqlops.so"
+    
+    # Redis integration
+    loadmodule "ndb_redis.so"
+    
+    # HEP/Homer integration
+    loadmodule "siptrace.so"
+    
+    # RTPEngine integration
+    loadmodule "rtpengine.so"
+    
+    # Registration and authentication
+    loadmodule "usrloc.so"
+    loadmodule "registrar.so"
+    loadmodule "auth.so"
+    loadmodule "auth_db.so"
+    
+    # Dialog tracking
+    loadmodule "dialog.so"
+    
+    # NAT traversal
+    loadmodule "nathelper.so"
+    
+    # Async processing
+    loadmodule "async.so"
+    
+    # Prometheus metrics
+    loadmodule "xhttp.so"
+    loadmodule "xhttp_prom.so"
+    
+    # TLS
+    loadmodule "tls.so"
+    
+    ####### Module Parameters ########
+    
+    # ----- tm params -----
+    modparam("tm", "failure_reply_mode", 3)
+    modparam("tm", "fr_timer", 30000)
+    modparam("tm", "fr_inv_timer", 120000)
+    
+    # ----- rr params -----
+    modparam("rr", "enable_full_lr", 1)
+    modparam("rr", "append_fromtag", 1)
+    
+    # ----- acc params -----
+    modparam("acc", "log_flag", 1)
+    modparam("acc", "log_missed_flag", 2)
+    modparam("acc", "failed_transaction_flag", 3)
+    modparam("acc", "log_extra", "src_user=$fU;src_domain=$fd;dst_user=$rU;dst_domain=$rd;src_ip=$si")
+    
+    # ----- database params -----
+    #!define DBURL "postgres://kamailio:KAMAILIO_DB_PASSWORD@POSTGRES_HOST:5432/kamailio"
+    modparam("sqlops", "sqlcon", "cb=>DBURL")
+    
+    # ----- redis params -----
+    modparam("ndb_redis", "server", "name=redis;addr=REDIS_HOST;port=REDIS_PORT;db=0")
+    
+    # ----- siptrace params (HEP) -----
+    modparam("siptrace", "hep_mode_on", 1)
+    modparam("siptrace", "hep_version", 3)
+    modparam("siptrace", "trace_to_database", 0)
+    modparam("siptrace", "trace_on", 1)
+    modparam("siptrace", "hep_capture_id", 1001)
+    modparam("siptrace", "duplicate_uri", "sip:HOMER_HOST:HOMER_PORT;transport=udp;version=3")
+    
+    # ----- rtpengine params -----
+    modparam("rtpengine", "db_url", DBURL)
+    modparam("rtpengine", "table_name", "rtpengine")
+    modparam("rtpengine", "socket_column", "socket")
+    modparam("rtpengine", "set_column", "set_id")
+    modparam("rtpengine", "disabled_column", "disabled")
+    modparam("rtpengine", "weight_column", "weight")
+    modparam("rtpengine", "extra_id_pv", "$avp(extra_id)")
+    modparam("rtpengine", "setid_default", 1)
+    
+    # ----- app_lua params -----
+    modparam("app_lua", "load", "/etc/kamailio/lua/init.lua")
+    
+    # ----- xhttp params -----
+    modparam("xhttp", "url_skip", "^/RPC2")
+    modparam("xhttp", "url_match", "^/metrics")
+    
+    # ----- xhttp_prom params -----
+    modparam("xhttp_prom", "xhttp_prom_stats", "all")
+    
+    # ----- dispatcher params -----
+    modparam("dispatcher", "db_url", DBURL)
+    modparam("dispatcher", "flags", 2)
+    modparam("dispatcher", "ds_ping_interval", 30)
+    modparam("dispatcher", "ds_probing_mode", 1)
+    
+    ####### Routing Logic ########
+    
+    request_route {
+        # Initial sanity checks
+        if (!sanity_check()) {
+            xlog("L_WARN", "Malformed SIP message from $si:$sp\n");
+            exit;
+        }
+        
+        # HEP tracing
+        sip_trace();
+        
+        # Handle HTTP requests for metrics
+        if ($Rp == 8080) {
+            route(HTTP);
+            exit;
+        }
+        
+        # Handle OPTIONS for keepalive
+        if (is_method("OPTIONS")) {
+            sl_send_reply("200", "OK");
+            exit;
+        }
+        
+        # Apply rate limiting via Lua
+        if (!lua_run("rate_limit_check")) {
+            sl_send_reply("503", "Rate limit exceeded");
+            exit;
+        }
+        
+        # Main routing logic
+        route(REQINIT);
+        route(AUTH);
+        route(LOCATION);
+        route(RELAY);
+    }
+    
+    route[HTTP] {
+        if ($hu =~ "^/metrics") {
+            prom_dispatch();
+            exit;
+        }
+        xhttp_reply("404", "Not Found", "text/plain", "Not Found");
+    }
+    
+    route[REQINIT] {
+        # Max-Forwards check
+        if (!mf_process_maxfwd_header("10")) {
+            sl_send_reply("483", "Too Many Hops");
+            exit;
+        }
+        
+        # Record-Route for all requests
+        if (is_method("INVITE|SUBSCRIBE")) {
+            record_route();
+        }
+        
+        # Handle sequential requests
+        if (has_totag()) {
+            if (loose_route()) {
+                route(RELAY);
+                exit;
+            }
+        }
+    }
+    
+    route[AUTH] {
+        # Authentication logic via Lua
+        if (!lua_run("authenticate")) {
+            if (is_method("REGISTER")) {
+                www_challenge("ringer.tel", "1");
+            } else {
+                proxy_challenge("ringer.tel", "1");
+            }
+            exit;
+        }
+    }
+    
+    route[LOCATION] {
+        # Handle termination routing
+        if (!is_method("REGISTER")) {
+            if (!lua_run("route_termination")) {
+                sl_send_reply("404", "Not Found");
+                exit;
+            }
+        }
+    }
+    
+    route[RELAY] {
+        # RTPEngine handling for INVITE
+        if (is_method("INVITE")) {
+            if (!lua_run("select_rtpengine")) {
+                sl_send_reply("503", "RTPEngine Unavailable");
+                exit;
+            }
+            rtpengine_offer();
+        }
+        
+        # Relay the request
+        if (!t_relay()) {
+            sl_reply_error();
+        }
+    }
+
+  init.lua: |
+    -- Kamailio LuaJIT FFI integration for high-performance routing
+    
+    local ffi = require("ffi")
+    local redis = require("resty.redis")
+    local cjson = require("cjson")
+    
+    -- FFI definitions for C functions
+    ffi.cdef[[
+        int KSR_log(int level, const char *msg);
+        void* KSR_pv_get(const char *pvname);
+        int KSR_pv_seti(const char *pvname, int val);
+        int KSR_pv_sets(const char *pvname, const char *sval);
+    ]]
+    
+    -- Redis connection pool
+    local redis_pool = {}
+    local redis_pool_size = 10
+    
+    -- Initialize Redis connections
+    function init_redis_pool()
+        for i = 1, redis_pool_size do
+            local red = redis:new()
+            red:set_timeout(1000) -- 1 second
+            local ok, err = red:connect(os.getenv("REDIS_HOST"), tonumber(os.getenv("REDIS_PORT")))
+            if ok then
+                table.insert(redis_pool, red)
+            end
+        end
+    end
+    
+    -- Get Redis connection from pool
+    function get_redis()
+        if #redis_pool > 0 then
+            return table.remove(redis_pool)
+        end
+        -- Create new connection if pool is empty
+        local red = redis:new()
+        red:set_timeout(1000)
+        local ok, err = red:connect(os.getenv("REDIS_HOST"), tonumber(os.getenv("REDIS_PORT")))
+        if ok then
+            return red
+        end
+        return nil, err
+    end
+    
+    -- Return Redis connection to pool
+    function put_redis(red)
+        if #redis_pool < redis_pool_size then
+            table.insert(redis_pool, red)
+        else
+            red:close()
+        end
+    end
+    
+    -- Rate limiting check
+    function rate_limit_check()
+        local src_ip = KSR.pv.get("$si")
+        local red = get_redis()
+        if not red then
+            return true -- Allow if Redis is down
+        end
+        
+        local key = "rl:" .. src_ip
+        local current = red:incr(key)
+        if current == 1 then
+            red:expire(key, 1) -- 1 second window
+        end
+        
+        put_redis(red)
+        
+        -- 100 requests per second limit
+        return current <= 100
+    end
+    
+    -- Authentication via database
+    function authenticate()
+        local method = KSR.pv.get("$rm")
+        local from_user = KSR.pv.get("$fU")
+        local src_ip = KSR.pv.get("$si")
+        
+        -- IP ACL check first
+        local query = string.format([[
+            SELECT a.id, a.auth_type 
+            FROM accounts a
+            JOIN sip_trunks s ON a.id = s.account_id
+            WHERE s.ip_acl @> '%s'::inet
+            AND s.active = true
+            LIMIT 1
+        ]], src_ip)
+        
+        -- Execute query (implementation depends on your DB module)
+        -- For now, return true for development
+        return true
+    end
+    
+    -- Route termination calls
+    function route_termination()
+        local called_number = KSR.pv.get("$rU")
+        local red = get_redis()
+        if not red then
+            return false
+        end
+        
+        -- Check cache first
+        local cache_key = "route:" .. called_number
+        local cached_route = red:get(cache_key)
+        
+        if cached_route and cached_route ~= ngx.null then
+            put_redis(red)
+            local route = cjson.decode(cached_route)
+            KSR.pv.sets("$ru", string.format("sip:%s@%s:%s", called_number, route.ip, route.port))
+            return true
+        end
+        
+        -- Query database for LCR
+        local query = string.format([[
+            SELECT v.ip_address, v.port, v.priority
+            FROM lcr_routes l
+            JOIN vendors v ON l.vendor_id = v.id
+            WHERE l.prefix @> '%s'
+            AND l.active = true
+            ORDER BY l.rate ASC, v.priority DESC
+            LIMIT 1
+        ]], called_number)
+        
+        -- For development, use a default route
+        KSR.pv.sets("$ru", string.format("sip:%s@vendor.example.com:5060", called_number))
+        
+        -- Cache the result
+        local route_data = {ip = "vendor.example.com", port = "5060"}
+        red:setex(cache_key, 300, cjson.encode(route_data)) -- 5 minute cache
+        put_redis(red)
+        
+        return true
+    end
+    
+    -- Select RTPEngine instance
+    function select_rtpengine()
+        local call_id = KSR.pv.get("$ci")
+        local red = get_redis()
+        if not red then
+            return false
+        end
+        
+        -- Get available RTPEngine instances
+        local rtpe_key = "rtpengine:available"
+        local rtpe_list = red:smembers(rtpe_key)
+        put_redis(red)
+        
+        if #rtpe_list == 0 then
+            return false
+        end
+        
+        -- Simple hash-based selection
+        local hash = 0
+        for i = 1, #call_id do
+            hash = hash + string.byte(call_id, i)
+        end
+        
+        local selected = rtpe_list[(hash % #rtpe_list) + 1]
+        KSR.pv.seti("$avp(rtpe_set)", tonumber(selected) or 1)
+        
+        return true
+    end
+    
+    -- Initialize on load
+    init_redis_pool()

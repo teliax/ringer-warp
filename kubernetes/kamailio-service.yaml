@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kamailio
+  namespace: warp-core
+  labels:
+    app: kamailio
+    component: sip-proxy
+spec:
+  type: LoadBalancer
+  selector:
+    app: kamailio
+  ports:
+  - name: sip-udp
+    port: 5060
+    targetPort: 5060
+    protocol: UDP
+  - name: sip-tcp
+    port: 5060
+    targetPort: 5060
+    protocol: TCP
+  - name: sip-tls
+    port: 5061
+    targetPort: 5061
+    protocol: TCP
+  - name: ws
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  - name: wss
+    port: 8443
+    targetPort: 8443
+    protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800

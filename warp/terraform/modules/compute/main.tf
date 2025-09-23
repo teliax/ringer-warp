@@ -45,6 +45,9 @@ resource "google_compute_instance_template" "rtpengine" {
     redis_port         = var.redis_port
     project_id         = var.project_id
     log_level          = var.rtpengine_log_level
+    instance_index     = "0"  # Will be set dynamically by instance group
+    external_ip        = "0.0.0.0"  # Will be set dynamically
+    internal_ip        = "0.0.0.0"  # Will be set dynamically
   })
 
   metadata = {

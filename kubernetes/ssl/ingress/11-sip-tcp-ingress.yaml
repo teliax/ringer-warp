@@ -1,0 +1,83 @@
+# SIP services require special handling for TLS
+# Note: Standard HTTP Ingress doesn't work for SIP protocol
+# Options:
+# 1. Use LoadBalancer with TLS termination at Kamailio
+# 2. Use NGINX TCP/UDP load balancing with stream module
+# 3. Use specialized SIP proxy with TLS support
+
+---
+# Option 1: Configure Kamailio pods to use TLS certificates directly
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kamailio-tls-config
+  namespace: warp-core
+data:
+  tls.cfg: |
+    [server:default]
+    method = TLSv1.2+
+    verify_certificate = no
+    require_certificate = no
+    private_key = /etc/kamailio/tls/tls.key
+    certificate = /etc/kamailio/tls/tls.crt
+    ca_list = /etc/kamailio/tls/ca.crt
+    crl = /etc/kamailio/tls/crl.pem
+    
+    [client:default]
+    method = TLSv1.2+
+    verify_certificate = yes
+    require_certificate = no
+---
+# Mount certificates in Kamailio deployment
+# Add these volumes to your Kamailio deployment:
+# volumes:
+# - name: tls-certs
+#   secret:
+#     secretName: kamailio-tls-secret
+# - name: tls-config
+#   configMap:
+#     name: kamailio-tls-config
+# volumeMounts:
+# - name: tls-certs
+#   mountPath: /etc/kamailio/tls
+#   readOnly: true
+# - name: tls-config
+#   mountPath: /etc/kamailio/tls.cfg
+#   subPath: tls.cfg
+
+---
+# Option 2: Use NGINX Stream for TCP/TLS load balancing
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-tcp-services
+  namespace: ingress-nginx
+data:
+  # SIP TLS on port 5061
+  5061: "warp-core/kamailio-sip-tcp:5061"
+  # WebSocket Secure on port 8443
+  8443: "warp-core/kamailio-sip-tcp:8443"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-udp-services
+  namespace: ingress-nginx
+data:
+  # SIP UDP on port 5060
+  5060: "warp-core/kamailio-sip-udp:5060"
+---
+# Update NGINX Ingress Controller to expose TCP/UDP ports
+# Add to controller service:
+# - name: sip-tls
+#   port: 5061
+#   targetPort: 5061
+#   protocol: TCP
+# - name: wss
+#   port: 8443
+#   targetPort: 8443
+#   protocol: TCP
+# - name: sip-udp
+#   port: 5060
+#   targetPort: 5060
+#   protocol: UDP

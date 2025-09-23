@@ -1,5 +1,16 @@
 # Documentation Structure Guide
 
+## 📊 Current Status
+**Last Updated**: 2025-09-23  
+**Project**: `ringer-warp-v01` (Production)  
+**Phase 1**: ✅ **COMPLETE** - Infrastructure fully deployed  
+**Phase 2**: 🚧 **STARTING** - Application deployment beginning  
+
+📄 **Status Documents**:
+- [CURRENT_STATUS.md](/CURRENT_STATUS.md) - Live deployment status
+- [PHASE1_COMPLETE.md](/PHASE1_COMPLETE.md) - Infrastructure completion report
+- [PHASE2_PLAN.md](/PHASE2_PLAN.md) - Application deployment plan
+
 ## Overview
 This directory (`/docs/`) contains platform-wide documentation, external integrations, and cross-cutting concerns for the WARP platform. Service-specific implementation details are located in `/warp/docs/`.
 

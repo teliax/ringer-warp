@@ -1,0 +1,156 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+  namespace: messaging
+  labels:
+    app: rabbitmq
+    component: message-queue
+    app.kubernetes.io/name: rabbitmq
+    app.kubernetes.io/part-of: jasmin-smsc
+spec:
+  serviceName: rabbitmq-service
+  replicas: 3  # For HA setup
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+        component: message-queue
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "15692"
+        prometheus.io/path: "/metrics"
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - rabbitmq
+            topologyKey: kubernetes.io/hostname
+      initContainers:
+      - name: copy-config
+        image: busybox:latest
+        command: ['sh', '-c']
+        args:
+        - |
+          cp /tmp/rabbitmq.conf /etc/rabbitmq/rabbitmq.conf
+          cp /tmp/enabled_plugins /etc/rabbitmq/enabled_plugins
+          cp /tmp/definitions.json /etc/rabbitmq/definitions.json
+          
+          # Update password hashes in definitions.json
+          # This is a placeholder - in production, use proper password hashing
+          sed -i "s/WILL_BE_REPLACED/$RABBITMQ_PASSWORD_HASH/g" /etc/rabbitmq/definitions.json
+        env:
+        - name: RABBITMQ_PASSWORD_HASH
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-credentials
+              key: password-hash
+              optional: true
+        volumeMounts:
+        - name: config
+          mountPath: /tmp
+        - name: rabbitmq-config
+          mountPath: /etc/rabbitmq
+      containers:
+      - name: rabbitmq
+        image: rabbitmq:3.12-management-alpine
+        ports:
+        - name: amqp
+          containerPort: 5672
+          protocol: TCP
+        - name: management
+          containerPort: 15672
+          protocol: TCP
+        - name: metrics
+          containerPort: 15692
+          protocol: TCP
+        - name: epmd
+          containerPort: 4369
+          protocol: TCP
+        - name: dist
+          containerPort: 25672
+          protocol: TCP
+        env:
+        - name: RABBITMQ_DEFAULT_USER
+          value: "jasmin"
+        - name: RABBITMQ_DEFAULT_PASS
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-credentials
+              key: password
+        - name: RABBITMQ_DEFAULT_VHOST
+          value: "jasmin"
+        - name: RABBITMQ_ERLANG_COOKIE
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-credentials
+              key: erlang-cookie
+        - name: RABBITMQ_USE_LONGNAME
+          value: "true"
+        - name: RABBITMQ_NODENAME
+          value: "rabbit@$(POD_NAME).rabbitmq-service.messaging.svc.cluster.local"
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: K8S_SERVICE_NAME
+          value: "rabbitmq-service"
+        - name: K8S_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: RABBITMQ_PROMETHEUS_PLUGIN
+          value: "rabbitmq_prometheus"
+        volumeMounts:
+        - name: rabbitmq-data
+          mountPath: /var/lib/rabbitmq
+        - name: rabbitmq-config
+          mountPath: /etc/rabbitmq
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          exec:
+            command:
+            - rabbitmq-diagnostics
+            - ping
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - rabbitmq-diagnostics
+            - check_port_connectivity
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 10
+      volumes:
+      - name: config
+        configMap:
+          name: rabbitmq-config
+      - name: rabbitmq-config
+        emptyDir: {}
+  volumeClaimTemplates:
+  - metadata:
+      name: rabbitmq-data
+      labels:
+        app: rabbitmq
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: "standard-rwo"
+      resources:
+        requests:
+          storage: 20Gi

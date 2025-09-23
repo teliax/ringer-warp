@@ -1,0 +1,50 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: telecom
+
+bases:
+  - ../../base
+
+patchesStrategicMerge:
+  - patches/kamailio-prod-patch.yaml
+  - patches/jasmin-prod-patch.yaml
+  - patches/configmap-prod-patch.yaml
+
+configMapGenerator:
+  - name: redis-config
+    namespace: telecom
+    literals:
+      - host=redis-service
+      - port=6379
+  - name: redis-config
+    namespace: messaging
+    literals:
+      - host=redis-service
+      - port=6379
+
+secretGenerator:
+  - name: postgres-credentials
+    namespace: telecom
+    env: secrets/postgres.env
+  - name: jasmin-credentials
+    namespace: messaging
+    env: secrets/jasmin.env
+  - name: sinch-credentials
+    namespace: messaging
+    env: secrets/sinch.env
+  - name: rabbitmq-credentials
+    namespace: messaging
+    env: secrets/rabbitmq.env
+
+replicas:
+  - name: kamailio
+    count: 3
+  - name: jasmin-smsc
+    count: 2
+
+images:
+  - name: kamailio/kamailio
+    newTag: 5.7-alpine
+  - name: jookies/jasmin
+    newTag: 0.10.11

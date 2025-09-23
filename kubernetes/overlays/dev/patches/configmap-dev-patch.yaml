@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: warp-common-config
+  namespace: telecom
+data:
+  ENVIRONMENT: "development"
+  LOG_LEVEL: "debug"
+  # Development Homer instance
+  HOMER_HOST: "homer-dev.warp.internal"
+  HOMER_PORT: "9060"

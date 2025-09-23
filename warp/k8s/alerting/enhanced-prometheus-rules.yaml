@@ -1,0 +1,434 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: warp-platform-alerts
+  namespace: monitoring
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+  - name: sip.rules
+    interval: 30s
+    rules:
+    - alert: HighSIPFailureRate
+      expr: |
+        (
+          sum(rate(sip_responses_total{code=~"5.."}[5m]))
+          /
+          sum(rate(sip_responses_total[5m]))
+        ) > 0.05
+      for: 5m
+      labels:
+        severity: critical
+        service: kamailio
+        team: voip
+      annotations:
+        summary: "High SIP failure rate detected"
+        description: "SIP 5xx error rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+        runbook_url: "https://docs.warp.io/runbooks/sip-failures"
+
+    - alert: KamailioDown
+      expr: up{job="kamailio"} == 0
+      for: 1m
+      labels:
+        severity: critical
+        service: kamailio
+        team: voip
+      annotations:
+        summary: "Kamailio instance is down"
+        description: "Kamailio instance {{ $labels.instance }} has been down for more than 1 minute"
+
+    - alert: HighMemoryUsage
+      expr: |
+        (
+          sip_shared_memory_used_bytes / sip_shared_memory_total_bytes
+        ) > 0.9
+      for: 5m
+      labels:
+        severity: warning
+        service: kamailio
+        team: voip
+      annotations:
+        summary: "High memory usage in Kamailio"
+        description: "Kamailio shared memory usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+    - alert: LowRegisteredUsers
+      expr: sip_registrar_registered_users < 10
+      for: 10m
+      labels:
+        severity: warning
+        service: kamailio
+        team: voip
+      annotations:
+        summary: "Low number of registered users"
+        description: "Only {{ $value }} users registered on {{ $labels.instance }}"
+
+    - alert: SIPRegistrationFailures
+      expr: |
+        rate(sip_registrations_failed_total[5m]) > 10
+      for: 5m
+      labels:
+        severity: warning
+        service: kamailio
+        team: voip
+      annotations:
+        summary: "High SIP registration failure rate"
+        description: "SIP registration failures: {{ $value }} per second"
+
+  - name: rtp.rules
+    interval: 30s
+    rules:
+    - alert: RTPEngineDown
+      expr: up{job="rtpengine"} == 0
+      for: 1m
+      labels:
+        severity: critical
+        service: rtpengine
+        team: voip
+      annotations:
+        summary: "RTPEngine instance is down"
+        description: "RTPEngine instance {{ $labels.instance }} has been down for more than 1 minute"
+
+    - alert: HighPacketLoss
+      expr: |
+        (
+          rate(rtp_packets_lost[5m]) 
+          / 
+          rate(rtp_packets_total[5m])
+        ) > 0.03
+      for: 5m
+      labels:
+        severity: warning
+        service: rtpengine
+        team: voip
+      annotations:
+        summary: "High RTP packet loss detected"
+        description: "RTP packet loss is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+    - alert: HighJitter
+      expr: |
+        histogram_quantile(0.99, rate(rtp_jitter_milliseconds_bucket[5m])) > 50
+      for: 5m
+      labels:
+        severity: warning
+        service: rtpengine
+        team: voip
+      annotations:
+        summary: "High RTP jitter detected"
+        description: "99th percentile jitter is {{ $value }}ms on {{ $labels.instance }}"
+
+    - alert: RTPPortExhaustion
+      expr: |
+        (
+          rtp_ports_used / rtp_ports_available
+        ) > 0.9
+      for: 5m
+      labels:
+        severity: critical
+        service: rtpengine
+        team: voip
+      annotations:
+        summary: "RTP port exhaustion imminent"
+        description: "RTP port usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+    - alert: MediaTimeouts
+      expr: |
+        rate(rtp_timeout_streams_total[5m]) > 5
+      for: 5m
+      labels:
+        severity: warning
+        service: rtpengine
+        team: voip
+      annotations:
+        summary: "High rate of RTP stream timeouts"
+        description: "RTP stream timeout rate: {{ $value }} per second"
+
+  - name: business.rules
+    interval: 60s
+    rules:
+    - alert: RevenueDropAlert
+      expr: |
+        (
+          sum(rate(business_revenue_total[1h])) 
+          < 
+          sum(rate(business_revenue_total[1h] offset 1d)) * 0.8
+        )
+      for: 30m
+      labels:
+        severity: warning
+        service: business
+        team: product
+      annotations:
+        summary: "Revenue drop detected"
+        description: "Current hourly revenue is 20% lower than same time yesterday"
+
+    - alert: HighCallFailureRate
+      expr: |
+        (
+          sum(rate(business_calls_failed[5m]))
+          /
+          sum(rate(business_calls_total[5m]))
+        ) > 0.1
+      for: 5m
+      labels:
+        severity: critical
+        service: business
+        team: operations
+      annotations:
+        summary: "High call failure rate"
+        description: "Call failure rate is {{ $value | humanizePercentage }}"
+
+    - alert: HighChurnRate
+      expr: |
+        (
+          increase(business_customers_churned[24h])
+          /
+          business_subscribers_active
+        ) > 0.05
+      for: 1h
+      labels:
+        severity: warning
+        service: business
+        team: product
+      annotations:
+        summary: "High customer churn rate"
+        description: "Daily churn rate is {{ $value | humanizePercentage }}"
+
+    - alert: LowAccountBalance
+      expr: |
+        business_account_balance < 10
+      for: 5m
+      labels:
+        severity: warning
+        service: billing
+        team: finance
+      annotations:
+        summary: "Low account balance detected"
+        description: "Account {{ $labels.account_id }} balance is ${{ $value }}"
+
+  - name: infrastructure.rules
+    interval: 30s
+    rules:
+    - alert: ConsulDown
+      expr: up{job="consul"} == 0
+      for: 1m
+      labels:
+        severity: critical
+        service: consul
+        team: infrastructure
+      annotations:
+        summary: "Consul server is down"
+        description: "Consul server {{ $labels.instance }} has been down for more than 1 minute"
+
+    - alert: APIHighLatency
+      expr: |
+        histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{job="warp-api"}[5m])) > 1
+      for: 5m
+      labels:
+        severity: warning
+        service: api
+        team: backend
+      annotations:
+        summary: "High API latency detected"
+        description: "99th percentile API latency is {{ $value }}s for {{ $labels.handler }}"
+
+    - alert: DatabaseConnectionFailure
+      expr: |
+        rate(database_connection_errors_total[5m]) > 0.1
+      for: 5m
+      labels:
+        severity: critical
+        service: database
+        team: backend
+      annotations:
+        summary: "Database connection failures"
+        description: "Database connection error rate is {{ $value }} errors/sec"
+
+    - alert: HomerStorageNearFull
+      expr: |
+        (
+          pg_database_size_bytes{datname="homer"}
+          /
+          1073741824  # 1GB in bytes
+        ) > 80
+      for: 30m
+      labels:
+        severity: warning
+        service: homer
+        team: infrastructure
+      annotations:
+        summary: "Homer database storage nearly full"
+        description: "Homer database is using {{ $value }}GB of storage"
+
+    - alert: HighErrorRate
+      expr: |
+        (
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total[5m]))
+        ) > 0.05
+      for: 5m
+      labels:
+        severity: critical
+        service: api
+        team: backend
+      annotations:
+        summary: "High HTTP error rate"
+        description: "HTTP 5xx error rate is {{ $value | humanizePercentage }}"
+
+  - name: kubernetes.rules
+    interval: 30s
+    rules:
+    - alert: PodCrashLooping
+      expr: |
+        rate(kube_pod_container_status_restarts_total[5m]) > 0.1
+      for: 5m
+      labels:
+        severity: warning
+        team: infrastructure
+      annotations:
+        summary: "Pod is crash looping"
+        description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping"
+
+    - alert: PodNotReady
+      expr: |
+        sum by (namespace, pod) (kube_pod_status_phase{phase!="Running",phase!="Succeeded"}) > 0
+      for: 10m
+      labels:
+        severity: warning
+        team: infrastructure
+      annotations:
+        summary: "Pod is not ready"
+        description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in {{ $labels.phase }} state for > 10 minutes"
+
+    - alert: DeploymentReplicasNotMatched
+      expr: |
+        kube_deployment_spec_replicas != kube_deployment_status_replicas_available
+      for: 10m
+      labels:
+        severity: warning
+        team: infrastructure
+      annotations:
+        summary: "Deployment has not matched desired replicas"
+        description: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has {{ $value }} replicas available, expected {{ $labels.spec_replicas }}"
+
+    - alert: PersistentVolumeNearFull
+      expr: |
+        (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) > 0.85
+      for: 5m
+      labels:
+        severity: warning
+        team: infrastructure
+      annotations:
+        summary: "Persistent volume near capacity"
+        description: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full"
+
+    - alert: NodeNotReady
+      expr: |
+        kube_node_status_condition{condition="Ready",status="true"} == 0
+      for: 5m
+      labels:
+        severity: critical
+        team: infrastructure
+      annotations:
+        summary: "Kubernetes node is not ready"
+        description: "Node {{ $labels.node }} has been unready for more than 5 minutes"
+
+  - name: security.rules
+    interval: 60s
+    rules:
+    - alert: UnauthorizedAPIAccess
+      expr: |
+        sum(rate(http_requests_total{status="403"}[5m])) by (handler) > 10
+      for: 5m
+      labels:
+        severity: warning
+        service: api
+        team: security
+      annotations:
+        summary: "High rate of unauthorized API access"
+        description: "Endpoint {{ $labels.handler }} is receiving {{ $value }} 403 responses per second"
+
+    - alert: SSLCertificateExpiringSoon
+      expr: |
+        (probe_ssl_earliest_cert_expiry - time()) / 86400 < 30
+      for: 10m
+      labels:
+        severity: warning
+        team: infrastructure
+      annotations:
+        summary: "SSL certificate expiring soon"
+        description: "SSL certificate for {{ $labels.instance }} expires in {{ $value }} days"
+
+    - alert: AnomalousTrafficPattern
+      expr: |
+        (
+          abs(rate(http_requests_total[5m]) - rate(http_requests_total[5m] offset 1h))
+          /
+          rate(http_requests_total[5m] offset 1h)
+        ) > 3
+      for: 10m
+      labels:
+        severity: warning
+        team: security
+      annotations:
+        summary: "Anomalous traffic pattern detected"
+        description: "Traffic is {{ $value }}x different from 1 hour ago"
+
+  - name: performance.rules
+    interval: 30s
+    rules:
+    - alert: HighCPUUsage
+      expr: |
+        (
+          100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+        ) > 80
+      for: 10m
+      labels:
+        severity: warning
+        team: infrastructure
+      annotations:
+        summary: "High CPU usage detected"
+        description: "CPU usage on {{ $labels.instance }} is {{ $value }}%"
+
+    - alert: HighMemoryUsage
+      expr: |
+        (
+          1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
+        ) > 0.85
+      for: 10m
+      labels:
+        severity: warning
+        team: infrastructure
+      annotations:
+        summary: "High memory usage detected"
+        description: "Memory usage on {{ $labels.instance }} is {{ $value | humanizePercentage }}"
+
+    - alert: DiskSpaceRunningOut
+      expr: |
+        (
+          node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs|squashfs|vfat"} 
+          / 
+          node_filesystem_size_bytes
+        ) < 0.15
+      for: 10m
+      labels:
+        severity: critical
+        team: infrastructure
+      annotations:
+        summary: "Disk space running out"
+        description: "Disk {{ $labels.device }} on {{ $labels.instance }} has only {{ $value | humanizePercentage }} free space left"
+
+    - alert: NetworkInterfaceSaturated
+      expr: |
+        (
+          rate(node_network_receive_bytes_total[5m]) + rate(node_network_transmit_bytes_total[5m])
+        ) > 100000000  # 100MB/s
+      for: 5m
+      labels:
+        severity: warning
+        team: infrastructure
+      annotations:
+        summary: "Network interface saturated"
+        description: "Network traffic on {{ $labels.device }} is {{ $value | humanize }}B/s"

@@ -45,20 +45,20 @@ resource "google_container_cluster" "kamailio_cluster" {
     }
   }
 
-  # Cluster autoscaling
-  cluster_autoscaling {
-    enabled = true
-    resource_limits {
-      resource_type = "cpu"
-      minimum       = 4
-      maximum       = 100
-    }
-    resource_limits {
-      resource_type = "memory"
-      minimum       = 16
-      maximum       = 400
-    }
-  }
+  # Cluster autoscaling - disabled for initial creation
+  # cluster_autoscaling {
+  #   enabled = true
+  #   resource_limits {
+  #     resource_type = "cpu"
+  #     minimum       = 4
+  #     maximum       = 100
+  #   }
+  #   resource_limits {
+  #     resource_type = "memory"
+  #     minimum       = 16
+  #     maximum       = 400
+  #   }
+  # }
 
   # Maintenance window
   maintenance_policy {
@@ -187,6 +187,8 @@ resource "google_service_account_iam_binding" "kamailio_workload_identity" {
   members = [
     "serviceAccount:${var.project_id}.svc.id.goog[kamailio/kamailio-sa]"
   ]
+  
+  depends_on = [google_container_cluster.kamailio_cluster]
 }
 
 # IAM roles for workload service account

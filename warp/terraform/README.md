@@ -11,10 +11,11 @@ terraform/
 │   ├── gke/              # Google Kubernetes Engine for Kamailio
 │   ├── compute/          # GCP VMs for RTPEngine
 │   ├── consul/           # Consul service discovery
-│   ├── database/         # CockroachDB/PostgreSQL setup
+│   ├── database/         # PostgreSQL (Cloud SQL) setup
 │   └── monitoring/       # Monitoring and alerting
 ├── environments/         # Environment-specific configurations
-│   ├── dev/              # Development environment
+│   ├── dev/              # Development environment (legacy)
+│   ├── v01/              # V01 environment (current deployment)
 │   ├── staging/          # Staging environment
 │   └── prod/             # Production environment
 └── scripts/              # Helper scripts
@@ -79,7 +80,28 @@ terraform/
 
 ## Deployment
 
-### Development Environment
+### Current Environment (V01)
+
+The V01 environment represents a fresh start for the WARP platform deployment. This environment uses:
+- PostgreSQL (Cloud SQL) for the database layer
+- Simplified architecture focused on core functionality
+- Updated configurations based on lessons learned from initial development
+
+1. **Initialize Terraform**
+   ```bash
+   cd environments/v01
+
+   # Create state bucket
+   gsutil mb gs://warp-terraform-state-v01
+   gsutil versioning set on gs://warp-terraform-state-v01
+
+   # Initialize Terraform
+   terraform init
+   ```
+
+### Legacy Development Environment
+
+The original dev environment configuration is preserved for reference but is no longer actively used.
 
 1. **Initialize Terraform**
    ```bash
@@ -111,6 +133,11 @@ terraform/
 
 5. **Configure kubectl**
    ```bash
+   # For V01 environment
+   gcloud container clusters get-credentials warp-v01-kamailio-cluster \
+     --region us-central1
+   
+   # For legacy dev environment
    gcloud container clusters get-credentials warp-dev-kamailio-cluster \
      --region us-central1
    ```

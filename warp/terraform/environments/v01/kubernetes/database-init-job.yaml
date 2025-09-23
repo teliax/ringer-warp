@@ -1,0 +1,199 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: warp-database-init
+  namespace: ringer-warp-v01
+spec:
+  ttlSecondsAfterFinished: 3600  # Clean up after 1 hour
+  template:
+    metadata:
+      name: warp-database-init
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: db-init
+        image: postgres:15-alpine
+        command: ["/bin/sh"]
+        args:
+          - -c
+          - |
+            echo "🗄️ Initializing WARP database schema..."
+            
+            # Create schema SQL file
+            cat > /tmp/schema.sql << 'EOF'
+            -- WARP Platform Database Schema
+            -- Version: 1.0.0
+
+            -- Enable required extensions
+            CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+            CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+            -- Create schemas
+            CREATE SCHEMA IF NOT EXISTS billing;
+            CREATE SCHEMA IF NOT EXISTS sip;
+            CREATE SCHEMA IF NOT EXISTS call;
+            CREATE SCHEMA IF NOT EXISTS message;
+
+            -- Customers table (main schema)
+            CREATE TABLE IF NOT EXISTS customers (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                name VARCHAR(255) NOT NULL,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                phone VARCHAR(50),
+                status VARCHAR(50) DEFAULT 'active',
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+
+            -- Accounts table (billing schema)
+            CREATE TABLE IF NOT EXISTS billing.accounts (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                customer_id UUID REFERENCES customers(id) ON DELETE CASCADE,
+                balance DECIMAL(10,2) DEFAULT 0.00,
+                credit_limit DECIMAL(10,2) DEFAULT 0.00,
+                currency VARCHAR(3) DEFAULT 'USD',
+                billing_type VARCHAR(50) DEFAULT 'postpaid',
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+
+            -- SIP registrations table
+            CREATE TABLE IF NOT EXISTS sip.registrations (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                customer_id UUID REFERENCES customers(id) ON DELETE CASCADE,
+                username VARCHAR(255) NOT NULL,
+                domain VARCHAR(255) NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                ip_address INET,
+                port INTEGER,
+                user_agent VARCHAR(255),
+                expires_at TIMESTAMP WITH TIME ZONE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX idx_sip_username_domain ON sip.registrations(username, domain);
+            CREATE INDEX idx_sip_expires ON sip.registrations(expires_at);
+
+            -- Call records table
+            CREATE TABLE IF NOT EXISTS call.records (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                call_id VARCHAR(255) UNIQUE NOT NULL,
+                customer_id UUID REFERENCES customers(id),
+                from_number VARCHAR(50) NOT NULL,
+                to_number VARCHAR(50) NOT NULL,
+                direction VARCHAR(20) NOT NULL,
+                status VARCHAR(50) NOT NULL,
+                start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+                answer_time TIMESTAMP WITH TIME ZONE,
+                end_time TIMESTAMP WITH TIME ZONE,
+                duration INTEGER DEFAULT 0,
+                rate DECIMAL(6,4) DEFAULT 0.0000,
+                cost DECIMAL(10,4) DEFAULT 0.0000,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX idx_call_id ON call.records(call_id);
+            CREATE INDEX idx_call_customer_time ON call.records(customer_id, start_time);
+            CREATE INDEX idx_call_numbers ON call.records(from_number, to_number);
+
+            -- Message records table
+            CREATE TABLE IF NOT EXISTS message.records (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                message_id VARCHAR(255) UNIQUE NOT NULL,
+                customer_id UUID REFERENCES customers(id),
+                from_number VARCHAR(50) NOT NULL,
+                to_number VARCHAR(50) NOT NULL,
+                direction VARCHAR(20) NOT NULL,
+                message_type VARCHAR(10) NOT NULL DEFAULT 'SMS',
+                content TEXT,
+                status VARCHAR(50) NOT NULL,
+                segments INTEGER DEFAULT 1,
+                rate DECIMAL(6,4) DEFAULT 0.0000,
+                cost DECIMAL(10,4) DEFAULT 0.0000,
+                sent_at TIMESTAMP WITH TIME ZONE,
+                delivered_at TIMESTAMP WITH TIME ZONE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX idx_message_id ON message.records(message_id);
+            CREATE INDEX idx_message_customer_time ON message.records(customer_id, created_at);
+
+            -- Create update triggers
+            CREATE OR REPLACE FUNCTION update_updated_at_column()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                NEW.updated_at = CURRENT_TIMESTAMP;
+                RETURN NEW;
+            END;
+            $$ language 'plpgsql';
+
+            CREATE TRIGGER update_customers_updated_at BEFORE UPDATE ON customers
+                FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+            CREATE TRIGGER update_accounts_updated_at BEFORE UPDATE ON billing.accounts
+                FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+            CREATE TRIGGER update_registrations_updated_at BEFORE UPDATE ON sip.registrations
+                FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+            -- Grant permissions
+            GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO warp;
+            GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA billing TO warp;
+            GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA sip TO warp;
+            GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA call TO warp;
+            GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA message TO warp;
+            GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO warp;
+            GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA billing TO warp;
+            GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA sip TO warp;
+            GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA call TO warp;
+            GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA message TO warp;
+            
+            -- Insert initial test data (optional)
+            INSERT INTO customers (name, email, phone) VALUES
+            ('Test Customer 1', 'test1@example.com', '+12125551234'),
+            ('Test Customer 2', 'test2@example.com', '+13105551234')
+            ON CONFLICT (email) DO NOTHING;
+
+            EOF
+            
+            echo "🔌 Connecting to database..."
+            export PGPASSWORD="${DB_PASSWORD}"
+            
+            # Execute schema
+            if psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -f /tmp/schema.sql; then
+              echo "✅ Database schema initialized successfully!"
+            else
+              echo "❌ Failed to initialize database schema"
+              exit 1
+            fi
+        env:
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: warp-db-credentials
+              key: host
+        - name: DB_PORT
+          valueFrom:
+            secretKeyRef:
+              name: warp-db-credentials
+              key: port
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: warp-db-credentials
+              key: database
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: warp-db-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: warp-db-credentials
+              key: password
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"

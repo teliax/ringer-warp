@@ -1,0 +1,43 @@
+# Install NGINX Ingress Controller
+# Option 1: Using Helm (recommended)
+# helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+# helm repo update
+# helm install nginx-ingress ingress-nginx/ingress-nginx \
+#   --namespace ingress-nginx \
+#   --create-namespace \
+#   --set controller.service.type=LoadBalancer \
+#   --set controller.service.annotations."cloud\.google\.com/load-balancer-type"="External" \
+#   --set controller.metrics.enabled=true \
+#   --set controller.metrics.serviceMonitor.enabled=true \
+#   --set controller.config.use-proxy-protocol="false" \
+#   --set controller.config.compute-full-forwarded-for="true" \
+#   --set controller.config.use-forwarded-headers="true"
+
+# Option 2: Direct kubectl apply
+# kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.3/deploy/static/provider/cloud/deploy.yaml
+
+---
+# Custom values for GKE
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-ingress-controller
+  namespace: ingress-nginx
+  annotations:
+    cloud.google.com/load-balancer-type: "External"
+    # Reserve static IPs if needed
+    # cloud.google.com/load-balancer-ip: "35.x.x.x"
+spec:
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+    protocol: TCP
+  - name: https
+    port: 443
+    targetPort: 443
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/component: controller

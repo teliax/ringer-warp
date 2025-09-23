@@ -1,0 +1,115 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rtpengine-config
+  namespace: warp-v01
+data:
+  rtpengine.conf: |
+    [rtpengine]
+    # Basic configuration
+    table = 0
+    no-fallback = false
+    
+    # Network interfaces
+    interface = private/10.0.0.0/8
+    interface = public/0.0.0.0
+    
+    # Listen addresses
+    listen-ng = 127.0.0.1:2223
+    listen-cli = 127.0.0.1:9900
+    
+    # Port ranges for RTP
+    port-min = 30000
+    port-max = 40000
+    
+    # TOS values
+    tos = 184
+    
+    # Timeout settings
+    timeout = 60
+    silent-timeout = 3600
+    final-timeout = 10800
+    
+    # Redis configuration for session sharing
+    redis = redis://10.206.200.36:6379/1
+    redis-write = redis://10.206.200.36:6379/1
+    redis-num-threads = 8
+    redis-expires = 86400
+    redis-allowed-errors = -1
+    redis-disable-time = 10
+    redis-cmd-timeout = 0
+    redis-connect-timeout = 1000
+    
+    # B2BUA mode
+    b2b-url = http://127.0.0.1:8080/
+    
+    # Recording options
+    recording-dir = /var/spool/rtpengine
+    recording-method = pcap
+    recording-format = raw
+    
+    # DTLS support for WebRTC
+    dtls-passive = false
+    
+    # Log levels
+    log-level = 6
+    log-facility = daemon
+    log-facility-cdr = local0
+    log-facility-rtcp = local1
+    
+    # Homer/HEP integration for SIP capture
+    homer = 10.0.0.100:9060
+    homer-protocol = udp
+    homer-id = 2001
+    
+    # Prometheus metrics
+    prometheus-port = 9101
+    
+    # Maximum sessions
+    max-sessions = 50000
+    
+    # Delete delay for call cleanup
+    delete-delay = 30
+    
+    # Codec settings
+    transcode = opus
+    transcode = g722
+    transcode = g711
+    transcode = gsm
+    transcode = amr
+    transcode = amr-wb
+    
+    # SRTP support
+    sip-source = true
+    dtls-passive = false
+    
+  rtpengine.service: |
+    [Unit]
+    Description=RTPEngine media proxy
+    After=network.target
+    After=redis.service
+    Wants=redis.service
+    
+    [Service]
+    Type=forking
+    PIDFile=/run/rtpengine/rtpengine.pid
+    Environment="CONFIG_FILE=/etc/rtpengine/rtpengine.conf"
+    Environment="RUNTIME_DIR=/run/rtpengine"
+    
+    ExecStartPre=/bin/mkdir -p /run/rtpengine
+    ExecStartPre=/bin/mkdir -p /var/spool/rtpengine
+    ExecStartPre=/bin/chown rtpengine:rtpengine /run/rtpengine
+    ExecStartPre=/bin/chown rtpengine:rtpengine /var/spool/rtpengine
+    
+    ExecStart=/usr/bin/rtpengine --config-file=/etc/rtpengine/rtpengine.conf --pidfile=/run/rtpengine/rtpengine.pid
+    ExecReload=/bin/kill -HUP $MAINPID
+    ExecStop=/bin/kill -TERM $MAINPID
+    
+    Restart=on-failure
+    RestartSec=5
+    
+    LimitNOFILE=65535
+    LimitMEMLOCK=infinity
+    
+    [Install]
+    WantedBy=multi-user.target

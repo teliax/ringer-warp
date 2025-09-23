@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kamailio
+  namespace: telecom
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+      - name: kamailio
+        env:
+        - name: KAMAILIO_LOG_LEVEL
+          value: "2"  # Less verbose for production
+        - name: ENVIRONMENT
+          value: "production"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2"
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - kamctl ping
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: 5060
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - kamailio
+              topologyKey: kubernetes.io/hostname

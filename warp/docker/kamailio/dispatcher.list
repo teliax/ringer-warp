@@ -1,0 +1,13 @@
+# Dispatcher configuration
+# setid(int) destination(sip uri) flags(int,opt) priority(int,opt) attributes(str,opt)
+
+# Carrier Group 1 - Primary carriers
+1 sip:carrier1.example.com:5060 0 0 weight=50;region=us-east
+1 sip:carrier1-backup.example.com:5060 0 1 weight=30;region=us-east
+
+# Carrier Group 2 - Secondary carriers  
+2 sip:carrier2.example.com:5060 0 0 weight=40;region=us-west
+2 sip:carrier2-backup.example.com:5060 0 1 weight=20;region=us-west
+
+# RTPEngine servers
+3 udp:__RTPENGINE_LIST__ 0 0 socket=udp:__RTPENGINE_LIST__;weight=50

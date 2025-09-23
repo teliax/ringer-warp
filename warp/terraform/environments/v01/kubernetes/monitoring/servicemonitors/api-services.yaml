@@ -1,0 +1,86 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: api-services
+  namespace: monitoring
+  labels:
+    app: api
+    release: warp-monitoring
+spec:
+  selector:
+    matchLabels:
+      monitoring: "true"
+  namespaceSelector:
+    matchNames:
+    - default
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_label_app]
+      targetLabel: service
+    - sourceLabels: [__meta_kubernetes_namespace]
+      targetLabel: namespace
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: pod
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: customer-api
+  namespace: monitoring
+  labels:
+    app: customer-api
+    release: warp-monitoring
+spec:
+  selector:
+    matchLabels:
+      app: customer-api
+  namespaceSelector:
+    matchNames:
+    - default
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: trunk-api
+  namespace: monitoring
+  labels:
+    app: trunk-api
+    release: warp-monitoring
+spec:
+  selector:
+    matchLabels:
+      app: trunk-api
+  namespaceSelector:
+    matchNames:
+    - default
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: billing-api
+  namespace: monitoring
+  labels:
+    app: billing-api
+    release: warp-monitoring
+spec:
+  selector:
+    matchLabels:
+      app: billing-api
+  namespaceSelector:
+    matchNames:
+    - default
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics

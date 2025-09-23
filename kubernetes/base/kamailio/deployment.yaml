@@ -1,0 +1,145 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kamailio
+  namespace: telecom
+  labels:
+    app: kamailio
+    component: sip-proxy
+    app.kubernetes.io/name: kamailio
+    app.kubernetes.io/part-of: warp
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kamailio
+  template:
+    metadata:
+      labels:
+        app: kamailio
+        component: sip-proxy
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - kamailio
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: kamailio
+        image: kamailio/kamailio:5.7
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: sip-udp
+          containerPort: 5060
+          protocol: UDP
+        - name: sip-tcp
+          containerPort: 5060
+          protocol: TCP
+        - name: sip-tls
+          containerPort: 5061
+          protocol: TCP
+        - name: metrics
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: KAMAILIO_LOG_LEVEL
+          value: "2"
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: redis-config
+              key: host
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: redis-config
+              key: port
+        - name: POSTGRES_HOST
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: host
+        - name: POSTGRES_PORT
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: port
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: database
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: password
+        - name: HOMER_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: homer-config
+              key: host
+        - name: HOMER_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: homer-config
+              key: port
+        volumeMounts:
+        - name: config
+          mountPath: /etc/kamailio
+          readOnly: true
+        - name: lua-scripts
+          mountPath: /etc/kamailio/lua
+          readOnly: true
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2"
+        livenessProbe:
+          exec:
+            command:
+            - kamctl
+            - ping
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          exec:
+            command:
+            - kamctl
+            - ping
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+      volumes:
+      - name: config
+        configMap:
+          name: kamailio-config
+          items:
+          - key: kamailio.cfg
+            path: kamailio.cfg
+      - name: lua-scripts
+        configMap:
+          name: kamailio-config
+          items:
+          - key: init.lua
+            path: init.lua
