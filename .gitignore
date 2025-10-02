@@ -145,6 +145,7 @@ key.json
 claude-flow.config.json
 .swarm/
 .hive-mind/
+.claude-flow/
 memory/claude-flow-data.json
 memory/sessions/*
 !memory/sessions/README.md

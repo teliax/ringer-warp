@@ -1,4 +1,4 @@
-# Compute module for RTPEngine VMs with Consul integration and Golden Image support
+# Compute module for RTPEngine VMs with Golden Image support and Consul integration
 
 # Static IP addresses for RTPEngine instances
 resource "google_compute_address" "rtpengine_ips" {
@@ -9,71 +9,7 @@ resource "google_compute_address" "rtpengine_ips" {
   project      = var.project_id
 }
 
-# Data source for golden image (only if using golden image)
-data "google_compute_image" "rtpengine_golden" {
-  count   = var.use_golden_image ? 1 : 0
-  family  = var.golden_image_family
-  project = var.project_id
-}
-
-# Instance template for RTPEngine VMs (only used for non-golden image deployments)
-resource "google_compute_instance_template" "rtpengine" {
-  count        = var.use_golden_image ? 0 : 1
-  name_prefix  = "${var.project_name}-rtpengine-"
-  machine_type = var.rtpengine_machine_type
-  region       = var.region
-  project      = var.project_id
-
-  tags = ["rtpengine", "consul-client"]
-
-  disk {
-    source_image = var.rtpengine_image
-    auto_delete  = true
-    boot         = true
-    disk_size_gb = var.rtpengine_disk_size
-    disk_type    = "pd-ssd"
-  }
-
-  network_interface {
-    network    = var.vpc_id
-    subnetwork = var.rtpengine_subnet_id
-  }
-
-  service_account {
-    email  = google_service_account.rtpengine_sa.email
-    scopes = ["cloud-platform"]
-  }
-
-  metadata_startup_script = templatefile("${path.module}/scripts/rtpengine-startup.sh", {
-    consul_servers     = join(",", var.consul_servers)
-    datacenter         = var.consul_datacenter
-    rtp_port_min       = var.rtp_port_min
-    rtp_port_max       = var.rtp_port_max
-    redis_host         = var.redis_host
-    redis_port         = var.redis_port
-    project_id         = var.project_id
-    log_level          = var.rtpengine_log_level
-    instance_index     = "0"  # Will be set dynamically by instance group
-    external_ip        = "0.0.0.0"  # Will be set dynamically
-    internal_ip        = "0.0.0.0"  # Will be set dynamically
-  })
-
-  metadata = {
-    enable-oslogin = "TRUE"
-  }
-
-  shielded_instance_config {
-    enable_secure_boot          = true
-    enable_vtpm                  = true
-    enable_integrity_monitoring = true
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-# RTPEngine instances
+# RTPEngine instances from Golden Image
 resource "google_compute_instance" "rtpengine" {
   count        = var.rtpengine_instance_count
   name         = "${var.project_name}-rtpengine-${count.index + 1}"
@@ -85,7 +21,7 @@ resource "google_compute_instance" "rtpengine" {
 
   boot_disk {
     initialize_params {
-      # Use golden image if specified, otherwise use standard image
+      # Use golden image if specified, otherwise fall back to regular image
       image = var.use_golden_image ? data.google_compute_image.rtpengine_golden[0].self_link : var.rtpengine_image
       size  = var.rtpengine_disk_size
       type  = "pd-ssd"
@@ -106,11 +42,11 @@ resource "google_compute_instance" "rtpengine" {
     scopes = ["cloud-platform"]
   }
 
-  # Use different startup scripts for golden vs standard images
+  # Instance-specific startup script for golden image deployments
   metadata_startup_script = var.use_golden_image ? templatefile("${path.module}/scripts/golden-instance-config.sh", {
     instance_num       = count.index + 1
     instance_name      = "${var.project_name}-rtpengine-${count.index + 1}"
-    internal_ip        = "10.128.0.${20 + count.index}"  # This will be replaced with actual IP
+    internal_ip        = google_compute_instance.rtpengine[count.index].network_interface[0].network_ip
     external_ip        = google_compute_address.rtpengine_ips[count.index].address
     consul_servers     = join(",", var.consul_servers)
     datacenter         = var.consul_datacenter
@@ -135,7 +71,6 @@ resource "google_compute_instance" "rtpengine" {
     enable-oslogin     = "TRUE"
     consul-service     = "rtpengine"
     serial-port-enable = "TRUE"
-    deployment-type    = var.use_golden_image ? "golden-image" : "standard"
   }
 
   labels = {
@@ -147,7 +82,7 @@ resource "google_compute_instance" "rtpengine" {
 
   shielded_instance_config {
     enable_secure_boot          = true
-    enable_vtpm                  = true
+    enable_vtpm                 = true
     enable_integrity_monitoring = true
   }
 
@@ -213,7 +148,14 @@ data "google_compute_zones" "available" {
   project = var.project_id
 }
 
-# Outputs
+# Data source for golden image (only if using golden image)
+data "google_compute_image" "rtpengine_golden" {
+  count   = var.use_golden_image ? 1 : 0
+  family  = var.golden_image_family
+  project = var.project_id
+}
+
+# Output the instance details
 output "rtpengine_instances" {
   value = [
     for idx, instance in google_compute_instance.rtpengine : {
@@ -221,8 +163,8 @@ output "rtpengine_instances" {
       zone         = instance.zone
       internal_ip  = instance.network_interface[0].network_ip
       external_ip  = google_compute_address.rtpengine_ips[idx].address
+      status       = instance.current_status
       machine_type = instance.machine_type
-      deployment   = var.use_golden_image ? "golden-image" : "standard"
     }
   ]
   description = "Details of RTPEngine instances"

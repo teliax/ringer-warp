@@ -72,7 +72,7 @@ spec:
               topologyKey: kubernetes.io/hostname
       containers:
       - name: kamailio
-        image: us-central1-docker.pkg.dev/ringer-472421/warp-platform/kamailio:latest
+        image: us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/kamailio:v1.0
         imagePullPolicy: Always
         ports:
         - name: sip-udp

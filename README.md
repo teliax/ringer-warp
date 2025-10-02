@@ -48,12 +48,12 @@ WARP is a carrier-grade SIP trunking and messaging platform designed for wholesa
 - **Service Mesh**: Consul
 
 ### Core Components
-- **SIP Control**: Kamailio
-- **Media Processing**: RTPEngine
-- **SMS Gateway**: Jasmin SMSC
-- **SIP Capture**: Homer
-- **API Gateway**: Go/Rust microservices
-- **Frontend**: Next.js/TypeScript/Tailwind (Vercel)
+- **SIP Control**: Kamailio ✅
+- **Media Processing**: RTPEngine ✅ (mr13.4.1, 3 VMs)
+- **SMS Gateway**: Jasmin SMSC 🚧
+- **SIP Capture**: Homer ✅
+- **API Gateway**: Go/Rust microservices 🔄
+- **Frontend**: Next.js/TypeScript/Tailwind (Vercel) 🔄
 
 ### Integrations
 - **Authentication**: Google Identity Platform (Firebase Auth)
@@ -72,11 +72,14 @@ WARP is a carrier-grade SIP trunking and messaging platform designed for wholesa
 - **Grafana**: https://grafana.ringer.tel  
 - **Prometheus**: https://prometheus.ringer.tel
 
-### Phase 2 Starting
-Focus on application deployment:
-- RTPEngine configuration
-- Jasmin SMSC deployment  
-- API Gateway implementation
+### Phase 2 In Progress
+Application deployment status:
+- **RTPEngine**: ✅ Deployed (mr13.4.1 from source) - Golden image approach
+  - 3 production VMs deployed using golden image
+  - Built from source (Sipwise repo deprecated)
+  - Service configuration optimized
+- **Jasmin SMSC**: 🚧 Next deployment target
+- **API Gateway**: 🔄 Implementation in progress
 
 ## 🚦 Getting Started
 
@@ -302,7 +305,10 @@ Built for wholesale telecom carriers requiring enterprise-grade SIP trunking wit
 
 **Version**: 1.0.0  
 **Phase 1 Status**: ✅ COMPLETE (Infrastructure)  
-**Phase 2 Status**: 🚧 Starting (Applications)  
+**Phase 2 Status**: 🚧 In Progress (Applications)  
+  - RTPEngine: ✅ Deployed (3 production VMs)
+  - Jasmin SMSC: 🚧 Next target
+  - API Services: 🔄 Development
 **Target Launch**: Q2 2025  
 
 📚 **Key Documents**:

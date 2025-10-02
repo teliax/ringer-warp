@@ -13,8 +13,8 @@ REGION="us-central1"
 ZONE="${REGION}-a"
 VM_NAME="warp-rtpengine-golden"
 MACHINE_TYPE="e2-standard-4"
-IMAGE_FAMILY="ubuntu-2004-lts"
-IMAGE_PROJECT="ubuntu-os-cloud"
+IMAGE_FAMILY="debian-11"
+IMAGE_PROJECT="debian-cloud"
 BOOT_DISK_SIZE="50GB"
 BOOT_DISK_TYPE="pd-standard"
 
@@ -172,7 +172,7 @@ gcloud compute instances create "$VM_NAME" \
     --network-interface=network-tier=PREMIUM,subnet=default \
     --maintenance-policy=MIGRATE \
     --provisioning-model=STANDARD \
-    --service-account="$(gcloud config get-value project 2>/dev/null)-compute@developer.gserviceaccount.com" \
+    --service-account="791559065272-compute@developer.gserviceaccount.com" \
     --scopes=https://www.googleapis.com/auth/cloud-platform \
     --tags=rtpengine,allow-ssh,allow-rtpengine-ports \
     --create-disk=auto-delete=yes,boot=yes,device-name="$VM_NAME",image=projects/"$IMAGE_PROJECT"/global/images/family/"$IMAGE_FAMILY",mode=rw,size="$BOOT_DISK_SIZE",type=projects/"$PROJECT_ID"/zones/"$ZONE"/diskTypes/"$BOOT_DISK_TYPE" \

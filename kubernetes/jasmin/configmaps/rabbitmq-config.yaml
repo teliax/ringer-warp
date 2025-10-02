@@ -6,13 +6,22 @@ metadata:
 data:
   rabbitmq.conf: |
     # RabbitMQ Configuration for Jasmin SMSC
-    
+
     ## Networking
     listeners.tcp.default = 5672
-    
+
     ## Management Plugin
     management.tcp.port = 15672
     management.load_definitions = /etc/rabbitmq/definitions.json
+
+    ## Logging - Debug mode for troubleshooting
+    log.console.level = info
+    log.connection.level = debug
+    log.channel.level = debug
+    log.queue.level = info
+    log.mirroring.level = info
+    log.federation.level = info
+    log.upgrade.level = info
     
     ## Memory and Disk Limits
     vm_memory_high_watermark.relative = 0.6
@@ -46,14 +55,12 @@ data:
       "users": [
         {
           "name": "jasmin",
-          "password_hash": "WILL_BE_REPLACED",
-          "hashing_algorithm": "rabbit_password_hashing_sha256",
+          "password": "jasminpass123",
           "tags": "administrator"
         },
         {
           "name": "monitoring",
-          "password_hash": "WILL_BE_REPLACED",
-          "hashing_algorithm": "rabbit_password_hashing_sha256",
+          "password": "monitorpass123",
           "tags": "monitoring"
         }
       ],

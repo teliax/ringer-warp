@@ -95,3 +95,15 @@ variable "redis_port" {
   type        = number
   default     = 6379
 }
+
+variable "use_golden_image" {
+  description = "Whether to use golden image for RTPEngine deployment"
+  type        = bool
+  default     = false
+}
+
+variable "golden_image_family" {
+  description = "Golden image family name for RTPEngine"
+  type        = string
+  default     = "rtpengine-golden"
+}

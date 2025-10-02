@@ -1,352 +1,312 @@
-# Claude Code Configuration - SPARC Development Environment
+# CLAUDE.md
 
-## 🚨 CRITICAL: CONCURRENT EXECUTION & FILE MANAGEMENT
-
-**ABSOLUTE RULES**:
-1. ALL operations MUST be concurrent/parallel in a single message
-2. **NEVER save working files, text/mds and tests to the root folder**
-3. ALWAYS organize files in appropriate subdirectories
-4. **USE CLAUDE CODE'S TASK TOOL** for spawning agents concurrently, not just MCP
-
-### ⚡ GOLDEN RULE: "1 MESSAGE = ALL RELATED OPERATIONS"
-
-**MANDATORY PATTERNS:**
-- **TodoWrite**: ALWAYS batch ALL todos in ONE call (5-10+ todos minimum)
-- **Task tool (Claude Code)**: ALWAYS spawn ALL agents in ONE message with full instructions
-- **File operations**: ALWAYS batch ALL reads/writes/edits in ONE message
-- **Bash commands**: ALWAYS batch ALL terminal operations in ONE message
-- **Memory operations**: ALWAYS batch ALL memory store/retrieve in ONE message
-
-### 🎯 CRITICAL: Claude Code Task Tool for Agent Execution
-
-**Claude Code's Task tool is the PRIMARY way to spawn agents:**
-```javascript
-// ✅ CORRECT: Use Claude Code's Task tool for parallel agent execution
-[Single Message]:
-  Task("Research agent", "Analyze requirements and patterns...", "researcher")
-  Task("Coder agent", "Implement core features...", "coder")
-  Task("Tester agent", "Create comprehensive tests...", "tester")
-  Task("Reviewer agent", "Review code quality...", "reviewer")
-  Task("Architect agent", "Design system architecture...", "system-architect")
-```
-
-**MCP tools are ONLY for coordination setup:**
-- `mcp__claude-flow__swarm_init` - Initialize coordination topology
-- `mcp__claude-flow__agent_spawn` - Define agent types for coordination
-- `mcp__claude-flow__task_orchestrate` - Orchestrate high-level workflows
-
-### 📁 File Organization Rules
-
-**NEVER save to root folder. Use these directories:**
-- `/src` - Source code files
-- `/tests` - Test files
-- `/docs` - Documentation and markdown files
-- `/config` - Configuration files
-- `/scripts` - Utility scripts
-- `/examples` - Example code
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-This project uses SPARC (Specification, Pseudocode, Architecture, Refinement, Completion) methodology with Claude-Flow orchestration for systematic Test-Driven Development.
+**WARP** (Wholesale Accounting Routing and Provisioning Platform) is a carrier-grade SIP trunking and messaging platform for wholesale telecom carriers built on Google Cloud Platform.
 
-## SPARC Commands
+**Current Status**: Phase 1 (Infrastructure) Complete ✅ | Phase 2 (Applications) In Progress 🚧
 
-### Core Commands
-- `npx claude-flow sparc modes` - List available modes
-- `npx claude-flow sparc run <mode> "<task>"` - Execute specific mode
-- `npx claude-flow sparc tdd "<feature>"` - Run complete TDD workflow
-- `npx claude-flow sparc info <mode>` - Get mode details
+**GCP Project**: `ringer-warp-v01`
+**Primary Cluster**: `warp-kamailio-cluster` (GKE Autopilot, us-central1)
 
-### Batchtools Commands
-- `npx claude-flow sparc batch <modes> "<task>"` - Parallel execution
-- `npx claude-flow sparc pipeline "<task>"` - Full pipeline processing
-- `npx claude-flow sparc concurrent <mode> "<tasks-file>"` - Multi-task processing
+## Essential Commands
 
-### Build Commands
-- `npm run build` - Build project
-- `npm run test` - Run tests
-- `npm run lint` - Linting
-- `npm run typecheck` - Type checking
-
-## SPARC Workflow Phases
-
-1. **Specification** - Requirements analysis (`sparc run spec-pseudocode`)
-2. **Pseudocode** - Algorithm design (`sparc run spec-pseudocode`)
-3. **Architecture** - System design (`sparc run architect`)
-4. **Refinement** - TDD implementation (`sparc tdd`)
-5. **Completion** - Integration (`sparc run integration`)
-
-## Code Style & Best Practices
-
-- **Modular Design**: Files under 500 lines
-- **Environment Safety**: Never hardcode secrets
-- **Test-First**: Write tests before implementation
-- **Clean Architecture**: Separate concerns
-- **Documentation**: Keep updated
-
-## 🚀 Available Agents (54 Total)
-
-### Core Development
-`coder`, `reviewer`, `tester`, `planner`, `researcher`
-
-### Swarm Coordination
-`hierarchical-coordinator`, `mesh-coordinator`, `adaptive-coordinator`, `collective-intelligence-coordinator`, `swarm-memory-manager`
-
-### Consensus & Distributed
-`byzantine-coordinator`, `raft-manager`, `gossip-coordinator`, `consensus-builder`, `crdt-synchronizer`, `quorum-manager`, `security-manager`
-
-### Performance & Optimization
-`perf-analyzer`, `performance-benchmarker`, `task-orchestrator`, `memory-coordinator`, `smart-agent`
-
-### GitHub & Repository
-`github-modes`, `pr-manager`, `code-review-swarm`, `issue-tracker`, `release-manager`, `workflow-automation`, `project-board-sync`, `repo-architect`, `multi-repo-swarm`
-
-### SPARC Methodology
-`sparc-coord`, `sparc-coder`, `specification`, `pseudocode`, `architecture`, `refinement`
-
-### Specialized Development
-`backend-dev`, `mobile-dev`, `ml-developer`, `cicd-engineer`, `api-docs`, `system-architect`, `code-analyzer`, `base-template-generator`
-
-### Testing & Validation
-`tdd-london-swarm`, `production-validator`
-
-### Migration & Planning
-`migration-planner`, `swarm-init`
-
-## 🎯 Claude Code vs MCP Tools
-
-### Claude Code Handles ALL EXECUTION:
-- **Task tool**: Spawn and run agents concurrently for actual work
-- File operations (Read, Write, Edit, MultiEdit, Glob, Grep)
-- Code generation and programming
-- Bash commands and system operations
-- Implementation work
-- Project navigation and analysis
-- TodoWrite and task management
-- Git operations
-- Package management
-- Testing and debugging
-
-### MCP Tools ONLY COORDINATE:
-- Swarm initialization (topology setup)
-- Agent type definitions (coordination patterns)
-- Task orchestration (high-level planning)
-- Memory management
-- Neural features
-- Performance tracking
-- GitHub integration
-
-**KEY**: MCP coordinates the strategy, Claude Code's Task tool executes with real agents.
-
-## 🚀 Quick Setup
+### GCP & Kubernetes Access
 
 ```bash
-# Add MCP servers (Claude Flow required, others optional)
-claude mcp add claude-flow npx claude-flow@alpha mcp start
-claude mcp add ruv-swarm npx ruv-swarm mcp start  # Optional: Enhanced coordination
-claude mcp add flow-nexus npx flow-nexus@latest mcp start  # Optional: Cloud features
+# Set project and authenticate
+export GCP_PROJECT_ID=ringer-warp-v01
+gcloud config set project $GCP_PROJECT_ID
+
+# Configure kubectl for main cluster
+gcloud container clusters get-credentials warp-kamailio-cluster --zone us-central1
+
+# View all services
+kubectl get services --all-namespaces
+
+# Check pod status
+kubectl get pods --all-namespaces
+
+# View SSL certificates
+kubectl get certificates --all-namespaces
 ```
 
-## MCP Tool Categories
+### Terraform Infrastructure
 
-### Coordination
-`swarm_init`, `agent_spawn`, `task_orchestrate`
-
-### Monitoring
-`swarm_status`, `agent_list`, `agent_metrics`, `task_status`, `task_results`
-
-### Memory & Neural
-`memory_usage`, `neural_status`, `neural_train`, `neural_patterns`
-
-### GitHub Integration
-`github_swarm`, `repo_analyze`, `pr_enhance`, `issue_triage`, `code_review`
-
-### System
-`benchmark_run`, `features_detect`, `swarm_monitor`
-
-### Flow-Nexus MCP Tools (Optional Advanced Features)
-Flow-Nexus extends MCP capabilities with 70+ cloud-based orchestration tools:
-
-**Key MCP Tool Categories:**
-- **Swarm & Agents**: `swarm_init`, `swarm_scale`, `agent_spawn`, `task_orchestrate`
-- **Sandboxes**: `sandbox_create`, `sandbox_execute`, `sandbox_upload` (cloud execution)
-- **Templates**: `template_list`, `template_deploy` (pre-built project templates)
-- **Neural AI**: `neural_train`, `neural_patterns`, `seraphina_chat` (AI assistant)
-- **GitHub**: `github_repo_analyze`, `github_pr_manage` (repository management)
-- **Real-time**: `execution_stream_subscribe`, `realtime_subscribe` (live monitoring)
-- **Storage**: `storage_upload`, `storage_list` (cloud file management)
-
-**Authentication Required:**
-- Register: `mcp__flow-nexus__user_register` or `npx flow-nexus@latest register`
-- Login: `mcp__flow-nexus__user_login` or `npx flow-nexus@latest login`
-- Access 70+ specialized MCP tools for advanced orchestration
-
-## 🚀 Agent Execution Flow with Claude Code
-
-### The Correct Pattern:
-
-1. **Optional**: Use MCP tools to set up coordination topology
-2. **REQUIRED**: Use Claude Code's Task tool to spawn agents that do actual work
-3. **REQUIRED**: Each agent runs hooks for coordination
-4. **REQUIRED**: Batch all operations in single messages
-
-### Example Full-Stack Development:
-
-```javascript
-// Single message with all agent spawning via Claude Code's Task tool
-[Parallel Agent Execution]:
-  Task("Backend Developer", "Build REST API with Express. Use hooks for coordination.", "backend-dev")
-  Task("Frontend Developer", "Create React UI. Coordinate with backend via memory.", "coder")
-  Task("Database Architect", "Design PostgreSQL schema. Store schema in memory.", "code-analyzer")
-  Task("Test Engineer", "Write Jest tests. Check memory for API contracts.", "tester")
-  Task("DevOps Engineer", "Setup Docker and CI/CD. Document in memory.", "cicd-engineer")
-  Task("Security Auditor", "Review authentication. Report findings via hooks.", "reviewer")
-  
-  // All todos batched together
-  TodoWrite { todos: [...8-10 todos...] }
-  
-  // All file operations together
-  Write "backend/server.js"
-  Write "frontend/App.jsx"
-  Write "database/schema.sql"
-```
-
-## 📋 Agent Coordination Protocol
-
-### Every Agent Spawned via Task Tool MUST:
-
-**1️⃣ BEFORE Work:**
 ```bash
-npx claude-flow@alpha hooks pre-task --description "[task]"
-npx claude-flow@alpha hooks session-restore --session-id "swarm-[id]"
+cd warp/terraform/environments/dev
+
+# Initialize Terraform (uses GCS backend)
+terraform init
+
+# Plan infrastructure changes
+terraform plan
+
+# Apply changes
+terraform apply
+
+# View state
+terraform state list
 ```
 
-**2️⃣ DURING Work:**
+### Database Operations
+
 ```bash
-npx claude-flow@alpha hooks post-edit --file "[file]" --memory-key "swarm/[agent]/[step]"
-npx claude-flow@alpha hooks notify --message "[what was done]"
+# Get Cloud SQL instance connection string
+gcloud sql instances describe warp-db --format="value(connectionName)"
+
+# Connect to PostgreSQL via Cloud SQL Proxy
+cloud_sql_proxy -instances=<CONNECTION_NAME>=tcp:5432
+
+# Run database initialization scripts
+cd warp/database/setup
+./init-database.sh
 ```
 
-**3️⃣ AFTER Work:**
+### RTPEngine Deployment (Golden Image)
+
 ```bash
-npx claude-flow@alpha hooks post-task --task-id "[task]"
-npx claude-flow@alpha hooks session-end --export-metrics true
+cd rtpengine/golden-image/gcloud
+
+# Create golden VM (installs RTPEngine mr13.4.1 from source)
+./create-golden-vm.sh
+
+# Create image snapshot
+./create-golden-image.sh
+
+# Deploy production VMs (creates 3 instances)
+./deploy-rtpengine-vms.sh
+
+# Verify RTPEngine status
+rtpengine-ctl list
 ```
 
-## 🎯 Concurrent Execution Examples
+### Monitoring Access
 
-### ✅ CORRECT WORKFLOW: MCP Coordinates, Claude Code Executes
+```bash
+# Production HTTPS endpoints
+# Grafana: https://grafana.ringer.tel (admin/prom-operator)
+# Prometheus: https://prometheus.ringer.tel
+# API: https://api-v2.ringer.tel
 
-```javascript
-// Step 1: MCP tools set up coordination (optional, for complex tasks)
-[Single Message - Coordination Setup]:
-  mcp__claude-flow__swarm_init { topology: "mesh", maxAgents: 6 }
-  mcp__claude-flow__agent_spawn { type: "researcher" }
-  mcp__claude-flow__agent_spawn { type: "coder" }
-  mcp__claude-flow__agent_spawn { type: "tester" }
-
-// Step 2: Claude Code Task tool spawns ACTUAL agents that do the work
-[Single Message - Parallel Agent Execution]:
-  // Claude Code's Task tool spawns real agents concurrently
-  Task("Research agent", "Analyze API requirements and best practices. Check memory for prior decisions.", "researcher")
-  Task("Coder agent", "Implement REST endpoints with authentication. Coordinate via hooks.", "coder")
-  Task("Database agent", "Design and implement database schema. Store decisions in memory.", "code-analyzer")
-  Task("Tester agent", "Create comprehensive test suite with 90% coverage.", "tester")
-  Task("Reviewer agent", "Review code quality and security. Document findings.", "reviewer")
-  
-  // Batch ALL todos in ONE call
-  TodoWrite { todos: [
-    {id: "1", content: "Research API patterns", status: "in_progress", priority: "high"},
-    {id: "2", content: "Design database schema", status: "in_progress", priority: "high"},
-    {id: "3", content: "Implement authentication", status: "pending", priority: "high"},
-    {id: "4", content: "Build REST endpoints", status: "pending", priority: "high"},
-    {id: "5", content: "Write unit tests", status: "pending", priority: "medium"},
-    {id: "6", content: "Integration tests", status: "pending", priority: "medium"},
-    {id: "7", content: "API documentation", status: "pending", priority: "low"},
-    {id: "8", content: "Performance optimization", status: "pending", priority: "low"}
-  ]}
-  
-  // Parallel file operations
-  Bash "mkdir -p app/{src,tests,docs,config}"
-  Write "app/package.json"
-  Write "app/src/server.js"
-  Write "app/tests/server.test.js"
-  Write "app/docs/API.md"
+# Port-forward for local access
+kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:9090
+kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80
 ```
 
-### ❌ WRONG (Multiple Messages):
-```javascript
-Message 1: mcp__claude-flow__swarm_init
-Message 2: Task("agent 1")
-Message 3: TodoWrite { todos: [single todo] }
-Message 4: Write "file.js"
-// This breaks parallel coordination!
+### Deployment Scripts
+
+```bash
+# Full platform deployment orchestration
+./deploy-warp-platform.sh
+
+# Quick health check
+./scripts/quick-health-check.sh
+
+# Database initialization
+./scripts/init-db-simple.sh
+
+# Kubernetes services deployment
+./scripts/deploy-k8s-services-v01.sh
 ```
 
-## Performance Benefits
+## Architecture Overview
 
-- **84.8% SWE-Bench solve rate**
-- **32.3% token reduction**
-- **2.8-4.4x speed improvement**
-- **27+ neural models**
+### Infrastructure Stack
+- **Cloud**: GCP (us-central1)
+- **Orchestration**: GKE Autopilot for containerized workloads
+- **Compute VMs**: For kernel-level components (RTPEngine)
+- **Database**: PostgreSQL on Cloud SQL
+- **Analytics**: BigQuery for CDR/MDR storage
+- **Cache**: Redis Cluster (planned)
+- **Service Mesh**: Consul
 
-## Hooks Integration
+### Core Components
 
-### Pre-Operation
-- Auto-assign agents by file type
-- Validate commands for safety
-- Prepare resources automatically
-- Optimize topology by complexity
-- Cache searches
+| Component | Deployment | Location | Status |
+|-----------|-----------|----------|--------|
+| **Kamailio** | K8s | GKE | ✅ Production |
+| **RTPEngine** | Golden Image VMs | Compute Engine (3 VMs) | ✅ Production |
+| **Homer** | K8s | GKE | ✅ Production |
+| **Consul** | K8s | GKE | ✅ Production |
+| **Prometheus/Grafana** | K8s | GKE (monitoring namespace) | ✅ Production |
+| **PostgreSQL** | Managed | Cloud SQL | ✅ Production |
+| **Jasmin SMSC** | TBD | TBD | 🚧 Pending |
+| **API Gateway** | K8s | GKE | 🚧 Development |
 
-### Post-Operation
-- Auto-format code
-- Train neural patterns
-- Update memory
-- Analyze performance
-- Track token usage
+### Directory Structure
 
-### Session Management
-- Generate summaries
-- Persist state
-- Track metrics
-- Restore context
-- Export workflows
+```
+ringer-warp/
+├── warp/
+│   ├── terraform/          # Infrastructure as Code
+│   │   ├── environments/   # dev, v01 environments
+│   │   └── modules/        # networking, compute, gke, database, cache, consul
+│   ├── k8s/               # Kubernetes manifests
+│   │   ├── kamailio/      # SIP signaling
+│   │   ├── homer/         # SIP capture
+│   │   ├── monitoring/    # Prometheus, Grafana
+│   │   ├── database/      # DB init jobs
+│   │   └── grafana/       # Dashboard configs
+│   ├── database/
+│   │   ├── schemas/       # PostgreSQL and CDR schemas
+│   │   └── setup/         # Initialization scripts
+│   ├── docs/              # Technical documentation
+│   │   ├── ARCHITECTURE.md
+│   │   ├── BILLING_SYSTEM.md
+│   │   ├── SIP_NETWORK_ARCHITECTURE.md
+│   │   ├── SMS_ARCHITECTURE.md
+│   │   └── HOMER_ARCHITECTURE.md
+│   └── api/               # OpenAPI specs
+├── rtpengine/
+│   ├── golden-image/      # Golden image creation scripts
+│   │   └── gcloud/        # VM and image management
+│   └── scripts/           # RTPEngine operations
+├── docs/                  # Platform-wide documentation
+│   ├── DEPLOYMENT.md      # Deployment procedures
+│   ├── ARCHITECTURAL_DECISIONS.md
+│   └── ENVIRONMENT_SETUP.md
+├── customer-frontend/     # Next.js customer portal
+├── admin-frontend/        # Next.js admin portal
+└── scripts/               # Operational scripts
+    ├── deploy-*.sh
+    ├── verify-*.sh
+    └── dns/               # DNS management
+```
 
-## Advanced Features (v2.0.0)
+## Critical Knowledge
 
-- 🚀 Automatic Topology Selection
-- ⚡ Parallel Execution (2.8-4.4x speed)
-- 🧠 Neural Training
-- 📊 Bottleneck Analysis
-- 🤖 Smart Auto-Spawning
-- 🛡️ Self-Healing Workflows
-- 💾 Cross-Session Memory
-- 🔗 GitHub Integration
+### RTPEngine Golden Image Approach
 
-## Integration Tips
+**Why VMs Instead of K8s**: RTPEngine requires kernel-level access for optimal media processing performance. GKE/containers don't support the kernel module.
 
-1. Start with basic swarm init
-2. Scale agents gradually
-3. Use memory for context
-4. Monitor progress regularly
-5. Train patterns from success
-6. Enable hooks automation
-7. Use GitHub tools first
+**Building from Source**: The Sipwise APT repository is deprecated (404 errors). We build RTPEngine mr13.4.1 from source on each golden image.
 
-## Support
+**Key Dependencies**:
+- gperf, default-libmysqlclient-dev, pandoc
+- redis-server (required, no auth needed)
+- Kernel module won't load in GCP (expected, not critical)
 
-- Documentation: https://github.com/ruvnet/claude-flow
-- Issues: https://github.com/ruvnet/claude-flow/issues
-- Flow-Nexus Platform: https://flow-nexus.ruv.io (registration required for cloud features)
+**Service Configuration**: Must use `Type=simple` with `--foreground` flag in systemd service.
 
----
+**Golden Image Workflow**:
+1. Create VM → Install dependencies → Build RTPEngine → Configure
+2. Create image snapshot
+3. Deploy multiple production VMs from golden image
+4. All VMs have identical, tested configurations
 
-Remember: **Claude Flow coordinates, Claude Code creates!**
+### Terraform State Management
 
-# important-instruction-reminders
-Do what has been asked; nothing more, nothing less.
-NEVER create files unless they're absolutely necessary for achieving your goal.
-ALWAYS prefer editing an existing file to creating a new one.
-NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
-Never save working files, text/mds and tests to the root folder.
+**Backend**: GCS bucket `warp-terraform-state-dev`
+**State File**: `terraform/state/default.tfstate`
+**Caution**: Always run `terraform plan` before `apply` in production
+
+### Database Schema
+
+**PostgreSQL (Cloud SQL)**:
+- Customer accounts, trunks, routing configurations
+- Located in `warp/database/schemas/postgresql-schema.sql`
+
+**BigQuery**:
+- CDRs (Call Detail Records), MDRs (Message Detail Records)
+- Partitioned by date for performance
+- Schema in `warp/database/schemas/cdr_schema.sql`
+
+### Network Architecture
+
+**VPC Subnets**:
+- GKE: `10.0.0.0/24` (pods: `10.1.0.0/16`, services: `10.2.0.0/16`)
+- RTPEngine: `10.0.1.0/24`
+- Consul: `10.0.2.0/24`
+
+**External Access**:
+- SSL/TLS termination at Load Balancer
+- Cloud Armor for DDoS protection
+- SIP traffic: IP whitelisting via firewall rules
+
+### Kubernetes Namespaces
+
+- `default`: Kamailio, Homer, Consul, API services
+- `monitoring`: Prometheus, Grafana, AlertManager
+
+## Development Workflow
+
+### Making Infrastructure Changes
+
+1. Edit Terraform files in `warp/terraform/modules/` or `environments/`
+2. Run `terraform plan` to preview changes
+3. Review plan output carefully
+4. Run `terraform apply` if changes are safe
+5. Verify with `kubectl` or `gcloud` commands
+
+### Deploying Kubernetes Services
+
+1. Update manifests in `warp/k8s/<component>/`
+2. Apply changes: `kubectl apply -f warp/k8s/<component>/`
+3. Verify: `kubectl get pods -n <namespace>`
+4. Check logs: `kubectl logs <pod-name> -n <namespace>`
+
+### Deploying RTPEngine Changes
+
+1. Update golden image scripts in `rtpengine/golden-image/gcloud/`
+2. Create new golden VM with changes
+3. Test thoroughly on golden VM
+4. Create new golden image with version tag
+5. Update production VMs using new image
+6. Verify with `rtpengine-ctl list` on each VM
+
+### Adding New Modules
+
+1. Review `docs/PROVIDER_MODULES_SPECIFICATION.md` for plugin architecture
+2. Create module in appropriate service directory
+3. Add tests
+4. Update OpenAPI spec in `warp/api/openapi.yaml`
+5. Document in relevant `warp/docs/*.md` file
+
+## Troubleshooting
+
+### SIP Issues
+- Check Homer web UI: https://homer.ringer.tel (when deployed)
+- Review Kamailio logs: `kubectl logs -n default <kamailio-pod>`
+- See `warp/docs/HOMER_TROUBLESHOOTING.md`
+
+### Database Connectivity
+- Verify Cloud SQL proxy is running
+- Check service account permissions
+- Review connection string format
+
+### RTPEngine Problems
+- SSH to VM: `gcloud compute ssh <instance-name> --zone=us-central1-a`
+- Check service: `sudo systemctl status rtpengine`
+- View logs: `sudo journalctl -u rtpengine -f`
+- Verify Redis: `redis-cli ping`
+
+### Kubernetes Issues
+- Check pod events: `kubectl describe pod <pod-name> -n <namespace>`
+- View logs: `kubectl logs <pod-name> -n <namespace> --previous` (for crashed pods)
+- Check resources: `kubectl top pods -n <namespace>`
+
+## Key Documentation Files
+
+- **[README.md](README.md)**: Project overview and current status
+- **[warp/docs/PRD.md](warp/docs/PRD.md)**: Product requirements
+- **[warp/docs/ARCHITECTURE.md](warp/docs/ARCHITECTURE.md)**: System architecture
+- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**: Deployment procedures and RTPEngine golden image details
+- **[docs/ARCHITECTURAL_DECISIONS.md](docs/ARCHITECTURAL_DECISIONS.md)**: Platform design choices
+- **[warp/api/openapi.yaml](warp/api/openapi.yaml)**: API specification
+
+## Production URLs
+
+- **API**: https://api-v2.ringer.tel
+- **Grafana**: https://grafana.ringer.tel (admin/prom-operator)
+- **Prometheus**: https://prometheus.ringer.tel
+
+## Important Notes
+
+- **SSL Certificates**: All web services use Let's Encrypt via cert-manager
+- **Secrets**: Stored in Google Secret Manager, not in code
+- **Multi-Region**: Currently single-region (us-central1), expansion planned
+- **Billing Integration**: NetSuite connector planned for Phase 3
+- **SMS Gateway**: Jasmin SMSC deployment is next priority after RTPEngine

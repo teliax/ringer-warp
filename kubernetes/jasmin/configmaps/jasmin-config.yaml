@@ -33,7 +33,7 @@ data:
     port = 5672
     vhost = /
     username = jasmin
-    password = jasmin-pass  # Will be replaced by init container
+    password = jasmin-pass
     heartbeat = 60
     connection_loss_retry = true
     connection_failure_retry = true
@@ -68,7 +68,7 @@ data:
     bind_port = 8080
     access_log = true
     log_file = /var/log/jasmin/http-access.log
-    log_format = combined
+    log_format = %(asctime)s %(levelname)-8s %(message)s
     
     # Authentication
     auth_required = true
@@ -83,7 +83,7 @@ data:
     bind_port = 8990
     authentication = true
     admin_username = admin
-    admin_password = jasmin-admin  # Will be replaced by init container
+    admin_password = jasmin-admin
     
     [dlr-lookup]
     # Delivery Receipt Configuration
