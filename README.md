@@ -129,26 +129,36 @@ kubectl get pods --all-namespaces
 - Prometheus: https://prometheus.ringer.tel
 - API: https://api-v2.ringer.tel
 
-## 📂 Project Structure
+## 📂 Project Structure (Reorganized Oct 2025)
 
 ```
 ringer-warp/
-├── customer-frontend/    # Customer portal (React/Next.js)
-├── admin-frontend/       # Admin portal (React/Next.js)
-├── warp/
-│   ├── api/              # API specifications
-│   ├── docs/             # Platform documentation
-│   ├── terraform/        # Infrastructure as Code
-│   ├── k8s/             # Kubernetes manifests
-│   ├── database/        # Database schemas
-│   └── services/        # Microservices
-├── docker/              # Docker compose configurations
-├── docs/
-│   ├── api_docs/        # External API documentation
-│   └── coordination/    # Hive-mind coordination files
-├── HIVEMIND_ORCHESTRATION_GUIDE.md # Complete hive-mind guide
-├── DEVELOPMENT_ENVIRONMENT_DECISIONS.md # Framework decisions
-└── .env.development     # Development configuration
+├── services/             # Backend services (Go)
+│   ├── api-gateway/      # Main API service (to be created)
+│   └── exporters/        # Prometheus exporters
+│
+├── apps/                 # Frontend applications
+│   ├── customer-portal/  # Customer UI (React/Vite)
+│   └── admin-portal/     # Admin UI (React/Vite)
+│
+├── infrastructure/       # Infrastructure as Code
+│   ├── terraform/        # Terraform (v01, dev environments)
+│   ├── kubernetes/       # K8s manifests (warp, jasmin, etc.)
+│   ├── docker/           # Docker configs (Kamailio)
+│   ├── database/         # DB schemas & setup scripts
+│   └── api-specs/        # OpenAPI 3.0.3 spec
+│
+├── rtpengine/            # RTPEngine golden image
+│   ├── golden-image/     # Image creation scripts
+│   └── scripts/          # Operations
+│
+├── docs/                 # Documentation
+│   ├── warp-services/    # Service-specific docs
+│   ├── api_docs/         # Third-party API references
+│   └── *.md              # Architecture, guides
+│
+├── scripts/              # Operational scripts
+└── tests/                # Integration tests
 ```
 
 ## 🔑 Key Features

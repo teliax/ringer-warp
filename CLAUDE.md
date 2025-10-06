@@ -38,7 +38,7 @@ kubectl get certificates --all-namespaces
 
 ```bash
 # Use v01 environment (production)
-cd warp/terraform/environments/v01
+cd infrastructure/terraform/environments/v01
 
 # Initialize Terraform (uses GCS backend: gs://ringer-warp-v01-terraform-state)
 ~/.local/bin/terraform init
@@ -68,7 +68,7 @@ gcloud sql instances describe warp-db --format="value(connectionName)"
 cloud_sql_proxy -instances=<CONNECTION_NAME>=tcp:5432
 
 # Run database initialization scripts
-cd warp/database/setup
+cd infrastructure/database/setup
 ./init-database.sh
 ```
 
@@ -76,7 +76,7 @@ cd warp/database/setup
 
 ```bash
 # RTPEngine is now deployed via Terraform (IaC)
-cd warp/terraform/environments/v01
+cd infrastructure/terraform/environments/v01
 
 # Deploy RTPEngine VMs using golden image
 terraform apply
@@ -152,44 +152,52 @@ kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80
 | **PostgreSQL** | Cloud SQL | Customer data | ✅ Production |
 | **API Gateway** | - | - | 🚧 Next Priority |
 
-### Directory Structure
+### Directory Structure (Updated Oct 2025)
 
 ```
 ringer-warp/
-├── warp/
-│   ├── terraform/          # Infrastructure as Code
-│   │   ├── environments/   # dev, v01 environments
-│   │   └── modules/        # networking, compute, gke, database, cache, consul
-│   ├── k8s/               # Kubernetes manifests
-│   │   ├── kamailio/      # SIP signaling
-│   │   ├── homer/         # SIP capture
-│   │   ├── monitoring/    # Prometheus, Grafana
-│   │   ├── database/      # DB init jobs
-│   │   └── grafana/       # Dashboard configs
-│   ├── database/
-│   │   ├── schemas/       # PostgreSQL and CDR schemas
-│   │   └── setup/         # Initialization scripts
-│   ├── docs/              # Technical documentation
-│   │   ├── ARCHITECTURE.md
-│   │   ├── BILLING_SYSTEM.md
-│   │   ├── SIP_NETWORK_ARCHITECTURE.md
-│   │   ├── SMS_ARCHITECTURE.md
-│   │   └── HOMER_ARCHITECTURE.md
-│   └── api/               # OpenAPI specs
-├── rtpengine/
-│   ├── golden-image/      # Golden image creation scripts
-│   │   └── gcloud/        # VM and image management
-│   └── scripts/           # RTPEngine operations
-├── docs/                  # Platform-wide documentation
-│   ├── DEPLOYMENT.md      # Deployment procedures
-│   ├── ARCHITECTURAL_DECISIONS.md
-│   └── ENVIRONMENT_SETUP.md
-├── customer-frontend/     # Next.js customer portal
-├── admin-frontend/        # Next.js admin portal
-└── scripts/               # Operational scripts
-    ├── deploy-*.sh
-    ├── verify-*.sh
-    └── dns/               # DNS management
+├── services/              # Backend services (Go)
+│   ├── api-gateway/      # Main API (to be created)
+│   └── exporters/        # Prometheus exporters
+│       └── business-metrics/
+│
+├── apps/                  # Frontend applications
+│   ├── customer-portal/  # React/Vite customer UI
+│   └── admin-portal/     # React/Vite admin UI
+│
+├── infrastructure/        # Infrastructure as Code
+│   ├── terraform/        # Terraform modules
+│   │   ├── environments/ # v01 (production), dev
+│   │   └── modules/      # networking, compute, gke, database
+│   ├── kubernetes/       # K8s manifests
+│   │   ├── warp/         # Kamailio, monitoring, database
+│   │   ├── jasmin/       # Jasmin SMSC
+│   │   ├── rabbitmq/     # Message broker
+│   │   ├── ssl/          # Certificates
+│   │   └── base/         # Common resources
+│   ├── docker/           # Docker configurations
+│   │   └── kamailio/     # Kamailio image
+│   ├── database/         # Database schemas & setup
+│   │   ├── schemas/      # PostgreSQL schemas
+│   │   └── setup/        # Init scripts
+│   └── api-specs/        # OpenAPI specifications
+│       └── openapi.yaml
+│
+├── rtpengine/            # RTPEngine golden image
+│   ├── golden-image/     # Image creation scripts
+│   └── scripts/          # RTPEngine operations
+│
+├── docs/                 # Platform documentation
+│   ├── warp-services/    # Service-specific docs
+│   ├── api_docs/         # Third-party API references
+│   ├── archive/          # Historical logs
+│   └── *.md              # Architectural decisions, guides
+│
+├── scripts/              # Operational scripts
+│   ├── deploy-*.sh
+│   └── dns/              # DNS management
+│
+└── tests/                # Integration tests
 ```
 
 ## Critical Knowledge
@@ -282,7 +290,7 @@ kubectl exec -n messaging redis-<pod> -c redis -- redis-cli HGETALL "rtpengine:e
 
 ### Making Infrastructure Changes
 
-1. Edit Terraform files in `warp/terraform/modules/` or `environments/`
+1. Edit Terraform files in `infrastructure/terraform/modules/` or `environments/`
 2. Run `terraform plan` to preview changes
 3. Review plan output carefully
 4. Run `terraform apply` if changes are safe
@@ -290,8 +298,8 @@ kubectl exec -n messaging redis-<pod> -c redis -- redis-cli HGETALL "rtpengine:e
 
 ### Deploying Kubernetes Services
 
-1. Update manifests in `warp/k8s/<component>/`
-2. Apply changes: `kubectl apply -f warp/k8s/<component>/`
+1. Update manifests in `infrastructure/kubernetes/<component>/`
+2. Apply changes: `kubectl apply -f infrastructure/kubernetes/<component>/`
 3. Verify: `kubectl get pods -n <namespace>`
 4. Check logs: `kubectl logs <pod-name> -n <namespace>`
 
