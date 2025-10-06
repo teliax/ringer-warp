@@ -7,7 +7,6 @@ set -e
 # Variables from Terraform
 INSTANCE_NUM="${instance_num}"
 INSTANCE_NAME="${instance_name}"
-INTERNAL_IP="${internal_ip}"
 EXTERNAL_IP="${external_ip}"
 CONSUL_SERVERS="${consul_servers}"
 DATACENTER="${datacenter}"
@@ -16,8 +15,12 @@ REDIS_PORT="${redis_port}"
 RTP_PORT_MIN="${rtp_port_min}"
 RTP_PORT_MAX="${rtp_port_max}"
 
+# Get actual internal IP from GCP metadata
+INTERNAL_IP=$(curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip 2>/dev/null)
+
 # Log startup
 echo "Starting instance-specific configuration for $${INSTANCE_NAME}..." | tee -a /var/log/rtpengine-deploy.log
+echo "Detected internal IP: $${INTERNAL_IP}" | tee -a /var/log/rtpengine-deploy.log
 
 # Set hostname
 hostnamectl set-hostname "$${INSTANCE_NAME}"

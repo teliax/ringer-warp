@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     && wget -O- http://deb.kamailio.org/kamailiodebkey.gpg | apt-key add - \
     && apt-get update && apt-get install -y \
     kamailio=${KAMAILIO_VERSION}+bpo11 \
+    kamailio-redis-modules=${KAMAILIO_VERSION}+bpo11 \
     kamailio-postgres-modules=${KAMAILIO_VERSION}+bpo11 \
     kamailio-websocket-modules=${KAMAILIO_VERSION}+bpo11 \
     kamailio-tls-modules=${KAMAILIO_VERSION}+bpo11 \

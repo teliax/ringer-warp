@@ -6,10 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **WARP** (Wholesale Accounting Routing and Provisioning Platform) is a carrier-grade SIP trunking and messaging platform for wholesale telecom carriers built on Google Cloud Platform.
 
-**Current Status**: Phase 1 (Infrastructure) Complete ✅ | Phase 2 (Applications) In Progress 🚧
+**Current Status**: Phase 1 (Infrastructure) Complete ✅ | Phase 2 (Applications) Complete ✅ | Phase 3 (API Development) In Progress 🚧
 
 **GCP Project**: `ringer-warp-v01`
 **Primary Cluster**: `warp-kamailio-cluster` (GKE Autopilot, us-central1)
+**Primary Namespace**: `warp-core` (Kamailio), `messaging` (Jasmin, Redis, RabbitMQ)
 
 ## Essential Commands
 
@@ -36,20 +37,26 @@ kubectl get certificates --all-namespaces
 ### Terraform Infrastructure
 
 ```bash
-cd warp/terraform/environments/dev
+# Use v01 environment (production)
+cd warp/terraform/environments/v01
 
-# Initialize Terraform (uses GCS backend)
-terraform init
+# Initialize Terraform (uses GCS backend: gs://ringer-warp-v01-terraform-state)
+~/.local/bin/terraform init
 
 # Plan infrastructure changes
-terraform plan
+~/.local/bin/terraform plan
 
 # Apply changes
-terraform apply
+~/.local/bin/terraform apply
 
 # View state
-terraform state list
+~/.local/bin/terraform state list
+
+# Check specific resource
+~/.local/bin/terraform state show module.compute.google_compute_instance.rtpengine[0]
 ```
+
+**Note**: Terraform installed at `~/.local/bin/terraform` (v1.9.5)
 
 ### Database Operations
 
@@ -65,23 +72,30 @@ cd warp/database/setup
 ./init-database.sh
 ```
 
-### RTPEngine Deployment (Golden Image)
+### RTPEngine Deployment (Terraform + Golden Image)
 
 ```bash
-cd rtpengine/golden-image/gcloud
+# RTPEngine is now deployed via Terraform (IaC)
+cd warp/terraform/environments/v01
 
-# Create golden VM (installs RTPEngine mr13.4.1 from source)
-./create-golden-vm.sh
+# Deploy RTPEngine VMs using golden image
+terraform apply
 
-# Create image snapshot
-./create-golden-image.sh
+# Verify RTPEngine VMs are on correct subnet (10.0.1.0/24)
+gcloud compute instances list --filter="name~rtpengine"
 
-# Deploy production VMs (creates 3 instances)
-./deploy-rtpengine-vms.sh
+# Check RTPEngine service status
+gcloud compute ssh warp-rtpengine-1 --zone us-central1-a --command "systemctl status rtpengine"
 
-# Verify RTPEngine status
-rtpengine-ctl list
+# Verify dynamic discovery in Kamailio
+kubectl exec -n warp-core <kamailio-pod> -c kamailio -- kamcmd rtpengine.show all
 ```
+
+**Key Details:**
+- **Subnet**: 10.0.1.0/24 (warp-rtpengine-subnet)
+- **IPs**: 10.0.1.11, 10.0.1.12, 10.0.1.13
+- **Discovery**: Dynamic via Redis (rtpengine table)
+- **Load Balancing**: Weight-based (50/50/50)
 
 ### Monitoring Access
 
@@ -127,14 +141,16 @@ kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80
 
 | Component | Deployment | Location | Status |
 |-----------|-----------|----------|--------|
-| **Kamailio** | K8s | GKE | ✅ Production |
-| **RTPEngine** | Golden Image VMs | Compute Engine (3 VMs) | ✅ Production |
-| **Homer** | K8s | GKE | ✅ Production |
-| **Consul** | K8s | GKE | ✅ Production |
-| **Prometheus/Grafana** | K8s | GKE (monitoring namespace) | ✅ Production |
-| **PostgreSQL** | Managed | Cloud SQL | ✅ Production |
-| **Jasmin SMSC** | TBD | TBD | 🚧 Pending |
-| **API Gateway** | K8s | GKE | 🚧 Development |
+| **Kamailio** | K8s (warp-core) | GKE, Redis-backed | ✅ Production |
+| **RTPEngine** | Terraform VMs (golden image) | 10.0.1.0/24, Redis discovery | ✅ Production |
+| **Jasmin SMSC** | K8s (messaging) | GKE, SMPP 34.55.43.157 | ✅ Production |
+| **Redis** | K8s (messaging) | State & discovery | ✅ Production |
+| **RabbitMQ** | K8s (messaging) | Message queuing | ✅ Production |
+| **Homer** | K8s (homer) | SIP capture | ✅ Production |
+| **Consul** | VMs | Service discovery | ✅ Production |
+| **Prometheus/Grafana** | K8s (monitoring) | Metrics & dashboards | ✅ Production |
+| **PostgreSQL** | Cloud SQL | Customer data | ✅ Production |
+| **API Gateway** | - | - | 🚧 Next Priority |
 
 ### Directory Structure
 
@@ -177,6 +193,37 @@ ringer-warp/
 ```
 
 ## Critical Knowledge
+
+### Kamailio Redis Integration (Updated Oct 2025)
+
+**IMPORTANT**: Kamailio uses **Redis for all state management**, NOT PostgreSQL.
+
+**Configuration:**
+```bash
+# Kamailio namespace
+kubectl get pods -n warp-core
+
+# Redis backend
+Host: redis-service.messaging.svc.cluster.local:6379
+Module: db_redis
+
+# State storage
+- usrloc (registrations): db_mode=3 (DB-only, shared across all 3 pods)
+- dialog (call state): db_mode=1 (write-through cache, persistent)
+- rtpengine: Dynamic instance discovery from Redis table
+```
+
+**Verification:**
+```bash
+# Check Kamailio can reach Redis
+kubectl exec -n warp-core <kamailio-pod> -c kamailio -- kamcmd ul.dump
+
+# Check RTPEngine instances loaded from Redis
+kubectl exec -n warp-core <kamailio-pod> -c kamailio -- kamcmd rtpengine.show all
+
+# Update RTPEngine instances in Redis
+kubectl exec -n messaging redis-<pod> -c redis -- redis-cli HGETALL "rtpengine:entry::1"
+```
 
 ### RTPEngine Golden Image Approach
 

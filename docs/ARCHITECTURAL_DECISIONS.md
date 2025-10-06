@@ -251,6 +251,232 @@ DELETE /api/v1/resources/{id}     # Delete
 - Python for data pipelines
 - Terraform for all IaC
 
+## 13.1. Go API Stack (Detailed Implementation)
+
+### Decision: Go as Primary Backend Language for API Services
+**Date**: October 2025
+**Status**: APPROVED
+
+### Rationale
+
+1. **Performance Requirements Met**:
+   - API latency < 200ms (p99) ✅
+   - 10,000+ req/s throughput ✅
+   - Compiled binary (no JVM/Node.js startup overhead)
+   - Efficient memory usage for high-concurrency
+
+2. **Telecom-Specific Benefits**:
+   - Excellent network programming primitives
+   - Built-in concurrency (goroutines) for handling thousands of simultaneous SIP/SMS requests
+   - Strong typing prevents errors in critical billing/routing code
+   - Standard library includes comprehensive networking support
+
+3. **Operational Simplicity**:
+   - Single binary deployment (perfect for Kubernetes)
+   - Fast container builds
+   - Cross-compilation for different architectures
+   - Small container images (alpine-based, <50MB)
+
+4. **Team Experience**:
+   - Team has Node.js experience (transferable concepts)
+   - Go learning curve is gentle
+   - Existing Go code in repo (`src/exporters/business-metrics`)
+
+### Go Framework & Library Stack
+
+#### HTTP Framework
+**Choice**: **Gin Web Framework**
+
+```go
+// Why Gin:
+// - 40x faster than Martini
+// - Similar to Express.js (familiar for Node.js developers)
+// - Rich middleware ecosystem
+// - Built-in validation, error handling
+// - JSON rendering optimized
+// - Active community support
+
+import "github.com/gin-gonic/gin"
+```
+
+**Alternative Considered**: Echo, Chi (both excellent, Gin chosen for Express-like familiarity)
+
+#### Database Drivers
+
+**PostgreSQL**: `pgx/v5` (not database/sql)
+```go
+// Why pgx:
+// - 3-5x faster than lib/pq
+// - Connection pooling built-in
+// - Context support
+// - Batch operations
+// - COPY protocol support
+
+import "github.com/jackc/pgx/v5"
+import "github.com/jackc/pgx/v5/pgxpool"
+```
+
+**Redis**: `go-redis/v9`
+```go
+// Why go-redis:
+// - Most popular Redis client
+// - Cluster support
+// - Pipeline support
+// - Pub/Sub
+// - Redis Streams support
+
+import "github.com/redis/go-redis/v9"
+```
+
+#### API Documentation & Validation
+
+**OpenAPI/Swagger**: `swaggo/swag`
+```go
+// Auto-generates Swagger docs from code comments
+// Integrates with Gin
+// Live documentation UI
+
+import "github.com/swaggo/gin-swagger"
+```
+
+**Request Validation**: `go-playground/validator/v10`
+```go
+// Struct tag-based validation
+// Custom validators
+// Localized error messages
+
+import "github.com/go-playground/validator/v10"
+```
+
+#### Monitoring & Observability
+
+**Metrics**: `prometheus/client_golang`
+```go
+// Official Prometheus client
+// Already used in business-metrics exporter
+
+import "github.com/prometheus/client_golang/prometheus"
+```
+
+**Logging**: `uber-go/zap`
+```go
+// Structured logging
+// High performance (zero-allocation)
+// JSON output for Cloud Logging
+
+import "go.uber.org/zap"
+```
+
+**Tracing**: `open-telemetry/opentelemetry-go`
+```go
+// Distributed tracing
+// Cloud Trace integration
+// Automatic instrumentation
+
+import "go.opentelemetry.io/otel"
+```
+
+#### Message Queue / Events
+
+**RabbitMQ**: `streadway/amqp`
+```go
+// For Jasmin message queue integration
+
+import "github.com/streadway/amqp"
+```
+
+#### Configuration Management
+
+**Environment/Config**: `spf13/viper`
+```go
+// 12-factor app config
+// Environment variables
+// Config files (YAML/JSON)
+// Secrets integration
+
+import "github.com/spf13/viper"
+```
+
+#### Testing
+
+**Testing**: Built-in `testing` package + `stretchr/testify`
+```go
+// Assertions and mocks
+// Table-driven tests
+// Suite support
+
+import "github.com/stretchr/testify/assert"
+```
+
+### Project Structure (Go Standard Layout)
+
+```
+warp-api/
+├── cmd/
+│   ├── api-server/          # Main API server
+│   ├── worker/              # Background job processor
+│   └── migrate/             # Database migrations
+├── internal/
+│   ├── handlers/            # HTTP handlers (controllers)
+│   ├── services/            # Business logic
+│   ├── repository/          # Database access layer
+│   ├── models/              # Data models
+│   ├── middleware/          # Auth, logging, CORS
+│   └── clients/             # External API clients (Jasmin, Telique, etc.)
+├── pkg/                     # Public libraries (reusable)
+├── api/                     # OpenAPI specs
+├── migrations/              # SQL migrations
+├── deployments/
+│   └── kubernetes/          # K8s manifests
+├── go.mod
+├── go.sum
+└── Dockerfile
+```
+
+### Node.js Use Cases (Complementary)
+
+Keep Node.js for:
+- **Admin scripts**: Quick database queries, data imports
+- **Testing tools**: Load testing with k6, API testing
+- **Development tools**: Code generation, documentation builders
+- **Frontend**: Admin and customer portals (already React/Vite)
+
+### Performance Comparison (Rough)
+
+| Metric | Go | Node.js | Java |
+|--------|-----|---------|------|
+| Startup Time | 10ms | 100ms | 1000ms |
+| Memory (baseline) | 10MB | 50MB | 200MB |
+| Concurrent Connections | 100k+ | 10k | 50k |
+| p99 Latency (typical API) | 5ms | 15ms | 20ms |
+| Container Image Size | 20MB | 150MB | 300MB |
+
+### Implementation Timeline
+
+**Week 1**: Project scaffold, basic CRUD
+**Week 2**: Authentication, database integration
+**Week 3**: Jasmin integration (SMPP vendor management)
+**Week 4**: Telique integration (LRN/LERG)
+**Week 5**: Billing endpoints
+**Week 6**: Production deployment
+
+### Migration Path (If Needed)
+
+If you start with Node.js and want to migrate:
+- Both can run simultaneously
+- Move high-traffic endpoints to Go incrementally
+- Use same PostgreSQL/Redis backends
+- Same OpenAPI spec
+
+---
+
+## Decision Summary
+
+**Primary Backend Language**: Go 1.21+
+**Framework**: Gin Web Framework
+**Use Node.js For**: Admin tools, scripts, testing
+**Rationale**: Performance requirements, concurrency needs, operational simplicity
+
 ## 14. SMS/MMS Architecture
 
 ### Decision: Jasmin SMSC with SMPP Carrier Integration

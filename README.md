@@ -42,18 +42,19 @@ WARP is a carrier-grade SIP trunking and messaging platform designed for wholesa
 
 ### Cloud Infrastructure
 - **Platform**: Google Cloud Platform (GCP)
-- **Orchestration**: Kubernetes (GKE with Autopilot)
-- **Databases**: PostgreSQL (Cloud SQL), BigQuery (CDR/MDR)
-- **Cache**: Redis Cluster
-- **Service Mesh**: Consul
+- **Orchestration**: Kubernetes (GKE Autopilot)
+- **Databases**: PostgreSQL (Cloud SQL - customer data), BigQuery (CDR/MDR)
+- **Cache/State**: Redis (Kamailio state, RTPEngine discovery, Jasmin queues)
+- **Service Mesh**: Consul (RTPEngine, future use)
+- **IaC**: Terraform (all infrastructure managed)
 
 ### Core Components
-- **SIP Control**: Kamailio ✅
-- **Media Processing**: RTPEngine ✅ (mr13.4.1, 3 VMs)
-- **SMS Gateway**: Jasmin SMSC 🚧
+- **SIP Control**: Kamailio ✅ (3 pods, Redis-backed state)
+- **Media Processing**: RTPEngine ✅ (mr13.4.1, 3 VMs, 10.0.1.0/24 subnet)
+- **SMS Gateway**: Jasmin SMSC ✅ (2 pods, SMPP 34.55.43.157)
 - **SIP Capture**: Homer ✅
-- **API Gateway**: Go/Rust microservices 🔄
-- **Frontend**: Next.js/TypeScript/Tailwind (Vercel) 🔄
+- **API Gateway**: Go/Rust microservices 🔄 (Next priority)
+- **Frontend**: React/Vite/TypeScript/Tailwind (Vercel) 🔄
 
 ### Integrations
 - **Authentication**: Google Identity Platform (Firebase Auth)
@@ -72,14 +73,22 @@ WARP is a carrier-grade SIP trunking and messaging platform designed for wholesa
 - **Grafana**: https://grafana.ringer.tel  
 - **Prometheus**: https://prometheus.ringer.tel
 
-### Phase 2 In Progress
+### Phase 2 Complete - Core Services Operational
 Application deployment status:
-- **RTPEngine**: ✅ Deployed (mr13.4.1 from source) - Golden image approach
-  - 3 production VMs deployed using golden image
-  - Built from source (Sipwise repo deprecated)
-  - Service configuration optimized
-- **Jasmin SMSC**: 🚧 Next deployment target
-- **API Gateway**: 🔄 Implementation in progress
+- **Kamailio**: ✅ Deployed (3 pods, warp-core namespace)
+  - Using Redis for shared state (db_redis module)
+  - usrloc db_mode=3, dialog db_mode=1
+  - Dynamic RTPEngine discovery via Redis
+- **RTPEngine**: ✅ Deployed (mr13.4.1, 3 VMs on 10.0.1.0/24)
+  - Terraform-managed infrastructure
+  - Golden image deployment
+  - Load balancing: Weight-based across 3 instances
+  - Dynamic discovery via Redis rtpengine table
+- **Jasmin SMSC**: ✅ Deployed (2 pods, messaging namespace)
+  - External SMPP: 34.55.43.157:2775/2776
+  - RabbitMQ and Redis integration
+  - Sinch carrier integration ready
+- **API Gateway**: 🔄 Next development target
 
 ## 🚦 Getting Started
 

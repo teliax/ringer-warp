@@ -39,6 +39,14 @@ variable "db_tier" {}
 variable "redis_memory_size_gb" {}
 variable "redis_tier" {}
 variable "sip_allowed_ips" { type = list(string) }
+variable "use_golden_image" {
+  type = bool
+  default = false
+}
+variable "golden_image_family" {
+  type = string
+  default = "rtpengine-golden"
+}
 
 # Use existing modules with clean naming
 module "networking" {
@@ -103,15 +111,23 @@ module "consul" {
 
 module "compute" {
   source = "../../modules/compute"
-  
-  project_id          = var.project_id
-  region              = var.region
-  environment         = "v01"
-  vpc_id              = module.networking.vpc_id
-  rtpengine_subnet_id = module.networking.rtpengine_subnet_id
-  consul_servers      = module.consul.consul_server_ips
-  redis_host          = module.cache.host
-  redis_port          = module.cache.port
+
+  project_id           = var.project_id
+  project_name         = "warp"
+  region               = var.region
+  environment          = "v01"
+  vpc_id               = module.networking.vpc_id
+  rtpengine_subnet_id  = module.networking.rtpengine_subnet_id
+  consul_servers       = module.consul.consul_server_ips
+  consul_datacenter    = "gcp-us-central1"
+  redis_host           = module.cache.host
+  redis_port           = module.cache.port
+  use_golden_image     = var.use_golden_image
+  golden_image_family  = var.golden_image_family
+  rtpengine_instance_count = 3
+  rtpengine_machine_type   = "n2-standard-4"
+  rtp_port_min         = 10000
+  rtp_port_max         = 60000
 }
 
 # Outputs

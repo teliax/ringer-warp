@@ -1,32 +1,31 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: warp-sip
+  name: warp-core
 ---
 apiVersion: v1
 kind: Secret
 metadata:
   name: kamailio-secrets
-  namespace: warp-sip
+  namespace: warp-core
 type: Opaque
 stringData:
-  db-password: "" # Will be populated from Google Secret Manager
   kamailio-shared-secret: "" # For inter-node communication
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: kamailio-config
-  namespace: warp-sip
+  namespace: warp-core
 data:
-  DB_HOST: "34.42.208.57"
-  DB_PORT: "5432"
+  KAMAILIO_LOG_LEVEL: "2"
+  DB_ENGINE: "REDIS"
   DB_NAME: "warp"
-  DB_USER: "warp"
+  REDIS_DB: "0"
+  SKIP_DB_CHECK: "true"
   SIP_DOMAIN: "ringer.tel"
   WEBSOCKET_PORT: "8080"
   TLS_PORT: "5061"
-  LOG_LEVEL: "2"
   ENABLE_DEBUG: "0"
   WARP_API_URL: "http://api-gateway.warp-api:8080"
 ---
@@ -34,7 +33,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kamailio
-  namespace: warp-sip
+  namespace: warp-core
   labels:
     app: kamailio
     component: sip-server
@@ -72,7 +71,7 @@ spec:
               topologyKey: kubernetes.io/hostname
       containers:
       - name: kamailio
-        image: us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/kamailio:v1.0
+        image: us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/kamailio:v1.3-redis
         imagePullPolicy: Always
         ports:
         - name: sip-udp
@@ -94,11 +93,16 @@ spec:
           containerPort: 9090
           protocol: TCP
         env:
-        - name: DB_PASS
+        - name: REDIS_HOST
           valueFrom:
             secretKeyRef:
-              name: kamailio-secrets
-              key: db-password
+              name: warp-redis-credentials
+              key: host
+        - name: REDIS_PORT
+          valueFrom:
+            secretKeyRef:
+              name: warp-redis-credentials
+              key: port
         - name: PUBLIC_IP
           valueFrom:
             fieldRef:
@@ -167,7 +171,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: kamailio
-  namespace: warp-sip
+  namespace: warp-core
   labels:
     app: kamailio
   annotations:
@@ -206,7 +210,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: kamailio-internal
-  namespace: warp-sip
+  namespace: warp-core
   labels:
     app: kamailio
 spec:
@@ -227,7 +231,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: kamailio-hpa
-  namespace: warp-sip
+  namespace: warp-core
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -270,7 +274,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: kamailio-pdb
-  namespace: warp-sip
+  namespace: warp-core
 spec:
   minAvailable: 2
   selector:

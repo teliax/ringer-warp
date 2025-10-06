@@ -110,7 +110,7 @@ resource "google_compute_instance" "rtpengine" {
   metadata_startup_script = var.use_golden_image ? templatefile("${path.module}/scripts/golden-instance-config.sh", {
     instance_num       = count.index + 1
     instance_name      = "${var.project_name}-rtpengine-${count.index + 1}"
-    internal_ip        = "10.128.0.${20 + count.index}"  # This will be replaced with actual IP
+    internal_ip        = "WILL_BE_AUTO_ASSIGNED"  # GCP assigns IP from subnet automatically
     external_ip        = google_compute_address.rtpengine_ips[count.index].address
     consul_servers     = join(",", var.consul_servers)
     datacenter         = var.consul_datacenter

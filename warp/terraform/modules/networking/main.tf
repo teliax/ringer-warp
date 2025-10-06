@@ -110,15 +110,16 @@ resource "google_compute_firewall" "allow_rtpengine_control" {
   name    = "${var.project_name}-allow-rtpengine-control"
   network = google_compute_network.warp_vpc.name
   project = var.project_id
+  description = "Allow Kamailio to RTPEngine control ports (22222=NG, 2223=CLI)"
 
   allow {
     protocol = "udp"
-    ports    = ["2223"]
+    ports    = ["2223", "22222"]
   }
 
   allow {
     protocol = "tcp"
-    ports    = ["2223"]
+    ports    = ["2223", "22222"]
   }
 
   source_ranges = [

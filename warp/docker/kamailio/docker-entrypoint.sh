@@ -7,11 +7,17 @@ set -e
 replace_vars() {
     local file=$1
     if [ -f "$file" ]; then
+        # Redis configuration
+        sed -i "s|__REDIS_HOST__|${REDIS_HOST}|g" "$file"
+        sed -i "s|__REDIS_PORT__|${REDIS_PORT}|g" "$file"
+        sed -i "s|__REDIS_DB__|${REDIS_DB}|g" "$file"
+        # PostgreSQL configuration (legacy, for backward compatibility)
         sed -i "s|__DB_HOST__|${DB_HOST}|g" "$file"
         sed -i "s|__DB_PORT__|${DB_PORT}|g" "$file"
         sed -i "s|__DB_NAME__|${DB_NAME}|g" "$file"
         sed -i "s|__DB_USER__|${DB_USER}|g" "$file"
         sed -i "s|__DB_PASS__|${DB_PASS}|g" "$file"
+        # SIP configuration
         sed -i "s|__SIP_DOMAIN__|${SIP_DOMAIN}|g" "$file"
         sed -i "s|__PUBLIC_IP__|${PUBLIC_IP}|g" "$file"
         sed -i "s|__PRIVATE_IP__|${PRIVATE_IP}|g" "$file"
@@ -55,24 +61,30 @@ replace_vars /etc/kamailio/dispatcher.list
 
 # Special handling for advertise directive when PUBLIC_IP equals PRIVATE_IP
 # If they are the same, we don't need the advertise directive
+# Also remove any malformed advertise directives (e.g., "advertise Not Found")
 if [ "$PUBLIC_IP" = "$PRIVATE_IP" ]; then
     echo "PUBLIC_IP and PRIVATE_IP are the same, removing advertise directives..."
-    sed -i "s/ advertise ${PUBLIC_IP}:5060//g" /etc/kamailio/kamailio.cfg
-    sed -i "s/ advertise ${PUBLIC_IP}:5061//g" /etc/kamailio/kamailio.cfg
+    # Remove all advertise directives from listen lines
+    sed -i 's/ advertise [^:]*:[0-9]*//g' /etc/kamailio/kamailio.cfg
 fi
 
-# Wait for database to be ready
-echo "Waiting for PostgreSQL database..."
-until PGPASSWORD=$DB_PASS psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c '\q' 2>/dev/null; do
-    echo "PostgreSQL is unavailable - sleeping"
-    sleep 2
-done
-echo "PostgreSQL is ready"
+# Wait for database to be ready (unless SKIP_DB_CHECK is set)
+if [ "$SKIP_DB_CHECK" != "true" ] && [ "$DB_ENGINE" != "REDIS" ]; then
+    echo "Waiting for PostgreSQL database..."
+    until PGPASSWORD=$DB_PASS psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c '\q' 2>/dev/null; do
+        echo "PostgreSQL is unavailable - sleeping"
+        sleep 2
+    done
+    echo "PostgreSQL is ready"
 
-# Initialize database tables if needed
-if [ "$INIT_DB" = "true" ]; then
-    echo "Initializing Kamailio database tables..."
-    kamdbctl create || true
+    # Initialize database tables if needed
+    if [ "$INIT_DB" = "true" ]; then
+        echo "Initializing Kamailio database tables..."
+        kamdbctl create || true
+    fi
+else
+    echo "Skipping database check (SKIP_DB_CHECK=$SKIP_DB_CHECK, DB_ENGINE=$DB_ENGINE)"
+    echo "Using Redis for Kamailio state management"
 fi
 
 # Test configuration
