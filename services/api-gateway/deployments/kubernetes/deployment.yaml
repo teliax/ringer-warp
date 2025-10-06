@@ -1,0 +1,139 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: warp-api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: warp-api
+  labels:
+    app: api-gateway
+    component: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+        component: backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: api-gateway
+        image: us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        env:
+        - name: PORT
+          value: "8080"
+        - name: GIN_MODE
+          value: "release"
+        - name: JASMIN_JCLI_HOST
+          value: "jasmin-http-service.messaging.svc.cluster.local"
+        - name: JASMIN_JCLI_PORT
+          value: "8990"
+        - name: REDIS_HOST
+          value: "redis-service.messaging.svc.cluster.local"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: DATABASE_HOST
+          valueFrom:
+            secretKeyRef:
+              name: warp-db-credentials
+              key: host
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: warp-db-credentials
+              key: username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: warp-db-credentials
+              key: password
+        - name: JASMIN_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: jasmin-credentials
+              key: admin-password
+              optional: false
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: warp-api
+  labels:
+    app: api-gateway
+spec:
+  type: ClusterIP
+  selector:
+    app: api-gateway
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-gateway-hpa
+  namespace: warp-api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-gateway
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
