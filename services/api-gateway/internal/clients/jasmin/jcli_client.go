@@ -103,6 +103,15 @@ func (c *JCliClient) CreateSMPPConnector(connector *SMPPConnector) error {
 		log.Printf("[jCli] Command %d completed successfully", i+1)
 	}
 
+	// CRITICAL: Persist configuration to disk
+	log.Printf("[jCli] Persisting configuration to disk...")
+	if err := c.sendCommand(conn, reader, "persist"); err != nil {
+		log.Printf("[jCli] Persist failed (non-fatal): %v", err)
+		// Don't fail - connector is created, just not persisted
+	} else {
+		log.Printf("[jCli] Configuration persisted to /etc/jasmin/store/")
+	}
+
 	log.Printf("[jCli] SMPP connector %s created successfully", connector.CID)
 	return nil
 }
