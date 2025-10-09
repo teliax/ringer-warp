@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/ringer-warp/api-gateway/internal/database"
 	"github.com/ringer-warp/api-gateway/internal/handlers"
 	"github.com/ringer-warp/api-gateway/internal/middleware"
 	"github.com/ringer-warp/api-gateway/internal/repository"
@@ -18,6 +19,17 @@ import (
 )
 
 func main() {
+	ctx := context.Background()
+
+	// Initialize database connection
+	db, err := database.NewPostgresPool(ctx)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer db.Close()
+
+	log.Println("✅ Connected to PostgreSQL database")
+
 	// Load configuration from environment
 	jasminHost := os.Getenv("JASMIN_JCLI_HOST")
 	if jasminHost == "" {
@@ -32,7 +44,7 @@ func main() {
 	}
 
 	// Initialize dependencies
-	vendorRepo := repository.NewVendorRepository()
+	vendorRepo := repository.NewVendorRepository(db)
 	vendorService := services.NewVendorService(vendorRepo, jasminHost, jasminPort, jasminPassword)
 	vendorHandler := handlers.NewVendorHandler(vendorService)
 
