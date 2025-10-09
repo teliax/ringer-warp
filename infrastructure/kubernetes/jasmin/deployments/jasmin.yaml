@@ -108,24 +108,29 @@ spec:
         args:
         - |
           # Create necessary directories
-          mkdir -p /var/log/jasmin /var/run/jasmin /etc/jasmin/store
+          mkdir -p /var/log/jasmin /var/run/jasmin
 
-          # Create jCli user profile and required store files
-          # These files are needed for jCli to authenticate and manage connectors
-          touch /etc/jasmin/store/jcli-prod.filters
-          touch /etc/jasmin/store/jcli-prod.httpccs
-          touch /etc/jasmin/store/jcli-prod.groups
-          touch /etc/jasmin/store/jcli-prod.users
-          touch /etc/jasmin/store/jcli-prod.smppccm
-          touch /etc/jasmin/store/jcli-prod.moroutes
-          touch /etc/jasmin/store/jcli-prod.mtroutes
+          # Initialize persistent store if empty (first time)
+          if [ ! -f /etc/jasmin/store/jcli-prod ]; then
+            echo "Initializing persistent Jasmin store..."
+            touch /etc/jasmin/store/jcli-prod.filters
+            touch /etc/jasmin/store/jcli-prod.httpccs
+            touch /etc/jasmin/store/jcli-prod.groups
+            touch /etc/jasmin/store/jcli-prod.users
+            touch /etc/jasmin/store/jcli-prod.smppccm
+            touch /etc/jasmin/store/jcli-prod.moroutes
+            touch /etc/jasmin/store/jcli-prod.mtroutes
 
-          # Create jCli user profile (simple format to avoid YAML issues)
-          echo '#!/usr/bin/env python' > /etc/jasmin/store/jcli-prod
-          echo 'admin_username = "jcliadmin"' >> /etc/jasmin/store/jcli-prod
-          echo 'admin_password = "jcliadmin"' >> /etc/jasmin/store/jcli-prod
+            # Create jCli user profile
+            echo '#!/usr/bin/env python' > /etc/jasmin/store/jcli-prod
+            echo 'admin_username = "jcliadmin"' >> /etc/jasmin/store/jcli-prod
+            echo 'admin_password = "jcliadmin"' >> /etc/jasmin/store/jcli-prod
 
-          chmod 644 /etc/jasmin/store/*
+            chmod 644 /etc/jasmin/store/*
+            echo "✅ Store initialized"
+          else
+            echo "✅ Using existing persistent store"
+          fi
 
           # Start Jasmin
           python /usr/local/bin/jasmind.py --config /config/jasmin.cfg &
@@ -213,6 +218,8 @@ spec:
           mountPath: /config
         - name: jasmin-data
           mountPath: /var/log/jasmin
+        - name: jasmin-store
+          mountPath: /etc/jasmin/store
         - name: jasmin-interceptors
           mountPath: /etc/jasmin/interceptors
         resources:
@@ -241,6 +248,9 @@ spec:
         emptyDir: {}
       - name: jasmin-data
         emptyDir: {}
+      - name: jasmin-store
+        persistentVolumeClaim:
+          claimName: jasmin-config-storage
       - name: jasmin-interceptors
         configMap:
           name: jasmin-config

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jasmin-config-storage
+  namespace: messaging
+spec:
+  accessModes:
+    - ReadWriteOnce  # Single pod writes, but shared via replicas with same PVC
+  storageClassName: standard-rwo
+  resources:
+    requests:
+      storage: 1Gi
+---
+# Note: For true multi-pod HA with shared config, would need ReadWriteMany
+# But since jCli updates happen via API (which can target specific pod),
+# ReadWriteOnce is sufficient for now.
+# Future: Use ReadWriteMany with NFS or similar for true shared storage
