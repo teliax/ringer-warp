@@ -13,9 +13,29 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/ringer-warp/api-gateway/internal/handlers"
 	"github.com/ringer-warp/api-gateway/internal/middleware"
+	"github.com/ringer-warp/api-gateway/internal/repository"
+	"github.com/ringer-warp/api-gateway/internal/services"
 )
 
 func main() {
+	// Load configuration from environment
+	jasminHost := os.Getenv("JASMIN_JCLI_HOST")
+	if jasminHost == "" {
+		jasminHost = "jasmin-http-service.messaging.svc.cluster.local"
+	}
+
+	jasminPort := 8990
+	jasminPassword := os.Getenv("JASMIN_ADMIN_PASSWORD")
+	if jasminPassword == "" {
+		log.Println("WARNING: JASMIN_ADMIN_PASSWORD not set, using default")
+		jasminPassword = "jcliadmin"
+	}
+
+	// Initialize dependencies
+	vendorRepo := repository.NewVendorRepository()
+	vendorService := services.NewVendorService(vendorRepo, jasminHost, jasminPort, jasminPassword)
+	vendorHandler := handlers.NewVendorHandler(vendorService)
+
 	// Set Gin mode
 	if os.Getenv("GIN_MODE") == "" {
 		gin.SetMode(gin.ReleaseMode)
@@ -39,13 +59,13 @@ func main() {
 		// Vendor management (Phase 1 - Priority)
 		vendors := v1.Group("/admin/smpp-vendors")
 		{
-			vendors.POST("", handlers.CreateSMPPVendor)
-			vendors.GET("", handlers.ListSMPPVendors)
-			vendors.GET("/:id", handlers.GetSMPPVendor)
-			vendors.PUT("/:id", handlers.UpdateSMPPVendor)
-			vendors.DELETE("/:id", handlers.DeleteSMPPVendor)
-			vendors.POST("/:id/bind", handlers.BindSMPPVendor)
-			vendors.GET("/:id/status", handlers.GetSMPPVendorStatus)
+			vendors.POST("", vendorHandler.CreateSMPPVendor)
+			vendors.GET("", vendorHandler.ListSMPPVendors)
+			vendors.GET("/:id", vendorHandler.GetSMPPVendor)
+			vendors.PUT("/:id", vendorHandler.UpdateSMPPVendor)
+			vendors.DELETE("/:id", vendorHandler.DeleteSMPPVendor)
+			vendors.POST("/:id/bind", vendorHandler.BindSMPPVendor)
+			vendors.GET("/:id/status", vendorHandler.GetSMPPVendorStatus)
 		}
 
 		// Future endpoints (scaffolded)
