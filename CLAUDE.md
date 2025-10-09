@@ -8,6 +8,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Current Status**: Phase 1 (Infrastructure) Complete ✅ | Phase 2 (Applications) Complete ✅ | Phase 3 (API Development) In Progress 🚧
 
+**Recent Updates (Oct 9, 2025):**
+- ✅ API Gateway deployed (Go + Gin, vendor management working)
+- ✅ Jasmin jCli accessible (bind=0.0.0.0:8990)
+- ✅ PostgreSQL integration complete
+- ✅ PersistentVolume for Jasmin config storage
+- 🔧 Testing Sinch SMPP connector persistence
+
 **GCP Project**: `ringer-warp-v01`
 **Primary Cluster**: `warp-kamailio-cluster` (GKE Autopilot, us-central1)
 **Primary Namespace**: `warp-core` (Kamailio), `messaging` (Jasmin, Redis, RabbitMQ)
@@ -365,3 +372,80 @@ kubectl exec -n messaging redis-<pod> -c redis -- redis-cli HGETALL "rtpengine:e
 - **Multi-Region**: Currently single-region (us-central1), expansion planned
 - **Billing Integration**: NetSuite connector planned for Phase 3
 - **SMS Gateway**: Jasmin SMSC deployment is next priority after RTPEngine
+
+## API Gateway (New - Oct 2025)
+
+**Location:** `services/api-gateway/`
+**Stack:** Go 1.23, Gin framework, PostgreSQL (pgx), Jasmin jCli client
+**Namespace:** `warp-api`
+
+### Running Locally
+```bash
+cd services/api-gateway
+make build
+make run
+```
+
+### API Endpoints
+```
+POST   /api/v1/admin/smpp-vendors        # Create SMPP vendor
+GET    /api/v1/admin/smpp-vendors        # List vendors
+POST   /api/v1/admin/smpp-vendors/:id/bind  # Start SMPP bind
+GET    /api/v1/admin/smpp-vendors/:id/status # Get bind status
+```
+
+### Database
+**Connection:** Cloud SQL (10.126.0.3:5432)
+**Database:** `warp`
+**Schema:** `vendor_mgmt`
+**Table:** `service_providers`
+
+**Query vendors:**
+```sql
+SELECT * FROM vendor_mgmt.service_providers WHERE provider_type='smpp';
+```
+
+### Deployment
+```bash
+cd services/api-gateway
+make docker-push
+make deploy-k8s
+kubectl logs -n warp-api -l app=api-gateway
+```
+
+## Jasmin SMSC (Updated Oct 2025)
+
+**Namespace:** `messaging`
+**Image:** `jookies/jasmin:0.10.12`
+**Replicas:** 1 (due to ReadWriteOnce PVC)
+
+### jCli Access
+**Port:** 8990 (accessible from cluster)
+**Config Fix:** Use `bind = 0.0.0.0` NOT `bind_host = 0.0.0.0`
+**Password:** Hex-encoded in config
+
+### Storage Architecture
+- **PersistentVolume:** `/etc/jasmin/store/` (connector configs)
+- **Redis (db 1):** DLR tracking, message queues
+- **PostgreSQL:** API vendor management, audit
+
+### Critical jCli Commands
+```bash
+# After creating connector via API, manually persist:
+kubectl exec -n messaging <jasmin-pod> -- python << 'EOF'
+import telnetlib
+import time
+
+tn = telnetlib.Telnet('localhost', 8990, timeout=5)
+time.sleep(0.5)
+tn.read_until(b':', timeout=2)
+
+tn.write(b'persist\n')  # ← CRITICAL: Saves to disk
+time.sleep(2)
+
+tn.write(b'smppccm -l\n')  # List connectors
+time.sleep(1)
+print(tn.read_very_eager().decode())
+
+tn.write(b'quit\n')
+tn.close()
