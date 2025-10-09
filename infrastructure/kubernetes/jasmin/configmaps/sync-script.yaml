@@ -1,0 +1,161 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jasmin-sync-script
+  namespace: messaging
+data:
+  sync-vendors.py: |
+    #!/usr/bin/env python3
+    """
+    Sync SMPP vendors from PostgreSQL to Jasmin on pod startup
+    Runs as init container before Jasmin main container starts
+    """
+    import os
+    import sys
+    import time
+    import psycopg2
+    import telnetlib
+
+    def wait_for_postgres():
+        """Wait for PostgreSQL to be ready"""
+        print("Waiting for PostgreSQL...")
+        for i in range(30):
+            try:
+                conn = psycopg2.connect(
+                    host=os.getenv('DATABASE_HOST'),
+                    port=os.getenv('DATABASE_PORT', '5432'),
+                    database=os.getenv('DATABASE_NAME'),
+                    user=os.getenv('DATABASE_USER'),
+                    password=os.getenv('DATABASE_PASSWORD')
+                )
+                conn.close()
+                print("✅ PostgreSQL ready")
+                return True
+            except Exception as e:
+                print(f"  PostgreSQL not ready (attempt {i+1}/30): {e}")
+                time.sleep(3)
+        return False
+
+    def get_vendors_from_db():
+        """Query active SMPP vendors from PostgreSQL"""
+        conn = psycopg2.connect(
+            host=os.getenv('DATABASE_HOST'),
+            port=os.getenv('DATABASE_PORT', '5432'),
+            database=os.getenv('DATABASE_NAME'),
+            user=os.getenv('DATABASE_USER'),
+            password=os.getenv('DATABASE_PASSWORD')
+        )
+
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, instance_name, host, port, use_tls, bind_type, throughput, priority
+            FROM vendor_mgmt.service_providers
+            WHERE provider_type = 'smpp' AND is_active = true
+            ORDER BY priority ASC
+        """)
+
+        vendors = cur.fetchall()
+        conn.close()
+        return vendors
+
+    def create_connector_in_jasmin(vendor):
+        """Create SMPP connector in Jasmin via jCli"""
+        vendor_id, name, host, port, use_tls, bind_type, throughput, priority = vendor
+
+        print(f"  Creating: {name} (priority {priority})")
+
+        try:
+            tn = telnetlib.Telnet('localhost', 8990, timeout=10)
+            time.sleep(0.5)
+
+            # Read welcome
+            tn.read_until(b'Session ref:', timeout=3)
+
+            # Create connector
+            tn.write(b'smppccm -a\n')
+            time.sleep(0.5)
+            tn.write(f'cid {vendor_id}\n'.encode())
+            time.sleep(0.3)
+            tn.write(f'host {host}\n'.encode())
+            time.sleep(0.3)
+            tn.write(f'port {port}\n'.encode())
+            time.sleep(0.3)
+            tn.write(f'ssl {"yes" if use_tls else "no"}\n'.encode())
+            time.sleep(0.3)
+            tn.write(f'bind {bind_type}\n'.encode())
+            time.sleep(0.3)
+            tn.write(f'submit_throughput {throughput}\n'.encode())
+            time.sleep(0.3)
+            tn.write(b'ok\n')
+            time.sleep(1)
+
+            # Read response
+            response = tn.read_very_eager().decode('utf-8', errors='ignore')
+
+            if 'Successfully' in response:
+                print(f"  ✅ Created: {name}")
+
+                # Start bind if priority 1
+                if priority == 1:
+                    tn.write(f'smppccm -1 {vendor_id}\n'.encode())
+                    time.sleep(0.5)
+                    print(f"  ✅ Started bind: {name}")
+            else:
+                print(f"  ⚠️  Create failed: {name}")
+
+            tn.write(b'quit\n')
+            tn.close()
+            return True
+
+        except Exception as e:
+            print(f"  ❌ Error creating {name}: {e}")
+            return False
+
+    def main():
+        print("=== Jasmin Vendor Sync from PostgreSQL ===")
+
+        # Wait for PostgreSQL
+        if not wait_for_postgres():
+            print("❌ PostgreSQL timeout - skipping sync")
+            sys.exit(0)  # Don't fail pod startup
+
+        # Get vendors
+        try:
+            vendors = get_vendors_from_db()
+            print(f"Found {len(vendors)} active SMPP vendors")
+
+            if len(vendors) == 0:
+                print("No vendors to sync")
+                sys.exit(0)
+
+        except Exception as e:
+            print(f"❌ Database query failed: {e}")
+            sys.exit(0)
+
+        # Wait for Jasmin daemon and jCli
+        print("Waiting for Jasmin daemon...")
+        time.sleep(35)
+
+        print("Waiting for jCli...")
+        for i in range(15):
+            try:
+                tn = telnetlib.Telnet('localhost', 8990, timeout=2)
+                tn.close()
+                print("✅ jCli ready")
+                break
+            except:
+                print(f"  jCli not ready (attempt {i+1}/15)")
+                time.sleep(2)
+
+        # Create each vendor
+        print("Creating SMPP connectors...")
+        success_count = 0
+
+        for vendor in vendors:
+            if create_connector_in_jasmin(vendor):
+                success_count += 1
+
+        print(f"\n✅ Sync complete: {success_count}/{len(vendors)} vendors created")
+
+    if __name__ == '__main__':
+        main()

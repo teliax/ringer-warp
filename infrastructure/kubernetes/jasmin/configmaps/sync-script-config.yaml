@@ -1,0 +1,126 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jasmin-sync-scripts
+  namespace: messaging
+data:
+  sync-vendors.sh: |
+    #!/bin/bash
+    # Sync SMPP vendors from PostgreSQL to Jasmin on startup
+    set -e
+
+    echo "=== Jasmin Vendor Sync from PostgreSQL ==="
+
+    # Wait for PostgreSQL
+    echo "Waiting for database..."
+    until PGPASSWORD=$DATABASE_PASSWORD psql -h $DATABASE_HOST -U $DATABASE_USER -d $DATABASE_NAME -c '\q' 2>/dev/null; do
+      echo "  PostgreSQL not ready - sleeping"
+      sleep 3
+    done
+    echo "✅ PostgreSQL connected"
+
+    # Query active SMPP vendors
+    echo "Querying vendors..."
+    VENDORS=$(PGPASSWORD=$DATABASE_PASSWORD psql -h $DATABASE_HOST -U $DATABASE_USER -d $DATABASE_NAME -t -A -F '|' -c "
+      SELECT id, instance_name, host, port, use_tls, bind_type, throughput, priority
+      FROM vendor_mgmt.service_providers
+      WHERE provider_type = 'smpp' AND is_active = true
+      ORDER BY priority ASC;
+    " 2>/dev/null)
+
+    VENDOR_COUNT=$(echo "$VENDORS" | grep -c '|' || echo 0)
+    echo "Found $VENDOR_COUNT vendors to sync"
+
+    if [ "$VENDOR_COUNT" -eq 0 ]; then
+      echo "No vendors configured - skipping sync"
+      touch /sync/completed
+      exit 0
+    fi
+
+    # Wait for Jasmin daemon
+    echo "Waiting for Jasmin daemon..."
+    sleep 35
+
+    # Wait for jCli to be ready
+    echo "Waiting for jCli..."
+    for i in {1..10}; do
+      if nc -z localhost 8990 2>/dev/null; then
+        echo "✅ jCli accessible"
+        break
+      fi
+      echo "  jCli not ready (attempt $i/10)"
+      sleep 3
+    done
+
+    # Create vendors in Jasmin via jCli
+    echo "Creating SMPP connectors in Jasmin..."
+
+    echo "$VENDORS" | while IFS='|' read -r id name host port use_tls bind_type throughput priority; do
+      if [ -z "$id" ]; then continue; fi
+
+      echo "  Creating: $name (priority $priority)"
+
+      # Convert boolean
+      [ "$use_tls" = "t" ] && ssl="yes" || ssl="no"
+
+      # Create connector via Python telnet
+      python3 << PYEOF
+import telnetlib
+import time
+import sys
+
+try:
+    tn = telnetlib.Telnet('localhost', 8990, timeout=10)
+    time.sleep(0.5)
+
+    # Read welcome
+    tn.read_until(b'Session ref:', timeout=2)
+
+    # Create connector
+    commands = [
+        b'smppccm -a\n',
+        b'cid $id\n',
+        b'host $host\n',
+        b'port $port\n',
+        b'ssl $ssl\n',
+        b'bind $bind_type\n',
+        b'submit_throughput $throughput\n',
+        b'ok\n',
+    ]
+
+    for cmd in commands:
+        tn.write(cmd)
+        time.sleep(0.3)
+
+    # Read response
+    time.sleep(1)
+    response = tn.read_very_eager().decode('utf-8', errors='ignore')
+
+    if 'Successfully' in response:
+        print('  ✅ Created: $name')
+
+        # Start bind if priority 1
+        if int('$priority') == 1:
+            tn.write(b'smppccm -1 $id\n')
+            time.sleep(0.5)
+            print('  ✅ Started bind: $name')
+    else:
+        print('  ⚠️  Failed: $name')
+        print(response)
+
+    tn.write(b'quit\n')
+    tn.close()
+
+except Exception as e:
+    print(f'  ❌ Error: {e}', file=sys.stderr)
+    sys.exit(0)  # Don't fail pod startup
+PYEOF
+
+    done
+
+    # Mark sync complete
+    touch /sync/completed
+
+    echo ""
+    echo "✅ Vendor sync complete"
+    echo "Vendors will be active in Jasmin"

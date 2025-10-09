@@ -102,7 +102,7 @@ spec:
           mountPath: /config
       containers:
       - name: jasmin
-        image: jookies/jasmin:0.11.0
+        image: jookies/jasmin:0.10.12
         imagePullPolicy: IfNotPresent
         command: ["/bin/bash", "-c"]
         args:
@@ -120,13 +120,10 @@ spec:
           touch /etc/jasmin/store/jcli-prod.moroutes
           touch /etc/jasmin/store/jcli-prod.mtroutes
 
-          # Create jCli user profile
-          cat > /etc/jasmin/store/jcli-prod << 'PROFILE'
-#!/usr/bin/env python
-# jCli user profile for admin
-admin_username = "jcliadmin"
-admin_password = "jcliadmin"
-PROFILE
+          # Create jCli user profile (simple format to avoid YAML issues)
+          echo '#!/usr/bin/env python' > /etc/jasmin/store/jcli-prod
+          echo 'admin_username = "jcliadmin"' >> /etc/jasmin/store/jcli-prod
+          echo 'admin_password = "jcliadmin"' >> /etc/jasmin/store/jcli-prod
 
           chmod 644 /etc/jasmin/store/*
 
@@ -134,7 +131,11 @@ PROFILE
           python /usr/local/bin/jasmind.py --config /config/jasmin.cfg &
 
           # Wait for Jasmin to start
-          sleep 30
+          sleep 35
+
+          # Note: Vendor sync from PostgreSQL will be added in future update
+          # For now, vendors created via API remain in Jasmin memory until pod restart
+          # TODO: Implement PostgreSQL -> jCli sync on startup
 
           # Initialize Jasmin configuration
           /config/init-jasmin.sh
@@ -246,3 +247,7 @@ PROFILE
           items:
           - key: interceptor.py
             path: interceptor.py
+      - name: sync-scripts
+        configMap:
+          name: jasmin-sync-script
+          defaultMode: 0755
