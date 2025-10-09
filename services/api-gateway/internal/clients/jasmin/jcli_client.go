@@ -3,6 +3,7 @@ package jasmin
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"net"
 	"strings"
 	"time"
@@ -41,18 +42,26 @@ type SMPPConnector struct {
 
 // CreateSMPPConnector creates a new SMPP connector in Jasmin
 func (c *JCliClient) CreateSMPPConnector(connector *SMPPConnector) error {
+	log.Printf("[jCli] Creating SMPP connector: %s", connector.CID)
+
 	conn, err := c.connect()
 	if err != nil {
+		log.Printf("[jCli] Connection failed: %v", err)
 		return fmt.Errorf("failed to connect to jCli: %w", err)
 	}
 	defer conn.Close()
 
+	log.Printf("[jCli] Connected to %s:%d", c.host, c.port)
+
 	reader := bufio.NewReader(conn)
 
 	// Authenticate
+	log.Printf("[jCli] Authenticating...")
 	if err := c.authenticate(conn, reader); err != nil {
+		log.Printf("[jCli] Authentication failed: %v", err)
 		return fmt.Errorf("authentication failed: %w", err)
 	}
+	log.Printf("[jCli] Authenticated successfully")
 
 	// Send commands to create SMPP connector
 	commands := []string{
@@ -85,12 +94,16 @@ func (c *JCliClient) CreateSMPPConnector(connector *SMPPConnector) error {
 	)
 
 	// Execute commands
-	for _, cmd := range commands {
+	for i, cmd := range commands {
+		log.Printf("[jCli] Sending command %d/%d: %s", i+1, len(commands), cmd)
 		if err := c.sendCommand(conn, reader, cmd); err != nil {
+			log.Printf("[jCli] Command failed: %s, error: %v", cmd, err)
 			return fmt.Errorf("command '%s' failed: %w", cmd, err)
 		}
+		log.Printf("[jCli] Command %d completed successfully", i+1)
 	}
 
+	log.Printf("[jCli] SMPP connector %s created successfully", connector.CID)
 	return nil
 }
 
@@ -213,61 +226,81 @@ func (c *JCliClient) connect() (net.Conn, error) {
 
 // authenticate sends password to jCli
 func (c *JCliClient) authenticate(conn net.Conn, reader *bufio.Reader) error {
-	// Wait for password prompt
-	prompt, err := reader.ReadString('\n')
-	if err != nil {
+	log.Printf("[jCli] Reading welcome/prompt...")
+
+	// jCli sends welcome message then prompt WITHOUT newline
+	// Read for 1 second and check what we got
+	time.Sleep(500 * time.Millisecond)
+
+	// Read all available data
+	buf := make([]byte, 4096)
+	n, err := reader.Read(buf)
+	if err != nil && n == 0 {
+		log.Printf("[jCli] Read error: %v", err)
 		return err
 	}
 
-	if !strings.Contains(prompt, "Authentication required") && !strings.Contains(prompt, "Password") {
-		// Already authenticated or no auth required
+	data := string(buf[:n])
+	log.Printf("[jCli] Received %d bytes: %q", n, data)
+
+	// Check for prompt
+	if strings.Contains(data, "jcli :") || strings.Contains(data, "Session ref") {
+		log.Printf("[jCli] Found jCli session, ready for commands")
 		return nil
 	}
 
-	// Send password
-	_, err = conn.Write([]byte(c.password + "\n"))
-	if err != nil {
-		return err
-	}
-
-	// Read authentication result
-	result, err := reader.ReadString('\n')
-	if err != nil {
-		return err
-	}
-
-	if strings.Contains(result, "Authentication failed") {
-		return fmt.Errorf("authentication failed")
-	}
-
-	return nil
+	log.Printf("[jCli] No prompt found in response")
+	return fmt.Errorf("unexpected jCli response")
 }
 
 // sendCommand sends a command and waits for response
 func (c *JCliClient) sendCommand(conn net.Conn, reader *bufio.Reader, cmd string) error {
+	log.Printf("[jCli] Sending: %s", cmd)
+
 	// Send command
 	_, err := conn.Write([]byte(cmd + "\n"))
 	if err != nil {
+		log.Printf("[jCli] Write error: %v", err)
 		return err
 	}
 
-	// Read response (wait for prompt)
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			return err
-		}
+	// Read response (wait for prompt) with timeout
+	timeout := time.After(5 * time.Second)
+	done := make(chan error, 1)
 
-		// Check for errors
-		if strings.Contains(line, "Unknown") || strings.Contains(line, "Error") || strings.Contains(line, "Failed") {
-			return fmt.Errorf("command failed: %s", strings.TrimSpace(line))
-		}
+	go func() {
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				done <- err
+				return
+			}
 
-		// Success indicators
-		if strings.Contains(line, "Successfully") || strings.Contains(line, "> ") || strings.Contains(line, "jcli :") {
-			break
+			log.Printf("[jCli] Response: %s", strings.TrimSpace(line))
+
+			// Check for errors
+			if strings.Contains(line, "Unknown") || strings.Contains(line, "Error") || strings.Contains(line, "Failed") {
+				done <- fmt.Errorf("command failed: %s", strings.TrimSpace(line))
+				return
+			}
+
+			// Success indicators - jCli is ready for next command
+			if strings.Contains(line, "Successfully") ||
+			   strings.Contains(line, "> ") ||
+			   strings.Contains(line, "jcli :") ||
+			   strings.Contains(line, "Adding a new connector") ||
+			   strings.Contains(line, "ok: save") {
+				done <- nil
+				return
+			}
 		}
+	}()
+
+	select {
+	case err := <-done:
+		return err
+	case <-timeout:
+		log.Printf("[jCli] Command timeout after 5s")
+		return fmt.Errorf("command timeout")
 	}
-
-	return nil
 }

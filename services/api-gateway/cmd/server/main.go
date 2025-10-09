@@ -21,14 +21,16 @@ import (
 func main() {
 	ctx := context.Background()
 
-	// Initialize database connection
+	// Initialize database connection (optional for now)
 	db, err := database.NewPostgresPool(ctx)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Printf("⚠️  WARNING: Failed to connect to database: %v", err)
+		log.Println("⚠️  API will run without database persistence (Jasmin-only mode)")
+		db = nil // Continue without database
+	} else {
+		defer db.Close()
+		log.Println("✅ Connected to PostgreSQL database")
 	}
-	defer db.Close()
-
-	log.Println("✅ Connected to PostgreSQL database")
 
 	// Load configuration from environment
 	jasminHost := os.Getenv("JASMIN_JCLI_HOST")

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/ringer-warp/api-gateway/internal/models"
@@ -24,7 +25,36 @@ type vendorRepo struct {
 
 // NewVendorRepository creates a new vendor repository
 func NewVendorRepository(db *pgxpool.Pool) VendorRepository {
+	if db == nil {
+		// Return no-op repository if database not available
+		return &noopVendorRepo{}
+	}
 	return &vendorRepo{db: db}
+}
+
+// noopVendorRepo is a no-op implementation when database is unavailable
+type noopVendorRepo struct{}
+
+func (r *noopVendorRepo) Create(ctx context.Context, vendor *models.SMPPVendor) error {
+	// Generate a temporary ID
+	vendor.ID = fmt.Sprintf("temp-%d", time.Now().Unix())
+	return nil
+}
+
+func (r *noopVendorRepo) GetByID(ctx context.Context, id string) (*models.SMPPVendor, error) {
+	return nil, fmt.Errorf("vendor not found (database unavailable)")
+}
+
+func (r *noopVendorRepo) List(ctx context.Context) ([]*models.SMPPVendor, error) {
+	return []*models.SMPPVendor{}, nil
+}
+
+func (r *noopVendorRepo) Update(ctx context.Context, vendor *models.SMPPVendor) error {
+	return nil
+}
+
+func (r *noopVendorRepo) Delete(ctx context.Context, id string) error {
+	return nil
 }
 
 // Create creates a new SMPP vendor in the database

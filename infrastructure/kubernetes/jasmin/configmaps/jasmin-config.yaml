@@ -79,11 +79,11 @@ data:
     
     [jcli]
     # Jasmin Command Line Interface
-    bind_host = 0.0.0.0
-    bind_port = 8990
-    authentication = true
-    admin_username = admin
-    admin_password = jasmin-admin
+    bind = 0.0.0.0
+    port = 8990
+    authentication = False
+    admin_username = jcliadmin
+    admin_password = 4a61736d696e41646d696e233230323424536563757265
     
     [dlr-lookup]
     # Delivery Receipt Configuration

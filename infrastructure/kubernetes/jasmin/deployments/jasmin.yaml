@@ -102,23 +102,43 @@ spec:
           mountPath: /config
       containers:
       - name: jasmin
-        image: jookies/jasmin:0.10.12
+        image: jookies/jasmin:0.11.0
         imagePullPolicy: IfNotPresent
         command: ["/bin/bash", "-c"]
         args:
         - |
           # Create necessary directories
-          mkdir -p /var/log/jasmin /var/run/jasmin
-          
+          mkdir -p /var/log/jasmin /var/run/jasmin /etc/jasmin/store
+
+          # Create jCli user profile and required store files
+          # These files are needed for jCli to authenticate and manage connectors
+          touch /etc/jasmin/store/jcli-prod.filters
+          touch /etc/jasmin/store/jcli-prod.httpccs
+          touch /etc/jasmin/store/jcli-prod.groups
+          touch /etc/jasmin/store/jcli-prod.users
+          touch /etc/jasmin/store/jcli-prod.smppccm
+          touch /etc/jasmin/store/jcli-prod.moroutes
+          touch /etc/jasmin/store/jcli-prod.mtroutes
+
+          # Create jCli user profile
+          cat > /etc/jasmin/store/jcli-prod << 'PROFILE'
+#!/usr/bin/env python
+# jCli user profile for admin
+admin_username = "jcliadmin"
+admin_password = "jcliadmin"
+PROFILE
+
+          chmod 644 /etc/jasmin/store/*
+
           # Start Jasmin
           python /usr/local/bin/jasmind.py --config /config/jasmin.cfg &
-          
+
           # Wait for Jasmin to start
           sleep 30
-          
+
           # Initialize Jasmin configuration
           /config/init-jasmin.sh
-          
+
           # Keep container running
           tail -f /var/log/jasmin/jasmin.log
         ports:
@@ -131,7 +151,7 @@ spec:
         - name: http-api
           containerPort: 8080
           protocol: TCP
-        - name: cli
+        - name: jcli
           containerPort: 8990
           protocol: TCP
         env:
