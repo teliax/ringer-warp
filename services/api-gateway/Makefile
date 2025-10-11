@@ -1,65 +1,48 @@
-# Makefile for WARP API Gateway
-
-.PHONY: help build run test clean docker-build deploy
+.PHONY: help build run test docker-build docker-push deploy-k8s gen-docs
 
 # Variables
-BINARY_NAME=api-server
-DOCKER_IMAGE=us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway
-GO=$(shell which go || echo ~/.local/go/bin/go)
+APP_NAME=api-gateway
+IMAGE_NAME=us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/$(APP_NAME)
+VERSION?=v1.0.0
+GCP_PROJECT=ringer-warp-v01
 
-help: ## Show this help message
-	@echo 'Usage: make [target]'
-	@echo ''
-	@echo 'Available targets:'
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+help: ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-build: ## Build the API server binary
-	$(GO) build -o $(BINARY_NAME) ./cmd/server
+deps: ## Install dependencies
+	go mod download
+	go install github.com/swaggo/swag/cmd/swag@latest
 
-run: ## Run the API server locally
-	$(GO) run ./cmd/server/main.go
+gen-docs: ## Generate Swagger documentation
+	swag init -g cmd/api-server/main.go -o docs --parseDependency --parseInternal
+
+build: gen-docs ## Build the application
+	go build -o bin/api-server cmd/api-server/main.go
+
+run: gen-docs ## Run the application locally
+	go run cmd/api-server/main.go
 
 test: ## Run tests
-	$(GO) test -v ./...
+	go test -v ./...
 
 test-coverage: ## Run tests with coverage
-	$(GO) test -cover -coverprofile=coverage.out ./...
-	$(GO) tool cover -html=coverage.out -o coverage.html
+	go test -v -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
 
-lint: ## Run linter
-	golangci-lint run ./...
+docker-build: gen-docs ## Build Docker image
+	docker build --platform linux/amd64 -t $(IMAGE_NAME):$(VERSION) -t $(IMAGE_NAME):latest .
 
-clean: ## Clean build artifacts
-	rm -f $(BINARY_NAME)
-	rm -f coverage.out coverage.html
+docker-push: docker-build ## Push Docker image to Artifact Registry
+	docker push $(IMAGE_NAME):$(VERSION)
+	docker push $(IMAGE_NAME):latest
 
-deps: ## Download dependencies
-	$(GO) mod download
-	$(GO) mod tidy
-
-docker-build: ## Build Docker image
-	docker build -t $(DOCKER_IMAGE):latest .
-
-docker-push: ## Push Docker image to GCP Artifact Registry
-	gcloud builds submit --tag $(DOCKER_IMAGE):latest .
-
-deploy-k8s: ## Deploy to Kubernetes
+deploy-k8s: docker-push ## Deploy to Kubernetes
 	kubectl apply -f deployments/kubernetes/
 
-logs: ## Show API logs from Kubernetes
+logs: ## View logs
 	kubectl logs -n warp-api -l app=api-gateway --tail=100 -f
 
-status: ## Check API status in Kubernetes
-	kubectl get pods -n warp-api -l app=api-gateway
+clean: ## Clean build artifacts
+	rm -rf bin/ docs/ coverage.out coverage.html
 
-restart: ## Restart API pods
-	kubectl rollout restart deployment/api-gateway -n warp-api
-
-# Database migrations
-migrate-up: ## Run database migrations
-	@echo "TODO: Implement migration runner"
-	@echo "Run: psql < migrations/001_create_service_providers.up.sql"
-
-migrate-down: ## Rollback last migration
-	@echo "TODO: Implement migration runner"
-	@echo "Run: psql < migrations/001_create_service_providers.down.sql"
+.DEFAULT_GOAL := help

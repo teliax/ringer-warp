@@ -62,26 +62,28 @@ Build a carrier-grade, API-driven SIP trunking platform that enables wholesale t
   - RBAC enforcement
 
 #### Messaging Infrastructure
-- **SMSC**: Jasmin SMS Gateway
-  - SMPP 3.4/5.0 protocol support
-  - MM4 for MMS handling
+- **SMSC**: Custom Go SMPP Gateway (replaced Jasmin October 2025)
+  - SMPP 3.4 protocol support
+  - PostgreSQL-backed vendor configuration
+  - TLS support for secure carrier connections
+  - Redis DLR tracking and rate limiting
   - REST API for message submission
-- **A2P SMS**: Sinch binds for carrier connectivity
-  - Direct carrier connections
-  - Global SMS reach
+- **A2P SMS**: Sinch SMPP binds for carrier connectivity
+  - Direct carrier connections via SMPP
+  - TLS-encrypted connections
   - DLR (Delivery Receipt) handling
+  - Multiple vendor support with failover
 
-#### Development Stack
-- **Backend Languages**:
-  - Go (primary API services)
-  - Rust (high-performance components)
-  - Java (legacy integration)
-  - TypeScript (Node.js services)
+#### Development Stack (As Implemented October 2025)
+- **Backend**:
+  - Go 1.23+ (primary API services, SMPP gateway)
+  - Future: Rust (high-performance components if needed)
 - **Frontend**:
-  - Next.js 14+ with App Router
+  - React 18+ with Vite
   - TypeScript
-  - Tailwind CSS
+  - Tailwind CSS + shadcn/ui components
   - Deployed on Vercel
+  - Note: Using Vite (not Next.js) for faster development and simpler deployment
 - **Documentation**:
   - OpenAPI 3.0.3 specification
   - Swagger UI for testing

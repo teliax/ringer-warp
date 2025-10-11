@@ -1,166 +1,198 @@
-# WARP API Gateway
+# WARP Platform API Gateway
 
-Main API service for the WARP platform, providing REST APIs for vendor management, trunk management, messaging, and routing.
+Go-based API Gateway for the WARP Platform with OpenAPI 3.0.3 documentation.
 
-## Technology Stack
+## Features
 
-- **Language**: Go 1.21+
-- **Framework**: Gin Web Framework
-- **Database**: PostgreSQL (pgx driver)
-- **Cache**: Redis (go-redis)
-- **Documentation**: Swagger/OpenAPI
+- RESTful API with Gin web framework
+- OpenAPI 3.0.3 / Swagger documentation (auto-generated)
+- PostgreSQL integration with pgx (connection pooling)
+- Redis caching support
+- JWT authentication
+- Customer management
+- Voice vendor management
+- SMS vendor management
+- SIP trunk management
+- Production-ready with health checks
+
+## Quick Start
+
+### Prerequisites
+
+- Go 1.21+
+- PostgreSQL 15+ (Cloud SQL)
+- Redis (MemoryStore)
+- Docker (for containerized deployment)
+
+### Local Development
+
+```bash
+# Install dependencies
+make deps
+
+# Generate Swagger docs
+make gen-docs
+
+# Run locally (requires database connection)
+export DATABASE_PASSWORD="your_password"
+export JWT_SECRET="your_secret"
+make run
+```
+
+### API Documentation
+
+Once running, visit:
+- **Swagger UI**: http://localhost:8080/docs/index.html
+- **OpenAPI JSON**: http://localhost:8080/swagger.json
+- **OpenAPI YAML**: http://localhost:8080/swagger.yaml
+
+## API Endpoints
+
+### Customer Management
+- `POST /v1/customers` - Create customer
+- `GET /v1/customers` - List customers
+- `GET /v1/customers/:id` - Get customer
+- `PUT /v1/customers/:id` - Update customer
+- `GET /v1/customers/by-ban/:ban` - Get by BAN
+- `GET /v1/customers/:id/trunks` - Get customer trunks
+- `GET /v1/customers/:id/dids` - Get customer DIDs
+
+### Vendor Management
+- `POST /v1/admin/voice-vendors` - Create voice vendor
+- `GET /v1/admin/voice-vendors` - List voice vendors
+- `POST /v1/admin/sms-vendors` - Create SMS vendor
+- `GET /v1/admin/sms-vendors` - List SMS vendors
+
+### Trunk Management
+- `POST /v1/customers/:id/trunks` - Create trunk
+- `GET /v1/trunks/:id` - Get trunk
+
+## Database Schema
+
+Run the schema initialization:
+
+```bash
+psql -h 10.126.0.3 -U warp_api -d warp -f ../../infrastructure/database/schemas/01-core-schema.sql
+```
+
+## Docker Build & Deploy
+
+```bash
+# Build and push to Artifact Registry
+make docker-push
+
+# Deploy to Kubernetes
+make deploy-k8s
+
+# View logs
+make logs
+```
+
+## Configuration
+
+Configuration via `config.yaml` or environment variables:
+
+```bash
+# Database
+export WARP_DATABASE_HOST=10.126.0.3
+export WARP_DATABASE_PORT=5432
+export WARP_DATABASE_USER=warp_api
+export WARP_DATABASE_DATABASE=warp
+export DATABASE_PASSWORD=secret
+
+# Redis
+export WARP_REDIS_HOST=10.206.200.36
+export WARP_REDIS_PORT=6379
+
+# JWT
+export JWT_SECRET=your_secret_key
+
+# Server
+export WARP_SERVER_PORT=8080
+export WARP_SERVER_ENVIRONMENT=production
+```
 
 ## Project Structure
 
 ```
 api-gateway/
 ├── cmd/
-│   └── server/          # Main entry point
+│   └── api-server/          # Main application entry point
+│       └── main.go          # Swagger annotations here
 ├── internal/
-│   ├── handlers/        # HTTP request handlers
-│   ├── services/        # Business logic
-│   ├── repository/      # Data access layer
-│   ├── models/          # Domain models
-│   ├── middleware/      # HTTP middleware (auth, logging, CORS)
-│   └── clients/         # External API clients
-├── pkg/                 # Reusable packages
-├── migrations/          # Database migrations
-└── deployments/         # Kubernetes manifests
+│   ├── config/              # Configuration management
+│   ├── handlers/            # HTTP handlers with Swagger comments
+│   ├── models/              # Request/response models
+│   ├── repository/          # Database access layer
+│   └── middleware/          # Auth, logging, CORS
+├── docs/                    # Auto-generated Swagger docs
+├── deployments/
+│   └── kubernetes/          # K8s manifests
+├── Dockerfile
+├── Makefile
+└── README.md
 ```
-
-## Getting Started
-
-### Prerequisites
-
-- Go 1.21+
-- Docker
-- Access to GKE cluster
-- PostgreSQL (Cloud SQL)
-- Redis
-
-### Local Development
-
-```bash
-# Install dependencies
-go mod download
-
-# Run locally
-go run cmd/server/main.go
-
-# With live reload (using air)
-go install github.com/cosmtrek/air@latest
-air
-```
-
-### Build
-
-```bash
-# Build binary
-go build -o api-server cmd/server/main.go
-
-# Build Docker image
-docker build -t api-gateway:latest .
-```
-
-### Deploy
-
-```bash
-# Build and push to GCP Artifact Registry
-gcloud builds submit --tag us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:latest
-
-# Deploy to Kubernetes
-kubectl apply -f deployments/kubernetes/
-```
-
-## API Endpoints
-
-### Health & Monitoring
-```
-GET /health              # Health check
-GET /ready               # Readiness check
-```
-
-### Vendor Management (Phase 1)
-```
-POST   /api/v1/admin/smpp-vendors          # Create SMPP vendor
-GET    /api/v1/admin/smpp-vendors          # List vendors
-GET    /api/v1/admin/smpp-vendors/:id      # Get vendor details
-PUT    /api/v1/admin/smpp-vendors/:id      # Update vendor
-DELETE /api/v1/admin/smpp-vendors/:id      # Delete vendor
-POST   /api/v1/admin/smpp-vendors/:id/bind # Start SMPP bind
-GET    /api/v1/admin/smpp-vendors/:id/status # Get bind status
-```
-
-## Configuration
-
-Environment variables:
-
-```bash
-PORT=8080                          # Server port
-GIN_MODE=release                   # Gin mode (debug, release)
-DATABASE_URL=postgresql://...      # PostgreSQL connection
-REDIS_URL=redis://...              # Redis connection
-JASMIN_JCLI_HOST=jasmin-http-service.messaging.svc.cluster.local
-JASMIN_JCLI_PORT=8990
-JASMIN_ADMIN_PASSWORD=...          # From K8s secret
-```
-
-## Development Roadmap
-
-### Phase 1: Vendor Management (Current)
-- [x] Project scaffold
-- [ ] SMPP vendor CRUD operations
-- [ ] Jasmin jCli integration
-- [ ] PostgreSQL service_providers table
-- [ ] Swagger documentation
-
-### Phase 2: Campaign Management
-- [ ] TCR API integration
-- [ ] 10DLC campaign registration
-- [ ] Number assignment to campaigns
-
-### Phase 3: Messaging
-- [ ] SMS send endpoint
-- [ ] Bulk messaging
-- [ ] DLR tracking
-
-### Phase 4: Trunk & Routing
-- [ ] SIP trunk management
-- [ ] Number management
-- [ ] Routing configuration
-
-## Integration Points
-
-### Jasmin SMSC
-- **jCli**: jasmin-http-service.messaging.svc.cluster.local:8990 (telnet)
-- **HTTP API**: jasmin-http-service.messaging.svc.cluster.local:8080
-
-### PostgreSQL
-- **Host**: Cloud SQL (via proxy sidecar)
-- **Database**: warp
-- **Schema**: vendor_mgmt, accounts, routing, messaging
-
-### Redis
-- **Host**: redis-service.messaging.svc.cluster.local:6379
-- **Usage**: Caching, rate limiting, session storage
 
 ## Testing
 
+### Create Test Customer
+
 ```bash
-# Run tests
-go test ./...
-
-# With coverage
-go test -cover ./...
-
-# Integration tests
-go test -tags=integration ./...
+curl -X POST http://localhost:8080/v1/customers \
+  -H "Authorization: Bearer test-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ban": "TEST-001",
+    "company_name": "Test Corp",
+    "customer_type": "POSTPAID",
+    "contact": {"name": "Test User", "email": "test@example.com", "phone": "+1234567890"},
+    "address": {"line1": "123 Test St", "city": "Denver", "state": "CO", "zip": "80202", "country": "US"}
+  }'
 ```
 
-## Documentation
+### Create Voice Vendor
 
-Full API documentation available at:
-- **Local**: http://localhost:8080/swagger/index.html
-- **Production**: https://api-v2.ringer.tel/swagger/index.html
+```bash
+curl -X POST http://localhost:8080/v1/admin/voice-vendors \
+  -H "Authorization: Bearer test-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "vendor_code": "test_vendor",
+    "vendor_name": "Test Vendor",
+    "vendor_type": "TIER1",
+    "billing_model": "LRN",
+    "sip_endpoints": [{"host": "sip.test.com", "port": 5060, "transport": "UDP", "priority": 1}],
+    "supported_codecs": ["PCMU", "PCMA"]
+  }'
+```
 
-See `/docs/API_DEVELOPMENT_GUIDE.md` for detailed development guidelines.
+## Production Deployment
+
+```bash
+# 1. Build and push image
+make docker-push VERSION=v1.0.0
+
+# 2. Deploy to GKE
+kubectl apply -f deployments/kubernetes/
+
+# 3. Verify deployment
+kubectl get pods -n warp-api
+kubectl logs -n warp-api -l app=api-gateway
+
+# 4. Access Swagger docs (via port-forward)
+kubectl port-forward -n warp-api svc/api-gateway 8080:8080
+open http://localhost:8080/docs/index.html
+```
+
+## Next Steps
+
+1. Initialize database with schema
+2. Configure database user and password
+3. Generate Swagger documentation
+4. Build and deploy to Kubernetes
+5. Integrate with admin portal
+6. Add remaining endpoints (messaging, CDRs, analytics)
+
+## License
+
+Proprietary - Ringer Technologies

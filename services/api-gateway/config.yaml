@@ -1,0 +1,33 @@
+# WARP API Gateway Configuration
+# This file contains default values - override with environment variables
+
+server:
+  port: "8080"
+  environment: "production"
+  allow_origins:
+    - "https://admin.ringer.tel"
+    - "https://console.ringer.tel"
+    - "http://localhost:3000"  # Development
+
+database:
+  host: "10.126.0.3"  # Cloud SQL private IP
+  port: "5432"
+  user: "warp_app"  # Existing Cloud SQL user
+  database: "warp"
+  sslmode: "require"
+  maxconns: 25
+
+redis:
+  host: "10.206.200.36"  # MemoryStore Redis
+  port: "6379"
+  db: 0
+
+auth:
+  jwt_expiration: 24  # hours
+
+smpp:
+  gateway_url: "http://smpp-gateway-api.messaging:8080"
+
+auth:
+  google_client_id: ""  # Set via WARP_AUTH_GOOGLE_CLIENT_ID env var
+  jwt_secret: ""        # Set via JWT_SECRET env var  

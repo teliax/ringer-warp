@@ -479,23 +479,37 @@ If you start with Node.js and want to migrate:
 
 ## 14. SMS/MMS Architecture
 
-### Decision: Jasmin SMSC with SMPP Carrier Integration
-- **SMSC Platform**: Jasmin (open-source, scalable)
-- **Carrier Integration**: Multiple SMPP providers via configurable binds (not REST APIs)
-- **Customer Access**: REST API (90%) and SMPP (10%)
-- **Details**: See [SMS_ARCHITECTURE.md](../warp/docs/SMS_ARCHITECTURE.md)
+### Decision: Custom Go SMPP Gateway (UPDATED October 2025)
+**Date**: October 10, 2025
+**Status**: IMPLEMENTED - Replaced Jasmin
 
-### SMS Routing Strategy
-- **A2P Messaging**: All outbound via SMPP provider binds
-- **10DLC Registration**: Managed through TCR API
-- **Inbound**: Direct delivery to customer webhooks/SMPP
-- **Queue Management**: RabbitMQ for reliable delivery
+**Rationale for Change:**
+- Jasmin jCli persistence broken for Kubernetes automation
+- File-based config incompatible with multi-pod deployments
+- Community acknowledges not cloud-native
+- Need PostgreSQL-backed configuration for true HA
 
-### Database Design
-- **Separate Schema**: `sms` schema in PostgreSQL
-- **Message Storage**: 30-day retention, then archive
-- **Campaign Management**: 10DLC templates and registration
-- **Rate Limiting**: Per-customer MPS limits
+**Implementation:**
+- **SMSC Platform**: Custom Go SMPP Gateway (~600 lines vs 1000+ lines of jCli wrappers)
+- **Carrier Integration**: Multiple SMPP vendors via PostgreSQL configuration
+- **Database**: `messaging.vendors` table (unified with API Gateway)
+- **Features**:
+  - PostgreSQL vendor configuration (stateless pods)
+  - TLS support for Sinch connections
+  - Redis DLR tracking and rate limiting
+  - REST API for management
+  - Multi-pod HA ready
+
+**Deployment:**
+- Namespace: `messaging`
+- Image: `us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/smpp-gateway:v1.1.0`
+- Status: ✅ Connected to Sinch_Atlanta
+
+### SMS Vendor Management
+- **Database**: `messaging.vendors` table (shared with API Gateway)
+- **API Access**: Both go-smpp and API Gateway use same table
+- **Admin UI**: Can manage vendors via API Gateway endpoints
+- **Schema Migration**: Completed October 11, 2025 (vendor_mgmt → messaging.vendors)
 
 ## 15. Frontend Integration Architecture
 
@@ -908,3 +922,132 @@ All agents will coordinate through:
 ---
 *Last Updated: January 2025*
 *Next Review: After Phase 3 completion*
+## 21. Authentication & Permission System
+
+### Decision: Firebase + Gatekeeper Pattern (October 2025)
+**Date**: October 11, 2025
+**Status**: PLANNED - Ready for implementation
+
+**Pattern Source**: Adapted from ringer-soa (Spring Boot) to Go + React/Vite
+
+### Authentication Architecture
+- **Frontend Auth**: Firebase Authentication (Google OAuth + Email/Password)
+- **Backend Verification**: Firebase Admin SDK for Go
+- **Token Flow**: Direct Firebase ID tokens (no proxy layer)
+- **Session Management**: Firebase handles token refresh
+
+**Why Firebase:**
+- Proven in ringer-soa project
+- Handles OAuth complexity
+- Built-in token refresh
+- Admin SDK available for Go
+- MFA support built-in
+
+### Authorization Architecture (Gatekeeper Pattern)
+- **Model**: Database-driven permissions (zero frontend logic)
+- **Enforcement**: Single Gatekeeper middleware in Go API Gateway
+- **Permission Matching**: Wildcard support (`/api/v1/customers/*`)
+- **Customer Scoping**: User-customer access table for data filtering
+
+### Database Schema
+```
+auth.user_types              → Role definitions (superAdmin, admin, etc.)
+auth.user_type_permissions   → What each role can access
+auth.permission_metadata     → Friendly names, descriptions for UI
+auth.users                   → Links Firebase UID to user type
+auth.user_customer_access    → Customer scoping (what customers user can see)
+```
+
+### Permission Flow
+```
+1. User logs in with Google → Firebase returns ID token
+2. Frontend sends request with: Authorization: Bearer {firebase_id_token}
+3. Go middleware verifies token with Firebase Admin SDK
+4. Lookup user by firebase_uid → get user_type_id
+5. Gatekeeper checks: user_type → permissions → resource_path
+6. If allowed: Get accessible_customer_ids → filter data
+7. If denied: Return 403
+```
+
+### Key Features
+- ✅ All authorization in backend (frontend just hides UI)
+- ✅ Permissions stored in database (dynamic, auditable)
+- ✅ SuperAdmin wildcard: `*` permission
+- ✅ Customer data scoping (users see only assigned customers)
+- ✅ Permission metadata for friendly UI
+- ✅ Batch permission checks for performance
+
+### Implementation Reference
+- Pattern: See `EXAMPLE_PERMISSION_SYSTEM.md` (ringer-soa)
+- Adaptation: See `PERMISSION_SYSTEM_ADAPTATION.md`
+- Plan: See `AUTH_IMPLEMENTATION_PLAN.md`
+
+**Differences from ringer-soa:**
+- Go (not Java/Spring Boot)
+- React + Vite (not Next.js)
+- Direct Firebase tokens (not proxy pattern)
+- Gin middleware (not Spring Security filters)
+
+## 22. Frontend Framework Final Decision
+
+### Decision: React + Vite (October 2025)
+**Date**: October 11, 2025
+**Status**: CONFIRMED
+
+**What We Have:**
+- `apps/admin-portal/` - React 18 + Vite + shadcn/ui
+- `apps/customer-portal/` - (to be built, same stack)
+
+**PRD Originally Suggested:**
+- Next.js 14+ with App Router
+
+**Why We Chose React + Vite Instead:**
+1. **Polymet-generated UI components** already in React/Vite
+2. **Simpler deployment** - static build, no server-side rendering needed
+3. **Faster dev experience** - Vite HMR is instant
+4. **API-first architecture** - Don't need Next.js API routes (have Go backend)
+5. **Vercel still works** - Vercel supports Vite builds natively
+
+**Trade-offs Accepted:**
+- No server-side rendering (acceptable - internal admin tool)
+- No API proxy pattern (direct backend calls with CORS)
+- Need client-side Firebase SDK (vs server-side in Next.js)
+
+**Configuration:**
+- Environment variables: `VITE_` prefix
+- Build command: `vite build`
+- Output: `dist/` directory
+- Deployment: Vercel (automatic)
+
+## 23. Resource Optimization Lessons
+
+### Decision: Right-Size Resource Requests (October 2025)
+**Date**: October 11, 2025
+**Problem**: Cluster CPU capacity exhausted despite zero traffic
+
+**Root Cause:**
+- Default resource requests too high (500m-1000m CPU per pod)
+- Actual usage at idle: 1-15m CPU per pod
+- Over-allocation: 98% waste
+
+**Solution:**
+- Reduced CPU requests by 82% (2750m → 500m total)
+- Set requests based on actual measured usage + 3-5x buffer
+- Keep limits high for burst capacity
+
+**Final Resource Requests:**
+```
+Kamailio:        50m CPU, 256Mi RAM (was 500m/512Mi)
+API Gateway:     50m CPU, 128Mi RAM (was 250m/256Mi)
+go-smpp:         100m CPU, 256Mi RAM (was 500m/512Mi)
+```
+
+**Lesson Learned:**
+- Always measure actual usage before setting requests
+- Start small, scale up based on real traffic
+- Idle services need 10-20m CPU, not 500m+
+
+---
+
+*Last Updated: October 11, 2025*
+*Next Review: After authentication system implementation*

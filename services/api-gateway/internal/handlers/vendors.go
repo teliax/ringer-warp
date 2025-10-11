@@ -5,159 +5,114 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/ringer-warp/api-gateway/internal/models"
-	"github.com/ringer-warp/api-gateway/internal/services"
+	"github.com/ringer-warp/api-gateway/internal/repository"
 )
 
-// VendorHandler handles vendor-related HTTP requests
 type VendorHandler struct {
-	vendorService services.VendorService
+	vendorRepo *repository.VendorRepository
 }
 
-// NewVendorHandler creates a new vendor handler
-func NewVendorHandler(vendorService services.VendorService) *VendorHandler {
+func NewVendorHandler(vendorRepo *repository.VendorRepository) *VendorHandler {
 	return &VendorHandler{
-		vendorService: vendorService,
+		vendorRepo: vendorRepo,
 	}
 }
 
-// CreateSMPPVendor creates a new SMPP vendor configuration
-func (h *VendorHandler) CreateSMPPVendor(c *gin.Context) {
-	var req models.CreateSMPPVendorRequest
+// CreateVoiceVendor godoc
+// @Summary Create a voice vendor
+// @Description Add a new upstream voice vendor for call routing
+// @Tags Voice Vendors
+// @Accept json
+// @Produce json
+// @Param vendor body models.CreateVoiceVendorRequest true "Voice vendor configuration"
+// @Success 201 {object} models.APIResponse{data=models.VoiceVendor}
+// @Failure 400 {object} models.APIResponse
+// @Failure 500 {object} models.APIResponse
+// @Security BearerAuth
+// @Router /admin/voice-vendors [post]
+func (h *VendorHandler) CreateVoiceVendor(c *gin.Context) {
+	var req models.CreateVoiceVendorRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"error":   "Invalid request",
-			"details": err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, models.NewErrorResponse("INVALID_REQUEST", err.Error()))
 		return
 	}
 
-	vendor, err := h.vendorService.CreateSMPPVendor(c.Request.Context(), &req)
+	vendor, err := h.vendorRepo.CreateVoiceVendor(c.Request.Context(), &req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"error":   "Failed to create vendor",
-			"details": err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, models.NewErrorResponse("CREATE_FAILED", err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"success": true,
-		"data":    vendor,
-	})
+	c.JSON(http.StatusCreated, models.NewSuccessResponse(vendor))
 }
 
-// ListSMPPVendors returns all configured SMPP vendors
-func (h *VendorHandler) ListSMPPVendors(c *gin.Context) {
-	vendors, err := h.vendorService.ListSMPPVendors(c.Request.Context())
+// ListVoiceVendors godoc
+// @Summary List voice vendors
+// @Description Get all configured voice vendors
+// @Tags Voice Vendors
+// @Accept json
+// @Produce json
+// @Param active_only query boolean false "Only return active vendors"
+// @Success 200 {object} models.APIResponse{data=[]models.VoiceVendor}
+// @Failure 500 {object} models.APIResponse
+// @Security BearerAuth
+// @Router /admin/voice-vendors [get]
+func (h *VendorHandler) ListVoiceVendors(c *gin.Context) {
+	activeOnly := c.Query("active_only") == "true"
+
+	vendors, err := h.vendorRepo.ListVoiceVendors(c.Request.Context(), activeOnly)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"error":   "Failed to list vendors",
-		})
+		c.JSON(http.StatusInternalServerError, models.NewErrorResponse("LIST_FAILED", err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"vendors": vendors,
-			"total":   len(vendors),
-		},
-	})
+	c.JSON(http.StatusOK, models.NewSuccessResponse(vendors))
 }
 
-// GetSMPPVendor returns a specific SMPP vendor
-func GetSMPPVendor(c *gin.Context) {
-	vendorID := c.Param("id")
-
-	// TODO: Implement
-	// Query PostgreSQL for vendor by ID
-
-	c.JSON(http.StatusNotFound, gin.H{
-		"error": "Vendor not found",
-		"id":    vendorID,
-	})
-}
-
-// UpdateSMPPVendor updates an existing SMPP vendor
-func UpdateSMPPVendor(c *gin.Context) {
-	vendorID := c.Param("id")
-
-	// TODO: Implement
-	// 1. Update PostgreSQL
-	// 2. Update Jasmin connector if bind active
-
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"error": "Not implemented yet",
-		"id":    vendorID,
-	})
-}
-
-// DeleteSMPPVendor removes an SMPP vendor
-func DeleteSMPPVendor(c *gin.Context) {
-	vendorID := c.Param("id")
-
-	// TODO: Implement
-	// 1. Stop bind in Jasmin
-	// 2. Delete connector from Jasmin
-	// 3. Soft delete in PostgreSQL
-
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"error": "Not implemented yet",
-		"id":    vendorID,
-	})
-}
-
-// BindSMPPVendor starts SMPP bind for a vendor
-func (h *VendorHandler) BindSMPPVendor(c *gin.Context) {
-	vendorID := c.Param("id")
-
-	if err := h.vendorService.BindSMPPVendor(c.Request.Context(), vendorID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"error":   "Failed to start SMPP bind",
-			"details": err.Error(),
-		})
+// CreateSMSVendor godoc
+// @Summary Create an SMS vendor
+// @Description Add a new SMPP vendor for SMS routing
+// @Tags SMS Vendors
+// @Accept json
+// @Produce json
+// @Param vendor body models.CreateSMSVendorRequest true "SMS vendor configuration"
+// @Success 201 {object} models.APIResponse{data=models.SMSVendor}
+// @Failure 400 {object} models.APIResponse
+// @Failure 500 {object} models.APIResponse
+// @Security BearerAuth
+// @Router /admin/sms-vendors [post]
+func (h *VendorHandler) CreateSMSVendor(c *gin.Context) {
+	var req models.CreateSMSVendorRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.NewErrorResponse("INVALID_REQUEST", err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "SMPP bind started",
-		"vendor_id": vendorID,
-	})
-}
-
-// GetSMPPVendorStatus returns current bind status
-func (h *VendorHandler) GetSMPPVendorStatus(c *gin.Context) {
-	vendorID := c.Param("id")
-
-	status, err := h.vendorService.GetSMPPVendorStatus(c.Request.Context(), vendorID)
+	vendor, err := h.vendorRepo.CreateSMSVendor(c.Request.Context(), &req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"error":   "Failed to get status",
-		})
+		c.JSON(http.StatusInternalServerError, models.NewErrorResponse("CREATE_FAILED", err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    status,
-	})
+	c.JSON(http.StatusCreated, models.NewSuccessResponse(vendor))
 }
 
-// Placeholder implementations for other methods
-func (h *VendorHandler) GetSMPPVendor(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
-}
+// ListSMSVendors godoc
+// @Summary List SMS vendors
+// @Description Get all configured SMS vendors
+// @Tags SMS Vendors
+// @Accept json
+// @Produce json
+// @Success 200 {object} models.APIResponse{data=[]models.SMSVendor}
+// @Failure 500 {object} models.APIResponse
+// @Security BearerAuth
+// @Router /admin/sms-vendors [get]
+func (h *VendorHandler) ListSMSVendors(c *gin.Context) {
+	vendors, err := h.vendorRepo.ListSMSVendors(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.NewErrorResponse("LIST_FAILED", err.Error()))
+		return
+	}
 
-func (h *VendorHandler) UpdateSMPPVendor(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
-}
-
-func (h *VendorHandler) DeleteSMPPVendor(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
+	c.JSON(http.StatusOK, models.NewSuccessResponse(vendors))
 }
