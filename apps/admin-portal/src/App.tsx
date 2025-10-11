@@ -1,8 +1,9 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { AuthLayout } from "@/polymet/layouts/auth-layout";
 import { MainLayout } from "@/polymet/layouts/main-layout";
-import { Login } from "@/polymet/pages/login";
+import { Login } from "@/pages/Login";  // Use our new login page
 import { Dashboard } from "@/polymet/pages/dashboard";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { CustomerOverview } from "@/polymet/pages/customer-overview";
 import { Vendors } from "@/polymet/pages/vendors";
 import { Accounting } from "@/polymet/pages/accounting";
@@ -27,13 +28,15 @@ export default function TelecomPlatform() {
           }
         />
 
-        {/* Admin Console Routes */}
+        {/* Admin Console Routes - Protected */}
         <Route
           path="/"
           element={
-            <MainLayout title="Admin Dashboard">
-              <Dashboard />
-            </MainLayout>
+            <ProtectedRoute>
+              <MainLayout title="Admin Dashboard">
+                <Dashboard />
+              </MainLayout>
+            </ProtectedRoute>
           }
         />
 

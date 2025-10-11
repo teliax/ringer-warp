@@ -66,11 +66,43 @@ func (h *AuthHandler) ExchangeGoogleToken(c *gin.Context) {
 		return
 	}
 
-	// If user doesn't exist, return error (users must be pre-created by admin)
+	// If user doesn't exist, auto-create with viewer role (least privilege)
 	if user == nil {
-		h.logger.Info("User not found", log.String("google_id", tokenInfo.Sub), log.String("email", tokenInfo.Email))
-		c.JSON(http.StatusForbidden, models.NewErrorResponse("USER_NOT_FOUND", "User account not found. Please contact administrator."))
-		return
+		h.logger.Info("Auto-creating new user from Google login",
+			log.String("google_id", tokenInfo.Sub),
+			log.String("email", tokenInfo.Email),
+			log.String("name", tokenInfo.Name),
+		)
+
+		// Get default user type (viewer - can be upgraded by admin later)
+		defaultUserTypeID, err := h.userRepo.GetUserTypeIDByName(c.Request.Context(), "viewer")
+		if err != nil {
+			h.logger.Error("Failed to get default user type", log.Error(err))
+			c.JSON(http.StatusInternalServerError, models.NewErrorResponse("USER_TYPE_NOT_FOUND", "Failed to create user account"))
+			return
+		}
+
+		// Create new user
+		user, err = h.userRepo.Create(
+			c.Request.Context(),
+			tokenInfo.Sub,           // Google ID
+			tokenInfo.Email,         // Email
+			tokenInfo.Name,          // Display name
+			defaultUserTypeID,       // Default to viewer
+		)
+		if err != nil {
+			h.logger.Error("Failed to create user", log.Error(err))
+			c.JSON(http.StatusInternalServerError, models.NewErrorResponse("USER_CREATION_FAILED", "Failed to create user account"))
+			return
+		}
+
+		// Load user type info
+		user.UserType = &models.UserType{TypeName: "viewer"}
+
+		h.logger.Info("User auto-created successfully",
+			log.String("user_id", user.ID.String()),
+			log.String("email", user.Email),
+		)
 	}
 
 	// Check if user is active
