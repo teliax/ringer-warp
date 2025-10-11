@@ -130,6 +130,12 @@ module "compute" {
   rtp_port_max         = 60000
 }
 
+# NFS storage module removed - no longer needed after migrating from Jasmin to go-smpp
+# module "storage" {
+#   source = "../../modules/storage"
+#   ...
+# }
+
 # Outputs
 output "vpc_name" {
   value = module.networking.vpc_name
@@ -167,3 +173,14 @@ output "consul_server_ips" {
 output "consul_ui_url" {
   value = module.consul.consul_ui_url
 }
+
+# NFS outputs removed - storage module deprecated
+# output "nfs_server_ip" {
+#   value       = module.storage.nfs_server_internal_ip
+#   description = "NFS server internal IP for Jasmin shared storage"
+# }
+#
+# output "nfs_export_path" {
+#   value       = module.storage.nfs_export_path
+#   description = "NFS export path for Jasmin configs"
+# }

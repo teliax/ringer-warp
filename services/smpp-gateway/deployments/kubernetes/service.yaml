@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: smpp-gateway-server
+  namespace: messaging
+  labels:
+    app: smpp-gateway
+    component: smpp-server
+  annotations:
+    cloud.google.com/load-balancer-type: "External"
+spec:
+  type: LoadBalancer
+  loadBalancerIP: 34.55.43.157  # Reuse Jasmin's static IP
+  selector:
+    app: smpp-gateway
+  ports:
+  - name: smpp
+    port: 2775
+    targetPort: 2775
+    protocol: TCP
+  - name: smpp-tls
+    port: 2776
+    targetPort: 2776
+    protocol: TCP
+  sessionAffinity: ClientIP  # Sticky sessions for SMPP connections
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600  # 1 hour session affinity
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: smpp-gateway-api
+  namespace: messaging
+  labels:
+    app: smpp-gateway
+    component: management-api
+spec:
+  type: ClusterIP
+  selector:
+    app: smpp-gateway
+  ports:
+  - name: http-api
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP

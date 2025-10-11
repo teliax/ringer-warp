@@ -1,0 +1,141 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smpp-gateway
+  namespace: messaging
+  labels:
+    app: smpp-gateway
+    component: sms-gateway
+    app.kubernetes.io/name: smpp-gateway
+    app.kubernetes.io/part-of: warp-platform
+spec:
+  replicas: 3  # Multi-pod HA with stateless design
+  selector:
+    matchLabels:
+      app: smpp-gateway
+  template:
+    metadata:
+      labels:
+        app: smpp-gateway
+        component: sms-gateway
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - smpp-gateway
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: smpp-gateway
+        image: us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/smpp-gateway:v1.0.1
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: smpp
+          containerPort: 2775
+          protocol: TCP
+        - name: smpp-tls
+          containerPort: 2776
+          protocol: TCP
+        - name: api
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        env:
+        # SMPP Server Config
+        - name: SMPP_HOST
+          value: "0.0.0.0"
+        - name: SMPP_PORT
+          value: "2775"
+        - name: SMPP_TLS_PORT
+          value: "2776"
+
+        # PostgreSQL Config
+        - name: POSTGRES_HOST
+          value: "10.126.0.3"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_USER
+          value: "warp"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: password
+        - name: POSTGRES_DB
+          value: "warp"
+        - name: POSTGRES_SSL_MODE
+          value: "disable"
+
+        # Redis Config
+        - name: REDIS_HOST
+          value: "redis-service.messaging.svc.cluster.local"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: REDIS_DB
+          value: "0"
+
+        # RabbitMQ Config (future use)
+        - name: RABBITMQ_HOST
+          value: "rabbitmq-service.messaging.svc.cluster.local"
+        - name: RABBITMQ_PORT
+          value: "5672"
+        - name: RABBITMQ_USER
+          value: "smpp"
+        - name: RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-credentials
+              key: password
+        - name: RABBITMQ_VHOST
+          value: "/smpp"
+
+        # Service Config
+        - name: API_PORT
+          value: "8080"
+        - name: METRICS_PORT
+          value: "9090"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: ENVIRONMENT
+          value: "production"
+
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 10"]  # Allow time for connections to drain

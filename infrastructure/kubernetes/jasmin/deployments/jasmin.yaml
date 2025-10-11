@@ -9,7 +9,7 @@ metadata:
     app.kubernetes.io/name: jasmin
     app.kubernetes.io/part-of: warp-platform
 spec:
-  replicas: 2
+  replicas: 2  # ✅ Multi-pod HA with NFS ReadWriteMany storage
   selector:
     matchLabels:
       app: jasmin
@@ -138,9 +138,12 @@ spec:
           # Wait for Jasmin to start
           sleep 35
 
-          # Note: Vendor sync from PostgreSQL will be added in future update
-          # For now, vendors created via API remain in Jasmin memory until pod restart
-          # TODO: Implement PostgreSQL -> jCli sync on startup
+          # Vendor Persistence Architecture:
+          # - PostgreSQL = Source of truth for vendor business data
+          # - PersistentVolume (/etc/jasmin/store/) = Runtime persistence layer
+          # - API creates vendor → calls jCli with 'persist' → saves to PV
+          # - Jasmin auto-loads from /etc/jasmin/store/jcli-prod.smppccm on startup
+          # - Result: Vendors survive pod restarts without PostgreSQL→Jasmin sync
 
           # Initialize Jasmin configuration
           /config/init-jasmin.sh

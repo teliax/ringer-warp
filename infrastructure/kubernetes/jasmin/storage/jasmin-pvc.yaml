@@ -5,13 +5,23 @@ metadata:
   namespace: messaging
 spec:
   accessModes:
-    - ReadWriteOnce  # Single pod writes, but shared via replicas with same PVC
-  storageClassName: standard-rwo
+    - ReadWriteMany  # ✅ Multiple pods can mount simultaneously
+  storageClassName: jasmin-nfs
   resources:
     requests:
-      storage: 1Gi
+      storage: 10Gi
 ---
-# Note: For true multi-pod HA with shared config, would need ReadWriteMany
-# But since jCli updates happen via API (which can target specific pod),
-# ReadWriteOnce is sufficient for now.
-# Future: Use ReadWriteMany with NFS or similar for true shared storage
+# Multi-Pod HA Architecture:
+#
+# Implementation: Multiple pods with NFS shared storage
+# - ✅ ReadWriteMany PVC backed by NFS server (10.0.0.10)
+# - ✅ All pods share /etc/jasmin/store/ for connector configs
+# - ✅ Redis (db 1) provides runtime state (DLRs, sessions)
+# - ✅ RabbitMQ provides message bus
+# - ✅ Each pod maintains independent SMPP binds to Sinch
+# - ✅ Cost: ~$15/month (e2-small VM + 10GB disk)
+#
+# NFS Server Details:
+# - Host: 10.0.0.10 (warp-nfs-server)
+# - Export: /exports/jasmin
+# - Access: ReadWriteMany with NFSv4.1
