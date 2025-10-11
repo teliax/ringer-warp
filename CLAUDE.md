@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 🔧 Testing Sinch SMPP connector persistence
 
 **GCP Project**: `ringer-warp-v01`
-**Primary Cluster**: `warp-kamailio-cluster` (GKE Autopilot, us-central1)
+**Primary Cluster**: `warp-cluster` (GKE Autopilot, us-central1)
 **Primary Namespace**: `warp-core` (Kamailio), `messaging` (Jasmin, Redis, RabbitMQ)
 
 ## Essential Commands
@@ -29,7 +29,7 @@ export GCP_PROJECT_ID=ringer-warp-v01
 gcloud config set project $GCP_PROJECT_ID
 
 # Configure kubectl for main cluster
-gcloud container clusters get-credentials warp-kamailio-cluster --zone us-central1
+gcloud container clusters get-credentials warp-cluster --region us-central1
 
 # View all services
 kubectl get services --all-namespaces
