@@ -42,8 +42,8 @@ func (h *GatekeeperHandler) CheckAccess(c *gin.Context) {
 		return
 	}
 
-	userIDUUID := c.Get("user_id_uuid").(uuid.UUID)
-	userTypeIDUUID := c.Get("user_type_id_uuid").(uuid.UUID)
+	userIDUUID := c.MustGet("user_id_uuid").(uuid.UUID)
+	userTypeIDUUID := c.MustGet("user_type_id_uuid").(uuid.UUID)
 
 	result, err := h.gatekeeper.CheckAccess(
 		c.Request.Context(),
@@ -80,8 +80,8 @@ func (h *GatekeeperHandler) CheckAccess(c *gin.Context) {
 // @Security BearerAuth
 // @Router /gatekeeper/my-permissions [get]
 func (h *GatekeeperHandler) GetMyPermissions(c *gin.Context) {
-	userIDUUID := c.Get("user_id_uuid").(uuid.UUID)
-	userTypeIDUUID := c.Get("user_type_id_uuid").(uuid.UUID)
+	userIDUUID := c.MustGet("user_id_uuid").(uuid.UUID)
+	userTypeIDUUID := c.MustGet("user_type_id_uuid").(uuid.UUID)
 	email := c.GetString("email")
 
 	// Get complete permission info
@@ -131,8 +131,8 @@ func (h *GatekeeperHandler) CheckAccessBatch(c *gin.Context) {
 		return
 	}
 
-	userIDUUID := c.Get("user_id_uuid").(uuid.UUID)
-	userTypeIDUUID := c.Get("user_type_id_uuid").(uuid.UUID)
+	userIDUUID := c.MustGet("user_id_uuid").(uuid.UUID)
+	userTypeIDUUID := c.MustGet("user_type_id_uuid").(uuid.UUID)
 
 	results, err := h.gatekeeper.CheckAccessBatch(
 		c.Request.Context(),
@@ -160,7 +160,7 @@ func (h *GatekeeperHandler) CheckAccessBatch(c *gin.Context) {
 // @Security BearerAuth
 // @Router /gatekeeper/available-permissions [get]
 func (h *GatekeeperHandler) GetAvailablePermissions(c *gin.Context) {
-	metadata, err := h.gatekeeper.permRepo.GetAllPermissionMetadata(c.Request.Context())
+	metadata, err := h.gatekeeper.PermRepo.GetAllPermissionMetadata(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.NewErrorResponse("FAILED", err.Error()))
 		return

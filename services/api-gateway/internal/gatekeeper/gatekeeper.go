@@ -10,14 +10,14 @@ import (
 
 // Gatekeeper handles permission checking and access control
 type Gatekeeper struct {
-	permRepo *PermissionRepository
+	PermRepo *PermissionRepository // Exported for access in handlers
 	logger   *log.Logger
 }
 
 // NewGatekeeper creates a new gatekeeper service
 func NewGatekeeper(permRepo *PermissionRepository, logger *log.Logger) *Gatekeeper {
 	return &Gatekeeper{
-		permRepo: permRepo,
+		PermRepo: permRepo,
 		logger:   logger,
 	}
 }
@@ -39,13 +39,13 @@ func (g *Gatekeeper) CheckAccess(
 	resourcePath string,
 ) (*AccessCheckResult, error) {
 	// Get user type name for logging/response
-	userTypeName, err := g.permRepo.GetUserTypeName(ctx, userTypeID)
+	userTypeName, err := g.PermRepo.GetUserTypeName(ctx, userTypeID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user type: %w", err)
 	}
 
 	// Check for wildcard permission first (SuperAdmin)
-	hasWildcard, err := g.permRepo.CheckHasWildcardPermission(ctx, userTypeID)
+	hasWildcard, err := g.PermRepo.CheckHasWildcardPermission(ctx, userTypeID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check wildcard: %w", err)
 	}
@@ -67,7 +67,7 @@ func (g *Gatekeeper) CheckAccess(
 	}
 
 	// Get user type permissions
-	permissions, err := g.permRepo.GetUserTypePermissions(ctx, userTypeID)
+	permissions, err := g.PermRepo.GetUserTypePermissions(ctx, userTypeID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get permissions: %w", err)
 	}
@@ -98,7 +98,7 @@ func (g *Gatekeeper) CheckAccess(
 	}
 
 	// Get accessible customers for data filtering
-	customerIDs, err := g.permRepo.GetUserAccessibleCustomers(ctx, userID, userTypeID)
+	customerIDs, err := g.PermRepo.GetUserAccessibleCustomers(ctx, userID, userTypeID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get customer access: %w", err)
 	}
@@ -128,7 +128,7 @@ func (g *Gatekeeper) CheckAccessBatch(
 	resourcePaths []string,
 ) (map[string]bool, error) {
 	// Get permissions once
-	permissions, err := g.permRepo.GetUserTypePermissions(ctx, userTypeID)
+	permissions, err := g.PermRepo.GetUserTypePermissions(ctx, userTypeID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get permissions: %w", err)
 	}
@@ -161,13 +161,13 @@ func (g *Gatekeeper) CheckAccessBatch(
 // GetUserPermissions returns complete permission information for a user
 func (g *Gatekeeper) GetUserPermissions(ctx context.Context, userID uuid.UUID, userTypeID uuid.UUID) (*UserPermissionInfo, error) {
 	// Get user type name
-	userTypeName, err := g.permRepo.GetUserTypeName(ctx, userTypeID)
+	userTypeName, err := g.PermRepo.GetUserTypeName(ctx, userTypeID)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get permissions
-	permissions, err := g.permRepo.GetUserTypePermissions(ctx, userTypeID)
+	permissions, err := g.PermRepo.GetUserTypePermissions(ctx, userTypeID)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +178,7 @@ func (g *Gatekeeper) GetUserPermissions(ctx context.Context, userID uuid.UUID, u
 	// Get customer access (unless wildcard)
 	var customerIDs []uuid.UUID
 	if !hasWildcard {
-		customerIDs, err = g.permRepo.GetUserAccessibleCustomers(ctx, userID, userTypeID)
+		customerIDs, err = g.PermRepo.GetUserAccessibleCustomers(ctx, userID, userTypeID)
 		if err != nil {
 			return nil, err
 		}

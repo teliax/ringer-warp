@@ -77,7 +77,7 @@ func (r *UserRepository) GetByID(ctx context.Context, userID uuid.UUID) (*models
 
 	err := r.db.QueryRow(ctx, query, userID).Scan(
 		&user.ID,
-		&user.FirebaseUID,
+		&user.GoogleID,
 		&user.Email,
 		&user.DisplayName,
 		&user.PhotoURL,
