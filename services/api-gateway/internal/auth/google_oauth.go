@@ -13,7 +13,7 @@ import (
 type GoogleTokenInfo struct {
 	Sub           string `json:"sub"`            // Google user ID (unique identifier)
 	Email         string `json:"email"`          // User email
-	EmailVerified bool   `json:"email_verified"` // Email verification status
+	EmailVerified string `json:"email_verified"` // Email verification status (Google returns as string "true"/"false")
 	Name          string `json:"name"`           // Display name
 	Picture       string `json:"picture"`        // Profile photo URL
 	Aud           string `json:"aud"`            // Audience (your client ID)
