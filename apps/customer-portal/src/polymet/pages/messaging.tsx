@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -43,42 +43,105 @@ import {
   CheckCircleIcon,
   SettingsIcon,
 } from "lucide-react";
-import {
-  mockA2PBrands,
-  mockA2PCampaigns,
-  mockMessagingNumbers,
-  mockDidNumbers,
-  type A2PBrand,
-  type A2PCampaign,
-} from "@/polymet/data/telecom-mock-data";
-// Form components will be imported when needed
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useBrands } from "@/hooks/useBrands";
+import { useCampaigns } from "@/hooks/useCampaigns";
+import { useMessagingEnums } from "@/hooks/useMessagingEnums";
+import type {
+  Brand10DLC,
+  Campaign10DLC,
+  UseCaseInfo,
+  EntityTypeInfo,
+  VerticalInfo,
+  BrandStatus,
+  CampaignStatus,
+  CreateBrandRequest,
+  CreateCampaignRequest,
+} from "@/types/messaging";
+import { BrandRegistrationForm } from "@/components/forms/BrandRegistrationForm";
+import { CampaignRegistrationForm } from "@/components/forms/CampaignRegistrationForm";
+import { toast } from "sonner";
 
 export function Messaging() {
+  // Dialog state
   const [selectedTab, setSelectedTab] = useState("overview");
   const [brandDialogOpen, setBrandDialogOpen] = useState(false);
   const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
   const [numberAssignDialogOpen, setNumberAssignDialogOpen] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState("");
 
-  const getStatusBadge = (
-    status: A2PBrand["status"] | A2PCampaign["status"]
-  ) => {
-    const variants = {
-      APPROVED: "default",
-      PENDING: "secondary",
-      REJECTED: "destructive",
-      SUSPENDED: "outline",
-    } as const;
+  // Data state
+  const [brands, setBrands] = useState<Brand10DLC[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign10DLC[]>([]);
+  const [useCases, setUseCases] = useState<UseCaseInfo[]>([]);
+  const [entityTypes, setEntityTypes] = useState<EntityTypeInfo[]>([]);
+  const [verticals, setVerticals] = useState<VerticalInfo[]>([]);
 
-    const colors = {
-      APPROVED: "bg-green-100 text-green-800",
+  // Hooks
+  const brandsHook = useBrands();
+  const campaignsHook = useCampaigns();
+  const enumsHook = useMessagingEnums();
+
+  // Loading state flag
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  // Load data on mount
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setIsInitialLoad(true);
+    try {
+      const [brandsData, campaignsData, useCasesData, entityTypesData, verticalsData] = await Promise.all([
+        brandsHook.listBrands().catch(err => { console.error('Brands error:', err); return []; }),
+        campaignsHook.listCampaigns().catch(err => { console.error('Campaigns error:', err); return []; }),
+        enumsHook.getUseCases().catch(err => { console.error('Use cases error:', err); return []; }),
+        enumsHook.getEntityTypes().catch(err => { console.error('Entity types error:', err); return []; }),
+        enumsHook.getVerticals().catch(err => { console.error('Verticals error:', err); return []; }),
+      ]);
+      setBrands(brandsData);
+      setCampaigns(campaignsData);
+      setUseCases(useCasesData);
+      setEntityTypes(entityTypesData);
+      setVerticals(verticalsData);
+    } catch (error) {
+      console.error('Failed to load messaging data:', error);
+    } finally {
+      setIsInitialLoad(false);
+    }
+  };
+
+  const getStatusBadge = (status: BrandStatus | CampaignStatus) => {
+    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+      VERIFIED: "default",
+      VETTED_VERIFIED: "default",
+      ACTIVE: "default",
+      REGISTERED: "default",
+      PENDING: "secondary",
+      UNVERIFIED: "secondary",
+      REJECTED: "destructive",
+      FAILED: "destructive",
+      SUSPENDED: "outline",
+      EXPIRED: "outline",
+    };
+
+    const colors: Record<string, string> = {
+      VERIFIED: "bg-green-100 text-green-800",
+      VETTED_VERIFIED: "bg-green-100 text-green-800",
+      ACTIVE: "bg-green-100 text-green-800",
+      REGISTERED: "bg-green-100 text-green-800",
       PENDING: "bg-yellow-100 text-yellow-800",
+      UNVERIFIED: "bg-yellow-100 text-yellow-800",
       REJECTED: "bg-red-100 text-red-800",
+      FAILED: "bg-red-100 text-red-800",
       SUSPENDED: "bg-gray-100 text-gray-800",
+      EXPIRED: "bg-gray-100 text-gray-800",
     };
 
     return (
-      <Badge variant={variants[status]} className={colors[status]}>
+      <Badge variant={variants[status] || "secondary"} className={colors[status] || "bg-gray-100 text-gray-800"}>
         {status}
       </Badge>
     );
@@ -88,37 +151,103 @@ export function Messaging() {
     return new Date(dateString).toLocaleDateString();
   };
 
-  const approvedBrands = mockA2PBrands.filter(
-    (brand) => brand.status === "APPROVED"
+  // Calculate stats from real data
+  const activeBrands = brands.filter(
+    (brand) => brand.status === "VERIFIED" || brand.status === "VETTED_VERIFIED" || brand.status === "ACTIVE" || brand.status === "REGISTERED"
   );
-  const approvedCampaigns = mockA2PCampaigns.filter(
-    (campaign) => campaign.status === "APPROVED"
-  );
-  const availableNumbers = mockDidNumbers.filter(
-    (number) =>
-      number.messagingEnabled &&
-      !mockMessagingNumbers.some(
-        (msgNum) => msgNum.phoneNumber === number.phoneNumber
-      )
-  );
+  const pendingBrands = brands.filter((brand) => brand.status === "PENDING" || brand.status === "UNVERIFIED");
 
-  const totalMessagesSent = mockA2PCampaigns.reduce(
-    (sum, campaign) => sum + campaign.messagesSent,
-    0
-  );
-  const totalMessagesDelivered = mockA2PCampaigns.reduce(
-    (sum, campaign) => sum + campaign.messagesDelivered,
-    0
-  );
-  const deliveryRate =
-    totalMessagesSent > 0
-      ? Math.round((totalMessagesDelivered / totalMessagesSent) * 100)
-      : 0;
+  const activeCampaigns = campaigns.filter((campaign) => campaign.status === "ACTIVE");
+  const pendingCampaigns = campaigns.filter((campaign) => campaign.status === "PENDING");
+
+  // TODO: Messages sent/delivered will come from MDR data when integrated
+  const totalMessagesSent = 0; // Placeholder until MDR integration
+  const totalMessagesDelivered = 0; // Placeholder until MDR integration
+  const deliveryRate = 0; // Placeholder until MDR integration
+
+  // TODO: Available numbers will come from DID inventory
+  const assignedNumbersCount = 0; // Placeholder until phone number integration
+  const availableNumbersCount = 0; // Placeholder until phone number integration
+
+  // Form submission handlers
+  const handleBrandSubmit = async (data: CreateBrandRequest) => {
+    try {
+      await brandsHook.createBrand(data);
+      toast.success("Brand submitted for registration! TCR will process within 5 minutes.");
+      await loadData(); // Refresh data
+      setBrandDialogOpen(false);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to create brand");
+      throw error; // Re-throw so form can handle it
+    }
+  };
+
+  const handleCampaignSubmit = async (data: CreateCampaignRequest) => {
+    try {
+      await campaignsHook.createCampaign(data);
+      toast.success("Campaign submitted for registration! Carrier approval typically takes 1-7 days.");
+      await loadData(); // Refresh data
+      setCampaignDialogOpen(false);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to create campaign");
+      throw error; // Re-throw so form can handle it
+    }
+  };
 
   const handleNumberAssignment = () => {
     // Handle number assignment logic
     setNumberAssignDialogOpen(false);
   };
+
+  // Loading state (only show on initial load)
+  if (isInitialLoad) {
+    return (
+      <div className="p-6 space-y-6">
+        {/* Header Skeleton */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-96" />
+          </div>
+          <div className="flex space-x-2">
+            <Skeleton className="h-10 w-36" />
+            <Skeleton className="h-10 w-36" />
+          </div>
+        </div>
+
+        {/* Stats Cards Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-4 rounded" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-16 mb-2" />
+                <Skeleton className="h-3 w-32" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Table Skeleton */}
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-64 mt-2" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Skeleton key={i} className="h-16 w-full" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -146,21 +275,12 @@ export function Messaging() {
                 </DialogDescription>
               </DialogHeader>
               <div className="p-6">
-                <p className="text-muted-foreground mb-4">
-                  Brand registration form would appear here with fields for:
-                </p>
-                <ul className="space-y-2 text-sm">
-                  <li>• Brand name and entity type</li>
-                  <li>• Industry vertical and website</li>
-                  <li>• Business address information</li>
-                  <li>• Primary contact details</li>
-                  <li>• EIN/Tax ID and compliance info</li>
-                </ul>
-                <div className="mt-6">
-                  <Button onClick={() => setBrandDialogOpen(false)}>
-                    Submit Brand Registration
-                  </Button>
-                </div>
+                <BrandRegistrationForm
+                  entityTypes={entityTypes}
+                  verticals={verticals}
+                  onSubmit={handleBrandSubmit}
+                  onCancel={() => setBrandDialogOpen(false)}
+                />
               </div>
             </DialogContent>
           </Dialog>
@@ -183,21 +303,12 @@ export function Messaging() {
                 </DialogDescription>
               </DialogHeader>
               <div className="p-6">
-                <p className="text-muted-foreground mb-4">
-                  Campaign registration form would appear here with fields for:
-                </p>
-                <ul className="space-y-2 text-sm">
-                  <li>• Brand selection from approved brands</li>
-                  <li>• Campaign name and description</li>
-                  <li>• Use case type (Marketing, Mixed, etc.)</li>
-                  <li>• Message flow and opt-in/out keywords</li>
-                  <li>• Volume estimates and compliance details</li>
-                </ul>
-                <div className="mt-6">
-                  <Button onClick={() => setCampaignDialogOpen(false)}>
-                    Submit Campaign Registration
-                  </Button>
-                </div>
+                <CampaignRegistrationForm
+                  brands={activeBrands}
+                  useCases={useCases}
+                  onSubmit={handleCampaignSubmit}
+                  onCancel={() => setCampaignDialogOpen(false)}
+                />
               </div>
             </DialogContent>
           </Dialog>
@@ -212,10 +323,9 @@ export function Messaging() {
             <Building2Icon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{approvedBrands.length}</div>
+            <div className="text-2xl font-bold">{activeBrands.length}</div>
             <p className="text-xs text-muted-foreground">
-              {mockA2PBrands.filter((b) => b.status === "PENDING").length}{" "}
-              pending approval
+              {pendingBrands.length} pending approval
             </p>
           </CardContent>
         </Card>
@@ -228,10 +338,9 @@ export function Messaging() {
             <MessageSquareIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{approvedCampaigns.length}</div>
+            <div className="text-2xl font-bold">{activeCampaigns.length}</div>
             <p className="text-xs text-muted-foreground">
-              {mockA2PCampaigns.filter((c) => c.status === "PENDING").length}{" "}
-              pending approval
+              {pendingCampaigns.length} pending approval
             </p>
           </CardContent>
         </Card>
@@ -260,10 +369,10 @@ export function Messaging() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {mockMessagingNumbers.filter((n) => n.status === "ACTIVE").length}
+              {assignedNumbersCount}
             </div>
             <p className="text-xs text-muted-foreground">
-              {availableNumbers.length} available for assignment
+              {availableNumbersCount} available for assignment
             </p>
           </CardContent>
         </Card>
@@ -399,43 +508,51 @@ export function Messaging() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockA2PBrands.map((brand) => (
-                      <TableRow key={brand.id}>
-                        <TableCell className="font-medium">
-                          {brand.name}
-                        </TableCell>
-                        <TableCell>
-                          {brand.entityType.replace("_", " ")}
-                        </TableCell>
-                        <TableCell>{brand.vertical}</TableCell>
-                        <TableCell>{getStatusBadge(brand.status)}</TableCell>
-                        <TableCell>
-                          {formatDate(brand.registrationDate)}
-                        </TableCell>
-                        <TableCell>
-                          {brand.trustScore ? (
-                            <div className="flex items-center space-x-2">
-                              <span className="text-sm font-medium">
-                                {brand.trustScore}
-                              </span>
-                              <Progress
-                                value={brand.trustScore}
-                                className="w-16 h-2"
-                              />
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">
-                              Pending
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="ghost" size="sm">
-                            <SettingsIcon className="w-4 h-4" />
-                          </Button>
+                    {brands.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                          No brands registered yet. Click "Register Brand" to get started.
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      brands.map((brand) => (
+                        <TableRow key={brand.id}>
+                          <TableCell className="font-medium">
+                            {brand.display_name}
+                          </TableCell>
+                          <TableCell>
+                            {brand.entity_type?.replace(/_/g, " ")}
+                          </TableCell>
+                          <TableCell>{brand.vertical || "N/A"}</TableCell>
+                          <TableCell>{getStatusBadge(brand.status as BrandStatus || "PENDING")}</TableCell>
+                          <TableCell>
+                            {formatDate(brand.created_at)}
+                          </TableCell>
+                          <TableCell>
+                            {brand.trust_score ? (
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm font-medium">
+                                  {brand.trust_score}
+                                </span>
+                                <Progress
+                                  value={brand.trust_score}
+                                  className="w-16 h-2"
+                                />
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">
+                                Pending
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="sm">
+                              <SettingsIcon className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -466,100 +583,57 @@ export function Messaging() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockA2PCampaigns.map((campaign) => {
-                      const brand = mockA2PBrands.find(
-                        (b) => b.id === campaign.brandId
-                      );
-                      return (
-                        <TableRow key={campaign.id}>
-                          <TableCell className="font-medium">
-                            {campaign.name}
-                          </TableCell>
-                          <TableCell>{brand?.name}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{campaign.useCase}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            {getStatusBadge(campaign.status)}
-                          </TableCell>
-                          <TableCell>
-                            {campaign.messagesSent.toLocaleString()}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-2">
-                              <span>{campaign.assignedNumbers.length}</span>
-                              {campaign.status === "APPROVED" && (
-                                <Dialog
-                                  open={numberAssignDialogOpen}
-                                  onOpenChange={setNumberAssignDialogOpen}
-                                >
-                                  <DialogTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() =>
-                                        setSelectedCampaign(campaign.id)
-                                      }
-                                    >
-                                      <PlusIcon className="w-3 h-3" />
-                                    </Button>
-                                  </DialogTrigger>
-                                  <DialogContent>
-                                    <DialogHeader>
-                                      <DialogTitle>
-                                        Assign Number to Campaign
-                                      </DialogTitle>
-                                      <DialogDescription>
-                                        Select a number to assign to{" "}
-                                        {campaign.name}
-                                      </DialogDescription>
-                                    </DialogHeader>
-                                    <div className="space-y-4">
-                                      <Select>
-                                        <SelectTrigger>
-                                          <SelectValue placeholder="Select a number" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {availableNumbers.map((number) => (
-                                            <SelectItem
-                                              key={number.id}
-                                              value={number.phoneNumber}
-                                            >
-                                              {number.phoneNumber} -{" "}
-                                              {number.friendlyName || "No name"}
-                                            </SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                      <div className="flex justify-end space-x-2">
-                                        <Button
-                                          variant="outline"
-                                          onClick={() =>
-                                            setNumberAssignDialogOpen(false)
-                                          }
-                                        >
-                                          Cancel
-                                        </Button>
-                                        <Button
-                                          onClick={handleNumberAssignment}
-                                        >
-                                          Assign Number
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  </DialogContent>
-                                </Dialog>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="ghost" size="sm">
-                              <SettingsIcon className="w-4 h-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                    {campaigns.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                          No campaigns created yet. Click "Create Campaign" to get started.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      campaigns.map((campaign) => {
+                        const brand = brands.find((b) => b.id === campaign.brand_id);
+                        return (
+                          <TableRow key={campaign.id}>
+                            <TableCell className="font-medium">
+                              {campaign.description.substring(0, 50)}
+                              {campaign.description.length > 50 ? "..." : ""}
+                            </TableCell>
+                            <TableCell>{brand?.display_name || "Unknown"}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{campaign.use_case}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              {getStatusBadge(campaign.status as CampaignStatus)}
+                            </TableCell>
+                            <TableCell>
+                              {0} {/* TODO: Get from MDR data */}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center space-x-2">
+                                <span>{0}</span> {/* TODO: Get assigned numbers count */}
+                                {campaign.status === "ACTIVE" && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedCampaign(campaign.id);
+                                      setNumberAssignDialogOpen(true);
+                                    }}
+                                  >
+                                    <PlusIcon className="w-3 h-3" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button variant="ghost" size="sm">
+                                <SettingsIcon className="w-4 h-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -591,52 +665,11 @@ export function Messaging() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockMessagingNumbers.map((number) => {
-                      const campaign = mockA2PCampaigns.find(
-                        (c) => c.id === number.campaignId
-                      );
-                      const brand = mockA2PBrands.find(
-                        (b) => b.id === number.brandId
-                      );
-                      return (
-                        <TableRow key={number.id}>
-                          <TableCell className="font-mono">
-                            {number.phoneNumber}
-                          </TableCell>
-                          <TableCell>
-                            {campaign?.name || "Unassigned"}
-                          </TableCell>
-                          <TableCell>{brand?.name || "N/A"}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                number.status === "ACTIVE"
-                                  ? "default"
-                                  : "secondary"
-                              }
-                            >
-                              {number.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {number.messagesSent.toLocaleString()}
-                          </TableCell>
-                          <TableCell>
-                            {number.messagesReceived.toLocaleString()}
-                          </TableCell>
-                          <TableCell>
-                            {number.lastActivity
-                              ? formatDate(number.lastActivity)
-                              : "Never"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="ghost" size="sm">
-                              <SettingsIcon className="w-4 h-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                        Phone number assignments coming soon. This will integrate with your DID inventory.
+                      </TableCell>
+                    </TableRow>
                   </TableBody>
                 </Table>
               </div>

@@ -27,10 +27,11 @@ import {
   AlertTriangleIcon,
   CheckCircleIcon,
   BarChart3Icon,
+  Loader2,
 } from "lucide-react";
 import {
-  mockAdminStats,
   mockCustomerAccounts,
+  mockAdminStats,
   type CustomerAccount,
 } from "@/polymet/data/admin-mock-data";
 import { Link } from "react-router-dom";
@@ -40,9 +41,14 @@ import {
   AdminCustomerGrowthChart,
 } from "@/polymet/components/admin-charts";
 import { AdminCustomerTable } from "@/polymet/components/admin-tables";
+import { useDashboardStats, useCurrentUser } from "@/hooks/useDashboard";
 
 export function Dashboard() {
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // Fetch real dashboard stats from API
+  const { data: stats, isLoading: statsLoading, error: statsError } = useDashboardStats();
+  const { data: currentUser } = useCurrentUser();
 
   const filteredCustomers = mockCustomerAccounts.filter(
     (customer) =>

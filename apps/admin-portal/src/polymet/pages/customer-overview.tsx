@@ -38,9 +38,9 @@ import {
   UsersIcon,
   DollarSignIcon,
   BarChart3Icon,
+  Loader2Icon,
 } from "lucide-react";
 import {
-  mockCustomerAccounts,
   mockAccountingTransactions,
   type CustomerAccount,
 } from "@/polymet/data/admin-mock-data";
@@ -54,6 +54,10 @@ import {
   mockPayments,
 } from "@/polymet/data/billing-mock-data";
 import { Input } from "@/components/ui/input";
+
+// Import API hooks and adapter
+import { useCustomers, useCustomer } from "@/hooks/useCustomers";
+import { apiCustomerToPolymetAccount } from "@/lib/customer-adapter";
 
 // Import the new modular components
 import { CustomerAnalyticsSection } from "@/polymet/components/customer-analytics-section";
@@ -69,13 +73,24 @@ export function CustomerOverview() {
   const [activeTab, setActiveTab] = useState("overview");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCustomer, setSelectedCustomer] =
-    useState<CustomerAccount | null>(null);
+    useState<Customer | null>(null);
   const [showEditForm, setShowEditForm] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // Find customer data - if no customerId provided, show customer search
-  const customer = customerId
-    ? mockCustomerAccounts.find((c) => c.id === customerId)
-    : null;
+  // Fetch customer list (when no customerId)
+  const { data: customersData, isLoading: isLoadingList } = useCustomers(
+    currentPage,
+    20,
+    searchQuery,
+    undefined,
+    { enabled: !customerId }
+  );
+
+  // Fetch individual customer (when customerId provided)
+  const { data: customer, isLoading: isLoadingCustomer, refetch: refetchCustomer } = useCustomer(
+    customerId || "",
+    { enabled: !!customerId }
+  );
 
   useEffect(() => {
     if (customer) {
@@ -85,13 +100,16 @@ export function CustomerOverview() {
 
   // Customer Search Interface
   const CustomerSearchInterface = () => {
-    const filteredCustomers = mockCustomerAccounts.filter(
-      (c) =>
-        c.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.contactName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.accountNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.email.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const customers = customersData?.items || [];
+    const pagination = customersData?.pagination;
+
+    if (isLoadingList) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <Loader2Icon className="w-8 h-8 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
 
     return (
       <div className="p-6 space-y-6">
@@ -111,9 +129,9 @@ export function CustomerOverview() {
               <DownloadIcon className="w-4 h-4 mr-2" />
               Export
             </Button>
-            <Button>
+            <Button onClick={() => navigate("/customers/new")}>
               <PlusIcon className="w-4 h-4 mr-2" />
-              Add Customer
+              New Customer
             </Button>
           </div>
         </div>
@@ -129,11 +147,10 @@ export function CustomerOverview() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {mockCustomerAccounts.length}
+                {pagination?.total || 0}
               </div>
               <p className="text-xs text-muted-foreground">
-                <TrendingUpIcon className="inline w-3 h-3 mr-1" />
-                +12% from last month
+                Across all tiers
               </p>
             </CardContent>
           </Card>
@@ -147,32 +164,32 @@ export function CustomerOverview() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {
-                  mockCustomerAccounts.filter((c) => c.status === "active")
-                    .length
-                }
+                {customers.filter((c) => c.status === "ACTIVE").length}
               </div>
-              <p className="text-xs text-muted-foreground">89% active rate</p>
+              <p className="text-xs text-muted-foreground">
+                {pagination?.total ?
+                  Math.round((customers.filter((c) => c.status === "ACTIVE").length / pagination.total) * 100)
+                  : 0}% active rate
+              </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Monthly Revenue
+                Total Balance
               </CardTitle>
               <DollarSignIcon className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
                 $
-                {mockCustomerAccounts
-                  .reduce((sum, c) => sum + c.monthlySpend, 0)
-                  .toLocaleString()}
+                {customers
+                  .reduce((sum, c) => sum + c.current_balance, 0)
+                  .toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
               </div>
               <p className="text-xs text-muted-foreground">
-                <TrendingUpIcon className="inline w-3 h-3 mr-1" />
-                +8% from last month
+                Current balance
               </p>
             </CardContent>
           </Card>
@@ -187,15 +204,15 @@ export function CustomerOverview() {
             <CardContent>
               <div className="text-2xl font-bold">
                 $
-                {Math.round(
-                  mockCustomerAccounts.reduce(
-                    (sum, c) => sum + c.monthlySpend,
+                {customers.length > 0 ? Math.round(
+                  customers.reduce(
+                    (sum, c) => sum + c.current_balance,
                     0
-                  ) / mockCustomerAccounts.length
-                ).toLocaleString()}
+                  ) / customers.length
+                ).toLocaleString() : 0}
               </div>
               <p className="text-xs text-muted-foreground">
-                Per customer/month
+                Per customer
               </p>
             </CardContent>
           </Card>
@@ -229,73 +246,63 @@ export function CustomerOverview() {
                   <TableRow>
                     <TableHead>Company</TableHead>
                     <TableHead>Contact</TableHead>
-                    <TableHead>Account #</TableHead>
+                    <TableHead>BAN</TableHead>
+                    <TableHead>Type</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Monthly Spend</TableHead>
-                    <TableHead>Products</TableHead>
+                    <TableHead>Balance</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredCustomers.map((customer) => (
+                  {customers.map((cust) => (
                     <TableRow
-                      key={customer.id}
+                      key={cust.id}
                       className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => navigate(`/customer/${customer.id}`)}
+                      onClick={() => navigate(`/customer/${cust.id}`)}
                     >
                       <TableCell>
                         <div>
                           <div className="font-medium">
-                            {customer.companyName}
+                            {cust.company_name}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {customer.email}
+                            {cust.contact?.email || "-"}
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div>
                           <div className="font-medium">
-                            {customer.contactName}
+                            {cust.contact?.name || "-"}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {customer.phone}
+                            {cust.contact?.phone || "-"}
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="font-mono">
-                        {customer.accountNumber}
+                      <TableCell className="font-mono text-sm">
+                        {cust.ban}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="capitalize">
+                          {cust.customer_type.toLowerCase()}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <Badge
                           variant={
-                            customer.status === "active"
+                            cust.status === "ACTIVE"
                               ? "default"
-                              : customer.status === "suspended"
+                              : cust.status === "SUSPENDED"
                                 ? "destructive"
                                 : "secondary"
                           }
                         >
-                          {customer.status}
+                          {cust.status}
                         </Badge>
                       </TableCell>
                       <TableCell className="font-mono">
-                        ${customer.monthlySpend.toFixed(2)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          <Badge variant="outline" className="text-xs">
-                            {customer.products.trunks} Trunks
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            {customer.products.numbers} Numbers
-                          </Badge>
-                          {customer.products.messaging && (
-                            <Badge variant="outline" className="text-xs">
-                              SMS
-                            </Badge>
-                          )}
-                        </div>
+                        ${cust.current_balance.toFixed(2)}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
@@ -303,7 +310,7 @@ export function CustomerOverview() {
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate(`/customer/${customer.id}`);
+                            navigate(`/customer/${cust.id}`);
                           }}
                         >
                           <EditIcon className="w-4 h-4" />
@@ -320,26 +327,38 @@ export function CustomerOverview() {
     );
   };
 
+  // Show loading for individual customer
+  if (customerId && isLoadingCustomer) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2Icon className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   if (!customer) {
     return <CustomerSearchInterface />;
   }
 
-  const getStatusBadge = (status: CustomerAccount["status"]) => {
+  const getStatusBadge = (status: string) => {
+    const statusLower = status.toLowerCase();
     const variants = {
       active: "default",
       suspended: "destructive",
       inactive: "secondary",
+      trial: "secondary",
+      closed: "secondary",
     } as const;
 
-    return <Badge variant={variants[status]}>{status}</Badge>;
+    return <Badge variant={variants[statusLower as keyof typeof variants] || "secondary"}>{status}</Badge>;
   };
 
-  // Mock data filtered for this customer
-  const customerTrunks = mockSipTrunks.slice(0, customer.products.trunks);
-  const customerNumbers = mockDidNumbers.slice(0, customer.products.numbers);
-  const customerCalls = mockCallRecords.slice(0, 20);
-  const customerBilling = mockBillingStatements.slice(0, 3);
-  const customerPayments = mockPayments.slice(0, 5);
+  // Mock data for sections not yet implemented via API
+  const customerTrunks = mockSipTrunks.slice(0, 2); // TODO: Replace with API
+  const customerNumbers = mockDidNumbers.slice(0, 5); // TODO: Replace with API
+  const customerCalls = mockCallRecords.slice(0, 20); // TODO: Replace with API
+  const customerBilling = mockBillingStatements.slice(0, 3); // TODO: Replace with API
+  const customerPayments = mockPayments.slice(0, 5); // TODO: Replace with API
   const customerTransactions = mockAccountingTransactions.filter(
     (t) => t.customerId === customer.id
   );
@@ -349,16 +368,16 @@ export function CustomerOverview() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <Link to="/">
+          <Link to="/customers">
             <Button variant="ghost" size="sm">
               <ArrowLeftIcon className="w-4 h-4 mr-2" />
-              Back to Dashboard
+              Back to Customers
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold">{customer.companyName}</h1>
+            <h1 className="text-3xl font-bold">{customer.company_name}</h1>
             <p className="text-muted-foreground">
-              Customer Account: {customer.accountNumber}
+              BAN: {customer.ban}
             </p>
           </div>
         </div>
@@ -379,15 +398,15 @@ export function CustomerOverview() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Monthly Spend</CardTitle>
+            <CardTitle className="text-sm font-medium">Current Balance</CardTitle>
             <CreditCardIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${customer.monthlySpend.toFixed(2)}
+              ${customer.current_balance.toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground">
-              Balance: ${customer.currentBalance.toFixed(2)}
+              Prepaid: ${customer.prepaid_balance.toFixed(2)}
             </p>
           </CardContent>
         </Card>
@@ -399,10 +418,10 @@ export function CustomerOverview() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${customer.creditLimit.toLocaleString()}
+              ${customer.credit_limit?.toLocaleString() || "N/A"}
             </div>
             <p className="text-xs text-muted-foreground">
-              Warning: ${customer.warningThreshold.toLocaleString()}
+              Payment Terms: NET{customer.payment_terms}
             </p>
           </CardContent>
         </Card>
@@ -413,8 +432,8 @@ export function CustomerOverview() {
             <PhoneIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{customer.products.trunks}</div>
-            <p className="text-xs text-muted-foreground">Active trunks</p>
+            <div className="text-2xl font-bold">0</div>
+            <p className="text-xs text-muted-foreground">Coming soon</p>
           </CardContent>
         </Card>
 
@@ -425,9 +444,9 @@ export function CustomerOverview() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {customer.products.numbers}
+              0
             </div>
-            <p className="text-xs text-muted-foreground">DID numbers</p>
+            <p className="text-xs text-muted-foreground">Coming soon</p>
           </CardContent>
         </Card>
       </div>
@@ -451,7 +470,10 @@ export function CustomerOverview() {
         </TabsList>
 
         <TabsContent value="analytics" className="space-y-6">
-          <CustomerAnalyticsSection customer={customer} />
+          <div className="p-8 text-center text-muted-foreground">
+            <BarChart3Icon className="w-16 h-16 mx-auto mb-4 opacity-50" />
+            <p>Analytics section coming soon - will show usage metrics, trends, and reports</p>
+          </div>
         </TabsContent>
 
         <TabsContent value="overview" className="space-y-6">
@@ -469,27 +491,27 @@ export function CustomerOverview() {
                   <MailIcon className="w-4 h-4 text-muted-foreground" />
 
                   <div>
-                    <p className="font-medium">{customer.contactName}</p>
+                    <p className="font-medium">{customer.contact?.name || "N/A"}</p>
                     <p className="text-sm text-muted-foreground">
-                      {customer.email}
+                      {customer.contact?.email || "N/A"}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
                   <PhoneIcon className="w-4 h-4 text-muted-foreground" />
 
-                  <p>{customer.phone}</p>
+                  <p>{customer.contact?.phone || "N/A"}</p>
                 </div>
                 <div className="flex items-start space-x-3">
                   <MapPinIcon className="w-4 h-4 text-muted-foreground mt-1" />
 
                   <div>
-                    <p>{customer.address.street}</p>
+                    <p>{customer.address?.line1 || "N/A"}</p>
                     <p>
-                      {customer.address.city}, {customer.address.state}{" "}
-                      {customer.address.zip}
+                      {customer.address?.city}, {customer.address?.state}{" "}
+                      {customer.address?.zip}
                     </p>
-                    <p>{customer.address.country}</p>
+                    <p>{customer.address?.country}</p>
                   </div>
                 </div>
               </CardContent>
@@ -502,15 +524,21 @@ export function CustomerOverview() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex justify-between">
+                  <span className="text-muted-foreground">Customer Type:</span>
+                  <Badge variant="outline" className="capitalize">
+                    {customer.customer_type.toLowerCase()}
+                  </Badge>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-muted-foreground">Created Date:</span>
                   <span>
-                    {new Date(customer.createdDate).toLocaleDateString()}
+                    {new Date(customer.created_at).toLocaleDateString()}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Last Activity:</span>
+                  <span className="text-muted-foreground">Last Updated:</span>
                   <span>
-                    {new Date(customer.lastActivity).toLocaleString()}
+                    {new Date(customer.updated_at).toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -518,16 +546,25 @@ export function CustomerOverview() {
                   {getStatusBadge(customer.status)}
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Products:</span>
+                  <span className="text-muted-foreground">Billing Cycle:</span>
+                  <span className="capitalize">{customer.billing_cycle.toLowerCase()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Enabled Services:</span>
                   <div className="flex flex-wrap gap-1">
-                    {customer.products.messaging && (
+                    {customer.services?.voice?.enabled && (
+                      <Badge variant="outline" className="text-xs">
+                        Voice
+                      </Badge>
+                    )}
+                    {customer.services?.messaging?.enabled && (
                       <Badge variant="outline" className="text-xs">
                         Messaging
                       </Badge>
                     )}
-                    {customer.products.telecomData && (
+                    {customer.services?.telecom_data?.enabled && (
                       <Badge variant="outline" className="text-xs">
-                        Telco Data
+                        Data
                       </Badge>
                     )}
                   </div>
@@ -616,7 +653,18 @@ export function CustomerOverview() {
         </TabsContent>
 
         <TabsContent value="trunks">
-          <CustomerTrunkSection customer={customer} />
+          <Card>
+            <CardHeader>
+              <CardTitle>SIP Trunks</CardTitle>
+              <CardDescription>Customer trunk configurations (coming soon)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8 text-muted-foreground">
+                <PhoneIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>Trunk management will be available soon</p>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="numbers">
@@ -704,7 +752,7 @@ export function CustomerOverview() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {customer.products.messaging ? (
+              {customer.services?.messaging?.enabled ? (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
@@ -752,7 +800,39 @@ export function CustomerOverview() {
         </TabsContent>
 
         <TabsContent value="billing">
-          <CustomerBillingSection customer={customer} />
+          <Card>
+            <CardHeader>
+              <CardTitle>Billing Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 border rounded-lg">
+                    <label className="text-sm text-muted-foreground">Current Balance</label>
+                    <p className="text-2xl font-bold">${customer.current_balance.toFixed(2)}</p>
+                  </div>
+                  <div className="p-4 border rounded-lg">
+                    <label className="text-sm text-muted-foreground">Prepaid Balance</label>
+                    <p className="text-2xl font-bold">${customer.prepaid_balance.toFixed(2)}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 border rounded-lg">
+                    <label className="text-sm text-muted-foreground">Credit Limit</label>
+                    <p className="text-2xl font-bold">${customer.credit_limit?.toLocaleString() || "N/A"}</p>
+                  </div>
+                  <div className="p-4 border rounded-lg">
+                    <label className="text-sm text-muted-foreground">Payment Terms</label>
+                    <p className="text-2xl font-bold">NET{customer.payment_terms}</p>
+                  </div>
+                </div>
+                <div className="p-4 border rounded-lg">
+                  <label className="text-sm text-muted-foreground">Billing Cycle</label>
+                  <p className="text-lg font-semibold capitalize">{customer.billing_cycle.toLowerCase()}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="calls">
@@ -815,25 +895,30 @@ export function CustomerOverview() {
         </TabsContent>
 
         <TabsContent value="crm" className="space-y-6">
-          <CustomerCRMSection customer={customer} />
+          <div className="p-8 text-center text-muted-foreground">
+            <BuildingIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
+            <p>CRM integration section - will show HubSpot sync status and timeline</p>
+          </div>
         </TabsContent>
 
         <TabsContent value="reports">
-          <CustomerReports customer={customer} />
+          <div className="p-8 text-center text-muted-foreground">
+            <DownloadIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
+            <p>Reports section - will generate customer usage and billing reports</p>
+          </div>
         </TabsContent>
       </Tabs>
 
       {/* Edit Form Modal */}
       {showEditForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="my-8">
             <CustomerEditForm
               customer={customer}
               isOpen={showEditForm}
-              onSave={(updatedCustomer) => {
-                console.log("Saving customer:", updatedCustomer);
+              onSave={() => {
                 setShowEditForm(false);
-                // In a real app, you would update the customer data here
+                refetchCustomer();
               }}
               onCancel={() => setShowEditForm(false)}
             />

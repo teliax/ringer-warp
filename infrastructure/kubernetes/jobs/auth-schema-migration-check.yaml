@@ -1,0 +1,61 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: auth-schema-migration-check
+  namespace: warp-api
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: migration-check
+        image: postgres:15-alpine
+        env:
+        - name: DATABASE_HOST
+          value: "10.126.0.3"
+        - name: DATABASE_PORT
+          value: "5432"
+        - name: DATABASE_NAME
+          value: "warp"
+        - name: DATABASE_USER
+          value: "warp_app"
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: api-gateway-secrets
+              key: DATABASE_PASSWORD
+        command:
+        - sh
+        - -c
+        - |
+          echo "🔍 Checking auth schema..."
+          
+          # Check which column exists
+          HAS_GOOGLE_ID=$(PGPASSWORD="$DATABASE_PASSWORD" psql -h "$DATABASE_HOST" -p "$DATABASE_PORT" -U "$DATABASE_USER" -d "$DATABASE_NAME" -t -A -c "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'auth' AND table_name = 'users' AND column_name = 'google_id');")
+          HAS_FIREBASE_UID=$(PGPASSWORD="$DATABASE_PASSWORD" psql -h "$DATABASE_HOST" -p "$DATABASE_PORT" -U "$DATABASE_USER" -d "$DATABASE_NAME" -t -A -c "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'auth' AND table_name = 'users' AND column_name = 'firebase_uid');")
+          
+          if [ "$HAS_GOOGLE_ID" = "t" ]; then
+            echo "✅ Schema is correct - google_id column exists"
+            exit 0
+          fi
+          
+          if [ "$HAS_FIREBASE_UID" = "t" ]; then
+            echo "⚠️  Schema needs migration - firebase_uid column found"
+            echo "Running migration..."
+            
+            # Run migration
+            cat <<'MIGRATION_SQL' | PGPASSWORD="$DATABASE_PASSWORD" psql -h "$DATABASE_HOST" -p "$DATABASE_PORT" -U "$DATABASE_USER" -d "$DATABASE_NAME"
+          ALTER TABLE auth.users RENAME COLUMN firebase_uid TO google_id;
+          COMMENT ON COLUMN auth.users.google_id IS 'Google OAuth subject ID (unique identifier from Google)';
+          DROP INDEX IF EXISTS idx_users_firebase_uid;
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON auth.users(google_id);
+          MIGRATION_SQL
+            
+            echo "✅ Migration completed successfully"
+            exit 0
+          fi
+          
+          echo "❌ Neither google_id nor firebase_uid column found!"
+          exit 1
+  backoffLimit: 0
+

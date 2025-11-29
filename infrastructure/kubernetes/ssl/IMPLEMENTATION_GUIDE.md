@@ -24,7 +24,7 @@ This guide implements automatic SSL/TLS certificate management using Let's Encry
 - Kubernetes-native approach
 
 ### 2. Challenge Types
-- **HTTP-01**: For specific domain certificates (api-v2.ringer.tel, grafana.ringer.tel)
+- **HTTP-01**: For specific domain certificates (api.rns.ringer.tel, grafana.ringer.tel)
 - **DNS-01**: For wildcard certificates (*.ringer.tel, *.sip.ringer.tel)
 - DNS-01 requires Gandi webhook for DNS provider integration
 
@@ -145,7 +145,7 @@ kubectl apply -f /home/daldworth/repos/ringer-warp/kubernetes/ssl/ingress/10-hom
 # Point domains to NGINX Ingress external IP
 INGRESS_IP=$(kubectl get svc -n ingress-nginx nginx-ingress-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 echo "Configure these DNS records:"
-echo "api-v2.ringer.tel -> $INGRESS_IP"
+echo "api.rns.ringer.tel -> $INGRESS_IP"
 echo "grafana.ringer.tel -> $INGRESS_IP"
 echo "prometheus.ringer.tel -> $INGRESS_IP"
 echo "homer.ringer.tel -> $INGRESS_IP"
@@ -159,11 +159,11 @@ echo "homer.ringer.tel -> $INGRESS_IP"
 kubectl get certificate --all-namespaces
 
 # Test HTTPS endpoints (will show staging certificate warning)
-curl -kv https://api-v2.ringer.tel
+curl -kv https://api.rns.ringer.tel
 curl -kv https://grafana.ringer.tel
 
 # Check certificate details
-echo | openssl s_client -connect api-v2.ringer.tel:443 2>/dev/null | openssl x509 -noout -text | grep -E "(Subject:|Issuer:)"
+echo | openssl s_client -connect api.rns.ringer.tel:443 2>/dev/null | openssl x509 -noout -text | grep -E "(Subject:|Issuer:)"
 ```
 
 ### Phase 7: Production Deployment

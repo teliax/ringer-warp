@@ -110,7 +110,7 @@ kubectl exec -n warp-core <kamailio-pod> -c kamailio -- kamcmd rtpengine.show al
 # Production HTTPS endpoints
 # Grafana: https://grafana.ringer.tel (admin/prom-operator)
 # Prometheus: https://prometheus.ringer.tel
-# API: https://api-v2.ringer.tel
+# API: https://api.rns.ringer.tel
 
 # Port-forward for local access
 kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:9090
@@ -132,6 +132,42 @@ kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80
 # Kubernetes services deployment
 ./scripts/deploy-k8s-services-v01.sh
 ```
+
+## Authorization & Security
+
+**Pattern**: Database-driven, endpoint-based authorization with multi-tenant customer scoping
+
+### Authentication
+- **Provider**: Google OAuth (only @ringer.tel emails allowed)
+- **Flow**: Google ID → WARP JWT (access: 24h, refresh: 7d)
+- **Tokens**: Stored in localStorage, auto-injected by axios interceptor
+
+### Authorization (Gatekeeper)
+- **User Types**: Named groups of permissions (superAdmin, admin, customer_admin, developer, billing, viewer)
+  - **IMPORTANT**: User types are NOT hard-coded in authorization logic
+  - They're just database records that group permissions together
+  - Authorization decisions based ONLY on endpoint path matching, not type names
+- **Permissions**: 48 resource paths across 12 categories (e.g., `/api/v1/customers/*`)
+- **Wildcard Support**: `*` (SuperAdmin), `/path/*` (prefix match), `/path` (exact)
+- **Enforcement**: Gatekeeper middleware on ALL protected routes
+
+### Multi-Tenant Customer Scoping
+- **Table**: `auth.user_customer_access` maps users → customers
+- **SuperAdmin**: Wildcard `*` permission → Sees ALL customers (no scoping)
+- **Regular Users**: See ONLY assigned customers via `WHERE customer_id = ANY($accessible_ids)`
+- **Current State**: 1 user (david.aldworth@ringer.tel - superAdmin), 0 customer assignments
+
+### Frontend Security
+- **All API calls**: Frontend → WARP API Gateway ONLY (never direct to third parties)
+- **Third-party APIs**: HubSpot, Teliport, Telique accessed via backend proxy
+- **API Keys**: Stored in backend only, never exposed to browser
+- **Customer Data**: Filtered server-side before sending to frontend
+
+**See**: [docs/AUTH_AND_PERMISSION_SYSTEM.md](docs/AUTH_AND_PERMISSION_SYSTEM.md) for complete details
+
+**Current User**: david.aldworth@ringer.tel (superAdmin - wildcard access to all resources)
+
+---
 
 ## Architecture Overview
 
@@ -361,9 +397,13 @@ kubectl exec -n messaging redis-<pod> -c redis -- redis-cli HGETALL "rtpengine:e
 
 ## Production URLs
 
-- **API**: https://api-v2.ringer.tel
+- **API Gateway**: https://api.rns.ringer.tel (HTTP works, HTTPS needs cert-manager)
+- **Admin Portal**: https://admin.rns.ringer.tel
+- **Customer Portal**: https://customer.rns.ringer.tel
 - **Grafana**: https://grafana.ringer.tel (admin/prom-operator)
 - **Prometheus**: https://prometheus.ringer.tel
+
+**Note**: API Gateway LoadBalancer IP is `34.58.150.254`
 
 ## Important Notes
 

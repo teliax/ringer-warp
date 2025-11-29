@@ -22,7 +22,7 @@ func NewUserRepository(db *pgxpool.Pool) *UserRepository {
 func (r *UserRepository) GetByGoogleID(ctx context.Context, googleID string) (*models.User, error) {
 	query := `
 		SELECT u.id, u.google_id, u.email, u.display_name, u.photo_url,
-		       u.user_type_id, u.is_active, u.last_login, u.login_count,
+		       u.user_type_id, u.is_active, u.last_login,
 		       u.created_at, u.updated_at,
 		       ut.type_name
 		FROM auth.users u
@@ -43,7 +43,6 @@ func (r *UserRepository) GetByGoogleID(ctx context.Context, googleID string) (*m
 		&user.UserTypeID,
 		&user.IsActive,
 		&user.LastLogin,
-		&user.LoginCount,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 		&user.UserType.TypeName,
@@ -63,7 +62,7 @@ func (r *UserRepository) GetByGoogleID(ctx context.Context, googleID string) (*m
 func (r *UserRepository) GetByID(ctx context.Context, userID uuid.UUID) (*models.User, error) {
 	query := `
 		SELECT u.id, u.google_id, u.email, u.display_name, u.photo_url,
-		       u.user_type_id, u.is_active, u.last_login, u.login_count,
+		       u.user_type_id, u.is_active, u.last_login,
 		       u.created_at, u.updated_at,
 		       ut.id as user_type_id, ut.type_name, ut.description
 		FROM auth.users u
@@ -84,7 +83,6 @@ func (r *UserRepository) GetByID(ctx context.Context, userID uuid.UUID) (*models
 		&user.UserTypeID,
 		&user.IsActive,
 		&user.LastLogin,
-		&user.LoginCount,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 		&user.UserType.ID,
@@ -108,7 +106,7 @@ func (r *UserRepository) Create(ctx context.Context, googleID, email, displayNam
 		INSERT INTO auth.users (google_id, email, display_name, user_type_id, created_by)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, google_id, email, display_name, photo_url,
-		          user_type_id, is_active, last_login, login_count,
+		          user_type_id, is_active, last_login,
 		          created_at, updated_at
 	`
 
@@ -122,7 +120,6 @@ func (r *UserRepository) Create(ctx context.Context, googleID, email, displayNam
 		&user.UserTypeID,
 		&user.IsActive,
 		&user.LastLogin,
-		&user.LoginCount,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -138,7 +135,7 @@ func (r *UserRepository) Create(ctx context.Context, googleID, email, displayNam
 func (r *UserRepository) UpdateLastLogin(ctx context.Context, userID uuid.UUID) error {
 	query := `
 		UPDATE auth.users
-		SET last_login = NOW(), login_count = login_count + 1
+		SET last_login = NOW()
 		WHERE id = $1
 	`
 
@@ -212,7 +209,7 @@ func (r *UserRepository) RevokeCustomerAccess(ctx context.Context, userID, custo
 func (r *UserRepository) List(ctx context.Context) ([]models.User, error) {
 	query := `
 		SELECT u.id, u.google_id, u.email, u.display_name, u.photo_url,
-		       u.user_type_id, u.is_active, u.last_login, u.login_count,
+		       u.user_type_id, u.is_active, u.last_login,
 		       u.created_at, u.updated_at,
 		       ut.type_name
 		FROM auth.users u
@@ -233,7 +230,7 @@ func (r *UserRepository) List(ctx context.Context) ([]models.User, error) {
 
 		err := rows.Scan(
 			&u.ID, &u.GoogleID, &u.Email, &u.DisplayName, &u.PhotoURL,
-			&u.UserTypeID, &u.IsActive, &u.LastLogin, &u.LoginCount,
+			&u.UserTypeID, &u.IsActive, &u.LastLogin,
 			&u.CreatedAt, &u.UpdatedAt,
 			&u.UserType.TypeName,
 		)

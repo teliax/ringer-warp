@@ -19,8 +19,8 @@ echo "Image: ${FULL_IMAGE_PATH}"
 # Ensure we're in the correct directory
 cd "$(dirname "$0")"
 
-# Build the Docker image
-docker build -t ${IMAGE_NAME}:${TAG} .
+# Build the Docker image for amd64 (GKE platform)
+docker build --platform linux/amd64 -t ${IMAGE_NAME}:${TAG} .
 
 # Tag for Google Artifact Registry
 docker tag ${IMAGE_NAME}:${TAG} ${FULL_IMAGE_PATH}
@@ -40,10 +40,10 @@ if [ "$2" = "deploy" ]; then
     echo "Updating Kubernetes deployment..."
     
     # Update the deployment with the new image
-    kubectl set image deployment/kamailio kamailio=${FULL_IMAGE_PATH} -n warp-sip
-    
+    kubectl set image deployment/kamailio kamailio=${FULL_IMAGE_PATH} -n warp-core
+
     # Wait for rollout to complete
-    kubectl rollout status deployment/kamailio -n warp-sip
+    kubectl rollout status deployment/kamailio -n warp-core
     
     echo "Deployment updated successfully!"
 fi

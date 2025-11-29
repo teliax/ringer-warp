@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
 import { AuthLayout } from "@/polymet/layouts/auth-layout";
 import { MainLayout } from "@/polymet/layouts/main-layout";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Login } from "@/polymet/pages/login";
 import { Dashboard } from "@/polymet/pages/dashboard";
 import { Trunks } from "@/polymet/pages/trunks";
@@ -22,6 +23,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Toaster } from "sonner";
 
 // Simplified dashboard for demo
 function SimpleDashboard({ title }: { title: string }) {
@@ -165,9 +167,11 @@ export default function TelecomPlatform() {
         <Route
           path="/dashboard"
           element={
-            <MainLayout title="Dashboard">
-              <Dashboard />
-            </MainLayout>
+            <ProtectedRoute>
+              <MainLayout title="Dashboard">
+                <Dashboard />
+              </MainLayout>
+            </ProtectedRoute>
           }
         />
 
@@ -192,9 +196,11 @@ export default function TelecomPlatform() {
         <Route
           path="/messaging"
           element={
-            <MainLayout title="Messaging">
-              <Messaging />
-            </MainLayout>
+            <ProtectedRoute>
+              <MainLayout title="Messaging">
+                <Messaging />
+              </MainLayout>
+            </ProtectedRoute>
           }
         />
 
@@ -261,6 +267,7 @@ export default function TelecomPlatform() {
           }
         />
       </Routes>
+      <Toaster position="top-right" richColors />
     </Router>
   );
 }

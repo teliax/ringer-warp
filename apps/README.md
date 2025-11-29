@@ -54,7 +54,7 @@ npm run preview  # Preview production build
 ## API Integration
 
 Both apps connect to:
-- **API**: https://api-v2.ringer.tel (to be deployed)
-- **WebSocket**: wss://api-v2.ringer.tel/ws (real-time updates)
+- **API**: https://api.rns.ringer.tel (to be deployed)
+- **WebSocket**: wss://api.rns.ringer.tel/ws (real-time updates)
 
 See `/docs/FRONTEND_API_MAPPING.md` for endpoint mappings.

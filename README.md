@@ -69,7 +69,7 @@ WARP is a carrier-grade SIP trunking and messaging platform designed for wholesa
 **Monitoring**: ✅ Prometheus & Grafana accessible  
 
 ### Production Endpoints
-- **API**: https://api-v2.ringer.tel
+- **API**: https://api.rns.ringer.tel
 - **Grafana**: https://grafana.ringer.tel  
 - **Prometheus**: https://prometheus.ringer.tel
 
@@ -127,7 +127,7 @@ kubectl get pods --all-namespaces
 3. **Production URLs**:
 - Grafana: https://grafana.ringer.tel (admin/prom-operator)
 - Prometheus: https://prometheus.ringer.tel
-- API: https://api-v2.ringer.tel
+- API: https://api.rns.ringer.tel
 
 ## 📂 Project Structure (Reorganized Oct 2025)
 
@@ -239,7 +239,7 @@ k6 run tests/load/scenarios.js
 ### Production Access Points
 - **Grafana**: https://grafana.ringer.tel - Metrics dashboards  
 - **Prometheus**: https://prometheus.ringer.tel - Metrics queries
-- **API**: https://api-v2.ringer.tel - API endpoint
+- **API**: https://api.rns.ringer.tel - API endpoint
 - **Portal**: https://app.warp.io - Customer interface (Phase 2)
 
 ## 🔐 Security

@@ -20,7 +20,7 @@ Successfully updated DNS A records to point to the NGINX Ingress Controller IP (
 | Service | Subdomain | Current IP | Type | Reason |
 |---------|-----------|------------|------|--------|
 | Kamailio | sip.ringer.tel | 35.188.144.139 | LoadBalancer | SIP services remain on dedicated LB |
-| API Gateway | api-v2.ringer.tel | 34.72.20.183 | NGINX Ingress | Already migrated |
+| API Gateway | api.rns.ringer.tel | 34.72.20.183 | NGINX Ingress | Already migrated |
 
 ## Files Created
 

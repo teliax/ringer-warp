@@ -60,6 +60,11 @@ override.tf.json
 # Kubernetes
 kubeconfig
 *.kubeconfig
+# Kubernetes secrets (never commit actual secrets!)
+**/secrets.yaml
+!**/secrets.yaml.template
+*secret*.yaml
+!*secret*.yaml.template
 
 # Docker
 .dockerignore

@@ -8,7 +8,7 @@
 - Staging Let's Encrypt certificates are issued and working for:
   - grafana.ringer.tel
   - prometheus.ringer.tel
-  - api-v2.ringer.tel
+  - api.rns.ringer.tel
 - HTTPS connections work when using the correct IP address
 
 ### ❌ Issues Found
@@ -23,7 +23,7 @@ Update the following A records to point to **34.72.20.183**:
 |--------|-----------|-------------|
 | grafana.ringer.tel | 35.224.100.108 | 34.72.20.183 |
 | prometheus.ringer.tel | 35.224.246.74 | 34.72.20.183 |
-| api-v2.ringer.tel | 34.72.20.183 ✓ | 34.72.20.183 |
+| api.rns.ringer.tel | 34.72.20.183 ✓ | 34.72.20.183 |
 
 ## Switching to Production Certificates
 

@@ -80,7 +80,7 @@ Library of reusable functions for Gandi API operations.
 ## DNS Record Structure
 
 ### A Records Created:
-- `api-v2.ringer.tel` → API Gateway (34.41.135.92)
+- `api.rns.ringer.tel` → API Gateway (34.41.135.92)
 - `sip.ringer.tel` → Kamailio SIP (35.188.144.139)
 - `prometheus.ringer.tel` → Prometheus (35.224.246.74)
 - `grafana.ringer.tel` → Grafana (35.224.100.108)
@@ -120,7 +120,7 @@ Then annotate your services:
 ```yaml
 metadata:
   annotations:
-    external-dns.alpha.kubernetes.io/hostname: api-v2.ringer.tel
+    external-dns.alpha.kubernetes.io/hostname: api.rns.ringer.tel
     external-dns.alpha.kubernetes.io/ttl: "300"
 ```
 

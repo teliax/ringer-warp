@@ -14,13 +14,13 @@ deps: ## Install dependencies
 	go install github.com/swaggo/swag/cmd/swag@latest
 
 gen-docs: ## Generate Swagger documentation
-	swag init -g cmd/api-server/main.go -o docs --parseDependency --parseInternal
+	swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal
 
 build: gen-docs ## Build the application
-	go build -o bin/api-server cmd/api-server/main.go
+	go build -o bin/api-gateway cmd/server/main.go
 
 run: gen-docs ## Run the application locally
-	go run cmd/api-server/main.go
+	go run cmd/server/main.go
 
 test: ## Run tests
 	go test -v ./...

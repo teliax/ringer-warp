@@ -1,8 +1,10 @@
 import React from "react";
 import * as ReactDOM from "react-dom";
 import { createRoot } from "react-dom/client";
+import { AuthProvider } from "./lib/auth/AuthContext";
 import App from "./App";
 import "./index.css";
+import "./lib/axios-config"; // Configure axios globally
 
 // Make React and ReactDOM globally available immediately (not in useEffect)
 window.React = React;
@@ -11,7 +13,9 @@ window.ReactDOM = ReactDOM;
 function Main() {
   return (
     <React.StrictMode>
-      <App />
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </React.StrictMode>
   );
 }

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/ringer-warp/api-gateway/internal/auth"
@@ -32,15 +33,15 @@ func NewAuthHandler(
 }
 
 // ExchangeGoogleToken godoc
-// @Summary Exchange Google OAuth token for WARP JWT tokens
-// @Description Verify Google ID token and issue WARP access and refresh tokens
+// @Summary Exchange Google OAuth info for WARP JWT tokens
+// @Description Accept Google OAuth info (from frontend) and issue WARP tokens
 // @Tags Authentication
 // @Accept json
 // @Produce json
-// @Param request body models.GoogleTokenExchangeRequest true "Google ID token"
+// @Param request body models.GoogleTokenExchangeRequest true "Google OAuth info"
 // @Success 200 {object} models.APIResponse{data=models.AuthTokens}
 // @Failure 400 {object} models.APIResponse
-// @Failure 401 {object} models.APIResponse
+// @Failure 403 {object} models.APIResponse
 // @Failure 500 {object} models.APIResponse
 // @Router /auth/exchange [post]
 func (h *AuthHandler) ExchangeGoogleToken(c *gin.Context) {
@@ -50,59 +51,69 @@ func (h *AuthHandler) ExchangeGoogleToken(c *gin.Context) {
 		return
 	}
 
-	// Verify Google ID token
-	tokenInfo, err := h.oauthVerifier.VerifyIDToken(c.Request.Context(), req.IDToken)
-	if err != nil {
-		h.logger.Warn("Failed to verify Google token", log.Error(err))
-		c.JSON(http.StatusUnauthorized, models.NewErrorResponse("INVALID_GOOGLE_TOKEN", "Failed to verify Google token"))
+	// Verify email domain (only @ringer.tel allowed)
+	if !strings.HasSuffix(req.Email, "@ringer.tel") {
+		h.logger.Warn("Rejected login from non-Ringer email", 
+			log.String("email", req.Email))
+		c.JSON(http.StatusForbidden, models.NewErrorResponse("UNAUTHORIZED_DOMAIN", "Only @ringer.tel email addresses are allowed"))
 		return
 	}
 
-	// Look up user by Google ID
-	user, err := h.userRepo.GetByGoogleID(c.Request.Context(), tokenInfo.Sub)
+	// Look up user by email (simplified pattern like ringer-soa)
+	user, err := h.userRepo.GetByEmail(c.Request.Context(), req.Email)
 	if err != nil {
 		h.logger.Error("Failed to lookup user", log.Error(err))
 		c.JSON(http.StatusInternalServerError, models.NewErrorResponse("LOOKUP_FAILED", "Failed to lookup user"))
 		return
 	}
 
-	// If user doesn't exist, auto-create with viewer role (least privilege)
+	// If user doesn't exist, auto-create with viewer role
 	if user == nil {
-		h.logger.Info("Auto-creating new user from Google login",
-			log.String("google_id", tokenInfo.Sub),
-			log.String("email", tokenInfo.Email),
-			log.String("name", tokenInfo.Name),
+		h.logger.Info("Auto-creating new user",
+			log.String("google_id", req.GoogleID),
+			log.String("email", req.Email),
+			log.String("name", req.Name),
 		)
 
-		// Get default user type (viewer - can be upgraded by admin later)
-		defaultUserTypeID, err := h.userRepo.GetUserTypeIDByName(c.Request.Context(), "viewer")
+		// Get viewer user type
+		viewerTypeID, err := h.userRepo.GetUserTypeIDByName(c.Request.Context(), "viewer")
 		if err != nil {
-			h.logger.Error("Failed to get default user type", log.Error(err))
-			c.JSON(http.StatusInternalServerError, models.NewErrorResponse("USER_TYPE_NOT_FOUND", "Failed to create user account"))
+			h.logger.Error("Failed to get viewer user type", log.Error(err))
+			c.JSON(http.StatusInternalServerError, models.NewErrorResponse("USER_TYPE_NOT_FOUND", "Failed to create user"))
 			return
 		}
 
-		// Create new user
-		user, err = h.userRepo.Create(
-			c.Request.Context(),
-			tokenInfo.Sub,           // Google ID
-			tokenInfo.Email,         // Email
-			tokenInfo.Name,          // Display name
-			defaultUserTypeID,       // Default to viewer
-		)
+		// Create user
+		displayName := req.Name
+		if displayName == "" {
+			displayName = req.Email
+		}
+		
+		user, err = h.userRepo.Create(c.Request.Context(), req.GoogleID, req.Email, displayName, viewerTypeID)
 		if err != nil {
 			h.logger.Error("Failed to create user", log.Error(err))
-			c.JSON(http.StatusInternalServerError, models.NewErrorResponse("USER_CREATION_FAILED", "Failed to create user account"))
+			c.JSON(http.StatusInternalServerError, models.NewErrorResponse("USER_CREATION_FAILED", "Failed to create user"))
 			return
 		}
 
-		// Load user type info
 		user.UserType = &models.UserType{TypeName: "viewer"}
+		h.logger.Info("User auto-created", log.String("user_id", user.ID.String()))
+	}
 
-		h.logger.Info("User auto-created successfully",
+	// If user exists but google_id is empty or PENDING, update it
+	if user.GoogleID == "" || user.GoogleID == "PENDING_GOOGLE_LOGIN" || user.GoogleID != req.GoogleID {
+		h.logger.Info("Updating Google ID",
 			log.String("user_id", user.ID.String()),
-			log.String("email", user.Email),
+			log.String("old_google_id", user.GoogleID),
+			log.String("new_google_id", req.GoogleID),
 		)
+
+		err = h.userRepo.UpdateGoogleID(c.Request.Context(), user.ID, req.GoogleID)
+		if err != nil {
+			h.logger.Error("Failed to update Google ID", log.Error(err))
+			// Don't fail - continue with login
+		}
+		user.GoogleID = req.GoogleID
 	}
 
 	// Check if user is active

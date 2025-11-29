@@ -12,8 +12,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { Badge } from "@/components/ui/badge";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth/AuthContext";
 import {
   LayoutDashboardIcon,
   PhoneIcon,
@@ -43,6 +44,7 @@ import {
   BarChart3Icon,
   ExternalLinkIcon,
   ServerIcon,
+  MailIcon,
 } from "lucide-react";
 
 interface MainLayoutProps {
@@ -115,6 +117,13 @@ export function MainLayout({ children, title }: MainLayoutProps) {
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
 
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const toggleSubmenu = (itemName: string) => {
     setExpandedMenus((prev) =>
@@ -386,7 +395,7 @@ export function MainLayout({ children, title }: MainLayoutProps) {
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
 
-                  <DropdownMenuItem className="text-red-600">
+                  <DropdownMenuItem className="text-red-600" onClick={handleLogout}>
                     <LogOutIcon className="mr-2 h-4 w-4" />
                     Log out
                   </DropdownMenuItem>

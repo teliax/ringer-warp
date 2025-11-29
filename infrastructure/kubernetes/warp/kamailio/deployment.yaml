@@ -167,17 +167,20 @@ spec:
       - name: kamailio-run
         emptyDir: {}
 ---
+# UDP LoadBalancer Service (SIP UDP only)
 apiVersion: v1
 kind: Service
 metadata:
-  name: kamailio
+  name: kamailio-sip-udp
   namespace: warp-core
   labels:
     app: kamailio
+    protocol: udp
   annotations:
-    cloud.google.com/neg: '{"ingress": true}'
+    cloud.google.com/load-balancer-type: "External"
 spec:
   type: LoadBalancer
+  loadBalancerIP: "34.44.183.87"  # Reserved static IP
   selector:
     app: kamailio
   ports:
@@ -185,6 +188,28 @@ spec:
     port: 5060
     targetPort: 5060
     protocol: UDP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+---
+# TCP LoadBalancer Service (SIP TCP, TLS, WebSocket)
+apiVersion: v1
+kind: Service
+metadata:
+  name: kamailio-sip-tcp
+  namespace: warp-core
+  labels:
+    app: kamailio
+    protocol: tcp
+  annotations:
+    cloud.google.com/load-balancer-type: "External"
+spec:
+  type: LoadBalancer
+  loadBalancerIP: "34.55.182.145"  # Reserved static IP
+  selector:
+    app: kamailio
+  ports:
   - name: sip-tcp
     port: 5060
     targetPort: 5060

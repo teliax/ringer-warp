@@ -1,67 +1,80 @@
 # SMS/MMS Architecture Documentation
 
+**Last Updated:** November 25, 2025
+**Status:** Production ✅
+
 ## Overview
-This document defines the complete SMS/MMS architecture using Jasmin SMSC as the core message router, Sinch as the upstream vendor, and both REST and SMPP interfaces for customers.
+
+This document defines the complete SMS/MMS architecture using a **custom Go SMPP Gateway** as the core message router, Sinch as the upstream vendor, and both REST and SMPP interfaces for customers.
+
+> **Note:** The Go SMPP Gateway replaced Jasmin SMSC in October 2025. See [ARCHITECTURAL_DECISION_GO_SMPP.md](../architecture/ARCHITECTURAL_DECISION_GO_SMPP.md) for migration rationale.
 
 ## Architecture Components
 
 ### Core SMS Stack
 ```yaml
 Components:
-  Jasmin SMSC:
-    - Role: Message routing and queuing
-    - Deployment: Kubernetes (GKE)
-    - Storage: Redis for queues, RabbitMQ for events
+  Go SMPP Gateway:
+    - Role: Message routing, vendor connections, and customer binds
+    - Deployment: Kubernetes (GKE) - 3 replicas, stateless
+    - Storage: PostgreSQL for vendor config, Redis for DLR tracking
+    - Image: us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/smpp-gateway:v1.1.0
+    - Namespace: messaging
 
   Sinch (Vendor):
     - Role: A2P message delivery to carriers
-    - Protocol: SMPP 3.4/5.0
-    - Connection: Multiple binds for redundancy
+    - Protocol: SMPP 3.4 (TLS)
+    - Connection: Sinch_Atlanta (msgbrokersmpp-atl.inteliquent.com:3601)
+    - Status: Connected ✅
 
   Customer Interfaces:
     - REST API: Standard customers (90%)
     - SMPP: High-volume customers (10%)
+
+  Network Egress:
+    - Cloud NAT IP: 34.58.165.135 (Sinch whitelisted)
+    - LoadBalancer: 34.55.43.157 (inbound customer connections)
 ```
 
-## Vendor Integration (Jasmin → Sinch)
+## Vendor Integration (Go SMPP Gateway → Sinch)
 
 ### SMPP Bind Configuration
 ```yaml
-Primary Connection:
-  Host: smpp1.sinch.com
-  Port: 2775
-  System ID: [From Sinch]
-  Password: [From Sinch]
+Production Connection (Sinch_Atlanta):
+  Host: msgbrokersmpp-atl.inteliquent.com
+  Port: 3601 (TLS)
+  System ID: telxMBa1
+  Password: [Stored in messaging.vendors table]
   Bind Type: Transceiver
   Throughput: 100 msg/sec
-
-Backup Connection:
-  Host: smpp2.sinch.com
-  Port: 2775
-  [Same credentials]
-
-TLS Connection (Optional):
-  Port: 2776
-  TLS Version: 1.2+
-  Certificate: Mutual TLS optional
+  Status: Connected ✅
 ```
 
-### Jasmin Connector Configuration
-```python
-# Created via Admin UI, executed in Jasmin
-smppccm -a
-cid sinch_primary
-host smpp1.sinch.com
-port 2775
-username YOUR_SINCH_ACCOUNT
-password YOUR_SINCH_PASSWORD
-bind transceiver
-submit_throughput 100
-systemType "production"
-coding 0
-validity 1440
-priority 0
-ok
+### Vendor Configuration (PostgreSQL)
+```sql
+-- Vendors are managed in PostgreSQL, not via CLI
+-- Go SMPP Gateway auto-loads vendors on startup
+
+SELECT instance_name, host, port, use_tls, is_active, health_status
+FROM messaging.vendors
+WHERE provider_type = 'smpp';
+
+-- Result:
+-- instance_name  | host                              | port | use_tls | is_active | health_status
+-- Sinch_Atlanta  | msgbrokersmpp-atl.inteliquent.com | 3601 | true    | true      | healthy
+```
+
+### Adding a New Vendor
+```sql
+-- Simply INSERT into PostgreSQL - no CLI commands needed
+INSERT INTO messaging.vendors (
+    instance_name, display_name, host, port, username, password,
+    use_tls, bind_type, throughput, is_active, provider_type
+) VALUES (
+    'Sinch_Chicago', 'Sinch Chicago', 'msgbrokersmpp-chi.inteliquent.com', 3601,
+    'telxMBc1', 'encrypted_password', true, 'transceiver', 100, true, 'smpp'
+);
+-- Gateway will auto-connect on next startup or API call to /api/v1/admin/reload-vendors
 ```
 
 ## Customer Integration Options
@@ -90,21 +103,20 @@ Authorization: Bearer <token>
   "webhook_url": "https://customer.com/dlr"
 }
 
-// Platform validates and routes to Jasmin
-POST jasmin:8080/send
+// Platform validates and routes to Go SMPP Gateway
+POST smpp-gateway-api.messaging:8080/api/v1/messages
 {
   "to": "16505556789",
   "from": "14155551234",
   "content": "Hello",
-  "dlr": "yes",
-  "dlr-level": 3,
-  "username": "customer_123"
+  "dlr_requested": true,
+  "customer_id": "customer_123"
 }
 ```
 
 ### Option 2: SMPP Bind (Enterprise)
 ```yaml
-Connection: customer.ringer.tel:2775
+Connection: 34.55.43.157:2775 (smpp-gateway-server LoadBalancer)
 Authentication: System ID + Password
 Rate Limit: 500 msg/sec (negotiable)
 Features:
@@ -115,19 +127,18 @@ Features:
 ```
 
 #### SMPP User Configuration
-```python
-# Created in Jasmin for customer
-user -a
-uid customer_123
-gid enterprise
-username cust123_smpp
-password [generated]
-mt_messaging_cred authorization dlr_level 3
-mt_messaging_cred value_filter dst_addr ^1.*
-mt_messaging_cred default_source_addr 14155551234
-smpps_cred authorization bind yes
-smpps_cred quota 500
-ok
+```sql
+-- SMPP users are managed in PostgreSQL (customer_sms_auth table)
+INSERT INTO messaging.customer_sms_auth (
+    account_id, auth_type,
+    smpp_system_id, smpp_password_hash, smpp_allowed_ips,
+    smpp_max_binds, smpp_throughput
+) VALUES (
+    'customer_123_uuid', 'SMPP',
+    'cust123_smpp', 'bcrypt_hash', ARRAY['203.0.113.0/24'],
+    2, 500
+);
+-- Go SMPP Gateway validates binds against this table
 ```
 
 ## Message Routing
@@ -135,64 +146,61 @@ ok
 ### Outbound Routing (Customer → Carrier)
 
 #### Routing Decision Tree
-```python
-def route_outbound_message(message, customer):
-    # 1. Ownership validation
-    if not verify_number_ownership(customer.id, message.from):
-        raise UnauthorizedSender()
+```go
+// Go SMPP Gateway routing logic (internal/routing/router.go)
+func (r *Router) RouteMessage(msg *Message) (*SMPPClient, error) {
+    // 1. Ownership validation
+    if !r.verifyNumberOwnership(msg.CustomerID, msg.SourceAddr) {
+        return nil, ErrUnauthorizedSender
+    }
 
-    # 2. Compliance checks
-    if is_us_longcode(message.from):
-        campaign = get_10dlc_campaign(message.from)
-        if not campaign or campaign.status != 'ACTIVE':
-            raise UnregisteredCampaign()
+    // 2. Compliance checks (10DLC)
+    if isUSLongcode(msg.SourceAddr) {
+        campaign, err := r.get10DLCCampaign(msg.SourceAddr)
+        if err != nil || campaign.Status != "ACTIVE" {
+            return nil, ErrUnregisteredCampaign
+        }
+    }
 
-    # 3. Rate limiting
-    if exceeds_rate_limit(customer, message):
-        return queue_for_throttling(message)
+    // 3. Rate limiting (Redis sliding window)
+    if r.rateLimiter.ExceedsLimit(msg.CustomerID) {
+        return nil, ErrRateLimitExceeded
+    }
 
-    # 4. Content filtering
-    if contains_prohibited_content(message.body):
-        raise ProhibitedContent()
+    // 4. Content filtering
+    if containsProhibitedContent(msg.Content) {
+        return nil, ErrProhibitedContent
+    }
 
-    # 5. Route selection
-    if is_toll_free(message.from):
-        route = 'sinch_tollfree'
-    elif is_shortcode(message.from):
-        route = 'sinch_shortcode'
-    else:
-        route = 'sinch_primary'
+    // 5. Vendor selection (PostgreSQL-based priority routing)
+    vendor, err := r.selectVendor(msg.SourceAddr, msg.DestAddr)
+    if err != nil {
+        return nil, err
+    }
 
-    # 6. Send to Jasmin
-    return jasmin.submit(route, message)
+    // 6. Return vendor client for message submission
+    return r.connectorMgr.GetConnector(vendor.ID)
+}
 ```
 
-#### Jasmin Routing Table
-```python
-# MT Router configuration
-mtrouter -a
-order 10
-type StaticMTRoute
-filters <dst_addr=^1.*;smpp_credential=customer_123>
-connector smppc(sinch_primary)
-rate 0.0045
-ok
+#### Routing Table (PostgreSQL)
+```sql
+-- Routing rules stored in PostgreSQL, not file-based
+CREATE TABLE messaging.routing_rules (
+    id SERIAL PRIMARY KEY,
+    priority INTEGER NOT NULL,
+    dest_pattern VARCHAR(50),  -- Regex pattern (e.g., '^1.*')
+    source_pattern VARCHAR(50),
+    vendor_id UUID REFERENCES messaging.vendors(id),
+    rate_per_msg DECIMAL(10,6),
+    is_active BOOLEAN DEFAULT true
+);
 
-mtrouter -a
-order 20
-type StaticMTRoute
-filters <dst_addr=^44.*;smpp_credential=customer_123>
-connector smppc(sinch_international)
-rate 0.0180
-ok
-
-# Default route
-mtrouter -a
-order 100
-type DefaultRoute
-connector smppc(sinch_primary)
-rate 0.0050
-ok
+-- Example routes
+INSERT INTO messaging.routing_rules VALUES
+    (1, 10, '^1.*', NULL, 'sinch_atlanta_uuid', 0.0045, true),   -- US/Canada
+    (2, 20, '^44.*', NULL, 'sinch_atlanta_uuid', 0.0180, true),  -- UK
+    (3, 100, '.*', NULL, 'sinch_atlanta_uuid', 0.0050, true);    -- Default
 ```
 
 ### Inbound Routing (Carrier → Customer)
@@ -580,77 +588,103 @@ interface CampaignManagement {
 
 ### Environment Variables
 ```bash
-# Jasmin Configuration
-JASMIN_HOST=jasmin.warp.local
-JASMIN_HTTP_PORT=8080
-JASMIN_ADMIN_PORT=8990
-JASMIN_ADMIN_USER=admin
-JASMIN_ADMIN_PASSWORD=secure_password
+# Go SMPP Gateway Configuration
+POSTGRES_HOST=10.126.0.3
+POSTGRES_PORT=5432
+POSTGRES_USER=warp
+POSTGRES_DB=warp
+REDIS_HOST=redis-service.messaging.svc.cluster.local:6379
+RABBITMQ_HOST=rabbitmq-service.messaging.svc.cluster.local:5672
 
-# Sinch SMPP Configuration
-SINCH_SMPP_HOST=smpp1.sinch.com
-SINCH_SMPP_PORT=2775
-SINCH_SMPP_SYSTEM_ID=your_account
-SINCH_SMPP_PASSWORD=your_password
-SINCH_SMPP_THROUGHPUT=100
+# SMPP Server Configuration
+SMPP_HOST=0.0.0.0
+SMPP_PORT=2775
+SMPP_TLS_PORT=2776
+API_PORT=8080
+METRICS_PORT=9090
 
-# Customer Defaults
-DEFAULT_SMS_RATE_LIMIT=10
-DEFAULT_SMPP_THROUGHPUT=100
-DEFAULT_WEBHOOK_TIMEOUT=5000
-DEFAULT_WEBHOOK_RETRIES=3
+# Vendor Configuration (loaded from PostgreSQL)
+# - No hardcoded Sinch credentials
+# - All vendors in messaging.vendors table
+# - Auto-loaded on startup
 ```
 
-### Jasmin Kubernetes Deployment
+### Go SMPP Gateway Kubernetes Deployment
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: jasmin-smsc
+  name: smpp-gateway
   namespace: messaging
 spec:
-  replicas: 2
+  replicas: 3  # Stateless - scales horizontally
   selector:
     matchLabels:
-      app: jasmin
+      app: smpp-gateway
   template:
     metadata:
       labels:
-        app: jasmin
+        app: smpp-gateway
     spec:
       containers:
-      - name: jasmin
-        image: jookies/jasmin:0.10
+      - name: smpp-gateway
+        image: us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/smpp-gateway:v1.1.0
         ports:
         - containerPort: 2775  # SMPP
-        - containerPort: 8990  # Admin
-        - containerPort: 1401  # jCli
-        - containerPort: 8080  # HTTP
+        - containerPort: 2776  # SMPP TLS
+        - containerPort: 8080  # Management API
+        - containerPort: 9090  # Prometheus metrics
         env:
+        - name: POSTGRES_HOST
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: host
         - name: REDIS_HOST
-          value: redis-service
-        - name: AMQP_HOST
-          value: rabbitmq-service
-        volumeMounts:
-        - name: jasmin-config
-          mountPath: /etc/jasmin
-      volumes:
-      - name: jasmin-config
-        configMap:
-          name: jasmin-config
+          value: redis-service.messaging.svc.cluster.local:6379
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: smpp-gateway-server
+  namespace: messaging
+spec:
+  type: LoadBalancer
+  loadBalancerIP: 34.55.43.157  # Static IP for customer whitelisting
+  ports:
+  - name: smpp
+    port: 2775
+    targetPort: 2775
+  - name: smpp-tls
+    port: 2776
+    targetPort: 2776
+  selector:
+    app: smpp-gateway
 ```
 
 ## Monitoring & Alerting
 
 ### Prometheus Metrics
 ```yaml
-Jasmin Metrics:
-  - jasmin_connectors_status
-  - jasmin_submit_sm_total
-  - jasmin_deliver_sm_total
-  - jasmin_queue_size
-  - jasmin_throughput_current
-  - jasmin_error_rate
+Go SMPP Gateway Metrics:
+  - smpp_server_active_sessions_total
+  - smpp_server_bind_requests_total{status="success|failure"}
+  - smpp_server_submit_sm_total{customer_id}
+  - smpp_server_deliver_sm_total{vendor_id}
+  - smpp_client_connections_total{vendor_id, status}
+  - smpp_client_submit_sm_total{vendor_id, status}
+  - smpp_client_dlr_received_total{vendor_id, dlr_status}
+  - smpp_client_throughput_current{vendor_id}
+  - message_routing_duration_seconds{route}
+  - message_queue_depth{priority}
+  - rate_limit_exceeded_total{type="vendor|customer"}
 
 Business Metrics:
   - sms_sent_per_customer
@@ -663,7 +697,7 @@ Business Metrics:
 ### Grafana Dashboards
 1. **Vendor Performance**: Throughput, errors, latency per Sinch connector
 2. **Customer Usage**: Messages sent/received, costs, patterns
-3. **System Health**: Queue sizes, processing rates, errors
+3. **System Health**: Pod status, connection counts, errors
 4. **Compliance**: 10DLC limits, violations, campaign status
 
 ## Security Considerations
@@ -671,26 +705,61 @@ Business Metrics:
 ### Message Security
 1. **TLS for SMPP**: Use port 2776 for encrypted SMPP
 2. **Webhook Signatures**: HMAC-SHA256 for webhook validation
-3. **API Rate Limiting**: Per-customer limits
+3. **API Rate Limiting**: Per-customer limits (Redis sliding window)
 4. **Content Filtering**: Block spam/phishing
 5. **Number Verification**: Strict ownership validation
 
 ### Access Control
-1. **Admin UI**: Role-based access for connector management
+1. **Admin UI**: Role-based access for vendor management
 2. **Customer API**: JWT tokens with scope limitations
 3. **SMPP**: IP whitelisting + credentials
-4. **Jasmin jCli**: Restricted to admin pods only
+4. **Management API**: ClusterIP only (internal access)
+
+### Network Security (Critical)
+1. **Cloud NAT**: Static egress IP (34.58.165.135) for vendor whitelisting
+2. **LoadBalancer**: Static IP (34.55.43.157) for customer inbound
+3. **Firewall Rules**: Port 2775/2776 restricted to approved IPs
+
+---
+
+## Network Architecture (Cloud NAT)
+
+### Egress IP Configuration
+
+**Critical Requirement:** Sinch requires IP whitelisting. The Go SMPP Gateway egresses through a dedicated Cloud NAT IP.
+
+```yaml
+Cloud NAT Configuration:
+  Name: warp-nat-gke
+  NAT IP: 34.58.165.135 (Sinch whitelisted)
+  Subnet: warp-gke-subnet (ALL_IP_RANGES)
+  Purpose: GKE pod egress for SMPP vendor connections
+
+  # Terraform configuration (infrastructure/terraform/modules/networking/main.tf)
+  subnetwork {
+    name                    = google_compute_subnetwork.gke_subnet.id
+    source_ip_ranges_to_nat = ["ALL_IP_RANGES"]  # CRITICAL: Must cover both node and pod IPs
+  }
+```
+
+**Key Lessons Learned (November 2025):**
+1. `LIST_OF_SECONDARY_IP_RANGES` only NATs pod IPs, not node IPs - use `ALL_IP_RANGES` instead
+2. `ENDPOINT_TYPE_GKE` doesn't exist in GCP Cloud NAT - ignore Terraform errors about this
+3. GKE default SNAT must be disabled for Cloud NAT to work: `defaultSnatStatus.disabled: true`
+
+See [SMPP_NAT_TROUBLESHOOTING_HANDOFF.md](../../SMPP_NAT_TROUBLESHOOTING_HANDOFF.md) for complete resolution details.
 
 ---
 
 ## Summary
 
 This architecture provides:
-1. **Scalable SMS/MMS delivery** via Jasmin and Sinch
+1. **Scalable SMS/MMS delivery** via Go SMPP Gateway and Sinch
 2. **Flexible customer integration** (REST and SMPP)
 3. **Comprehensive routing** for inbound and outbound
-4. **Full admin control** via UI and Jasmin APIs
+4. **Full admin control** via REST API and PostgreSQL
 5. **10DLC compliance** built-in
-6. **Real-time monitoring** and alerting
+6. **Real-time monitoring** via Prometheus metrics
+7. **Cloud-native design** - stateless pods, PostgreSQL config
 
-The admin UI manages vendor connections and routing, while the customer portal handles their specific SMS settings and delivery preferences.
+The Go SMPP Gateway replaced Jasmin in October 2025, providing true cloud-native operation with PostgreSQL-backed configuration and multi-pod HA support.

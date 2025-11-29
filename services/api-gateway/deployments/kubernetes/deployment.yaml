@@ -27,15 +27,9 @@ data:
     smpp:
       gateway_url: "http://smpp-gateway-api.messaging:8080"
 ---
-apiVersion: v1
-kind: Secret
-metadata:
-  name: api-gateway-secrets
-  namespace: warp-api
-type: Opaque
-stringData:
-  DATABASE_PASSWORD: ")T]\\!sXUi>SE+DeWt6a8Wmy*Q)A4q6R:}"  # From postgres-credentials
-  JWT_SECRET: "your-jwt-secret-change-in-production"
+# NOTE: Secrets are managed separately and should NOT be committed to git
+# See: secrets.yaml.template for the secret structure
+# Apply secrets separately: kubectl apply -f secrets.yaml
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -74,6 +68,14 @@ spec:
           containerPort: 8080
           protocol: TCP
         env:
+        - name: DATABASE_HOST
+          value: "10.126.0.3"
+        - name: DATABASE_PORT
+          value: "5432"
+        - name: DATABASE_NAME
+          value: "warp"
+        - name: DATABASE_USER
+          value: "warp_app"
         - name: DATABASE_PASSWORD
           valueFrom:
             secretKeyRef:
@@ -84,6 +86,42 @@ spec:
             secretKeyRef:
               name: api-gateway-secrets
               key: JWT_SECRET
+        - name: GOOGLE_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: api-gateway-secrets
+              key: GOOGLE_CLIENT_ID
+        - name: HUBSPOT_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-gateway-secrets
+              key: HUBSPOT_API_KEY
+        - name: HUBSPOT_WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: api-gateway-secrets
+              key: HUBSPOT_WEBHOOK_SECRET
+        - name: SENDGRID_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-gateway-secrets
+              key: SENDGRID_API_KEY
+              optional: true  # Optional - will log if not set
+        - name: TCR_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-gateway-secrets
+              key: TCR_API_KEY
+        - name: TCR_API_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: api-gateway-secrets
+              key: TCR_API_SECRET
+        - name: TCR_SANDBOX
+          valueFrom:
+            secretKeyRef:
+              name: api-gateway-secrets
+              key: TCR_SANDBOX
         volumeMounts:
         - name: config
           mountPath: /app/config.yaml

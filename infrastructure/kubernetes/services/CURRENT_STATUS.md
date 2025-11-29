@@ -40,7 +40,7 @@ Kamailio services maintain LoadBalancer type as required:
 ### Configured Ingresses
 1. **grafana-ingress** → grafana.ringer.tel → grafana-tls ❌ (Certificate pending)
 2. **prometheus-ingress** → prometheus.ringer.tel → prometheus-tls ✅ (Certificate ready)
-3. **api-gateway-ingress** → api-v2.ringer.tel → api-v2-ringer-tel-tls ✅
+3. **api-gateway-ingress** → api.rns.ringer.tel → api-v2-ringer-tel-tls ✅
 
 ## Domain Connectivity
 

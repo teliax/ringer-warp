@@ -5,6 +5,7 @@ import { Login } from "@/pages/Login";  // Use our new login page
 import { Dashboard } from "@/polymet/pages/dashboard";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { CustomerOverview } from "@/polymet/pages/customer-overview";
+import { CustomerCreate } from "@/polymet/pages/customer-create";
 import { Vendors } from "@/polymet/pages/vendors";
 import { Accounting } from "@/polymet/pages/accounting";
 import { Support } from "@/polymet/pages/support";
@@ -13,11 +14,15 @@ import { ERPManagement } from "@/polymet/pages/erp-management";
 import { SupportTickets } from "@/polymet/pages/support-tickets";
 import { SupportSearch } from "@/polymet/pages/support-search";
 import { SupportAnalysis } from "@/polymet/pages/support-analysis";
+import { InvitationAcceptPage } from "@/pages/InvitationAccept";
+import { OAuthCallbackPage } from "@/pages/OAuthCallback";
+import { Toaster } from "@/components/ui/toaster";
 
 export default function TelecomPlatform() {
   return (
-    <Router>
-      <Routes>
+    <>
+      <Router>
+        <Routes>
         {/* Authentication Routes */}
         <Route
           path="/login"
@@ -54,6 +59,15 @@ export default function TelecomPlatform() {
           element={
             <MainLayout title="Customer Management">
               <CustomerOverview />
+            </MainLayout>
+          }
+        />
+
+        <Route
+          path="/customers/new"
+          element={
+            <MainLayout title="Create Customer">
+              <CustomerCreate />
             </MainLayout>
           }
         />
@@ -129,7 +143,21 @@ export default function TelecomPlatform() {
             </MainLayout>
           }
         />
+
+        {/* Public Invitation Acceptance (No Auth Required) */}
+        <Route
+          path="/invitations/accept/:token"
+          element={<InvitationAcceptPage />}
+        />
+
+        {/* OAuth Callback (No Auth Required) */}
+        <Route
+          path="/oauth-callback"
+          element={<OAuthCallbackPage />}
+        />
       </Routes>
     </Router>
+    <Toaster />
+    </>
   );
 }

@@ -1,0 +1,14 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: api-ringer-tel-cert
+  namespace: warp-api
+spec:
+  secretName: api-ringer-tel-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: api.ringer.tel
+  dnsNames:
+  - api.ringer.tel
+

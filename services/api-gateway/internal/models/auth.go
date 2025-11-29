@@ -6,11 +6,17 @@ type AuthTokens struct {
 	RefreshToken string `json:"refresh_token"`
 	TokenType    string `json:"token_type"` // "Bearer"
 	ExpiresIn    int    `json:"expires_in"` // seconds
+	Email        string `json:"email"`
+	UserID       string `json:"user_id"`
+	UserType     string `json:"user_type"`
 }
 
 // GoogleTokenExchangeRequest for /auth/exchange endpoint
+// Simplified pattern matching ringer-soa
 type GoogleTokenExchangeRequest struct {
-	IDToken string `json:"id_token" binding:"required"` // Google ID token
+	GoogleID string `json:"google_id" binding:"required"`
+	Email    string `json:"email" binding:"required,email"`
+	Name     string `json:"name"`
 }
 
 // RefreshTokenRequest for /auth/refresh endpoint

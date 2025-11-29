@@ -16,10 +16,10 @@ RUN go mod tidy && go mod download
 RUN go install github.com/swaggo/swag/cmd/swag@latest
 
 # Generate Swagger docs
-RUN /go/bin/swag init -g cmd/api-server/main.go -o docs --parseDependency --parseInternal || mkdir -p docs
+RUN /go/bin/swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal || mkdir -p docs
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o api-server ./cmd/api-server
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o api-server ./cmd/server
 
 # Final stage
 FROM alpine:3.18

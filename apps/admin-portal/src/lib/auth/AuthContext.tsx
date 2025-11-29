@@ -7,7 +7,8 @@ interface AuthContextType {
   user: any | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (googleToken: string) => Promise<void>;
+  login: (googleData: { googleId: string; email: string; name: string }) => Promise<void>;
+  signInWithGoogle: () => Promise<{ uid: string; email: string; displayName: string | null }>;
   logout: () => void;
 }
 
@@ -60,12 +61,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     verifyToken();
   }, []);
 
-  const login = async (googleIdToken: string) => {
+  const login = async (googleData: { googleId: string; email: string; name: string }) => {
     try {
+      // Simplified pattern matching ringer-soa
+      // Just send Google info to backend - no token validation needed
       const response = await fetch(`${API_URL}/auth/exchange`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_token: googleIdToken }),
+        body: JSON.stringify({
+          google_id: googleData.googleId,
+          email: googleData.email,
+          name: googleData.name,
+        }),
       });
 
       if (!response.ok) {
@@ -82,15 +89,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('access_token', tokens.access_token);
       localStorage.setItem('refresh_token', tokens.refresh_token);
 
-      // Get user info
-      const userResponse = await fetch(`${API_URL}/v1/gatekeeper/my-permissions`, {
-        headers: { Authorization: `Bearer ${tokens.access_token}` },
+      console.log('✅ Tokens stored in localStorage');
+      console.log('Access token:', tokens.access_token.substring(0, 20) + '...');
+
+      // Set user from token response
+      setUser({
+        user_id: tokens.user_id,
+        email: tokens.email,
+        user_type: tokens.user_type,
       });
 
-      if (userResponse.ok) {
-        const userData = await userResponse.json();
-        setUser(userData.data);
-      }
     } catch (error) {
       console.error('Login failed:', error);
       throw error;
@@ -122,6 +130,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const signInWithGoogle = async (): Promise<{ uid: string; email: string; displayName: string | null }> => {
+    // Use redirect flow (same as Login page)
+    const clientId = '791559065272-mcpfc2uc9jtdd7ksovpvb3o19gsv7o7o.apps.googleusercontent.com';
+    const currentPath = window.location.pathname; // Preserve current path for return
+    const redirectUri = `${window.location.origin}/oauth-callback`;
+    const scope = 'email profile openid';
+
+    // Store return path for after OAuth
+    sessionStorage.setItem('oauth_return_path', currentPath);
+
+    // Build OAuth URL
+    const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+      `client_id=${clientId}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&response_type=token` +
+      `&scope=${encodeURIComponent(scope)}` +
+      `&include_granted_scopes=true` +
+      `&state=${Math.random().toString(36)}`;
+
+    // Do full page redirect
+    window.location.href = googleAuthUrl;
+
+    // This never returns (redirect happens)
+    return new Promise(() => {});
+  };
+
   const logout = () => {
     setAccessToken(null);
     setRefreshToken(null);
@@ -139,6 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!accessToken,
         isLoading,
         login,
+        signInWithGoogle,
         logout,
       }}
     >

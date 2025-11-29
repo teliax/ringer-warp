@@ -56,13 +56,88 @@ resource "google_compute_router" "warp_router" {
   project = var.project_id
 }
 
-resource "google_compute_router_nat" "warp_nat" {
-  name                               = "${var.project_name}-nat"
+# Reference existing static NAT IPs (created manually for vendor whitelisting)
+data "google_compute_address" "nat_ip_1" {
+  name    = "warp-nat-ip-1"
+  region  = var.region
+  project = var.project_id
+}
+
+data "google_compute_address" "nat_ip_2" {
+  name    = "warp-nat-ip-2"
+  region  = var.region
+  project = var.project_id
+}
+
+data "google_compute_address" "nat_ip_3" {
+  name    = "warp-nat-ip-3"
+  region  = var.region
+  project = var.project_id
+}
+
+# SMPP-specific NAT IP whitelisted by Sinch for SMPP vendor binds
+# IP: 34.58.165.135 - CRITICAL: Required for outbound SMPP connections to Sinch
+data "google_compute_address" "nat_outbound_ip" {
+  name    = "warp-nat-outbound-ip"
+  region  = var.region
+  project = var.project_id
+}
+
+# Cloud NAT for GKE - uses ONLY the Sinch-whitelisted IP (34.58.165.135)
+# This NAT covers ALL traffic from the GKE subnet (nodes + pods)
+# Required for: SMPP Gateway → Sinch, API Gateway → external vendors, cert-manager → Let's Encrypt
+resource "google_compute_router_nat" "warp_nat_gke" {
+  name                               = "${var.project_name}-nat-gke"
   router                             = google_compute_router.warp_router.name
   region                             = var.region
-  nat_ip_allocate_option             = "AUTO_ONLY"
-  source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
+  nat_ip_allocate_option             = "MANUAL_ONLY"
+  nat_ips                            = [
+    data.google_compute_address.nat_outbound_ip.self_link,  # 34.58.165.135 - Sinch whitelisted
+  ]
+  source_subnetwork_ip_ranges_to_nat = "LIST_OF_SUBNETWORKS"
+  enable_endpoint_independent_mapping = false
   project                            = var.project_id
+
+  # GKE subnet - ALL IP ranges (primary for nodes + secondary for pods)
+  # CRITICAL: Must include ALL_IP_RANGES to NAT both node and pod traffic
+  # Previous config only NAT'd secondary range, breaking pod egress
+  subnetwork {
+    name                    = google_compute_subnetwork.gke_subnet.id
+    source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
+  }
+
+  log_config {
+    enable = true
+    filter = "ALL"
+  }
+}
+
+# Cloud NAT for VMs only (RTPEngine, Consul) - uses the 3 standard NAT IPs
+# GKE pods use warp_nat_gke with the Sinch-whitelisted IP
+resource "google_compute_router_nat" "warp_nat_general" {
+  name                               = "${var.project_name}-nat-general"
+  router                             = google_compute_router.warp_router.name
+  region                             = var.region
+  nat_ip_allocate_option             = "MANUAL_ONLY"
+  nat_ips                            = [
+    data.google_compute_address.nat_ip_1.self_link,
+    data.google_compute_address.nat_ip_2.self_link,
+    data.google_compute_address.nat_ip_3.self_link,
+  ]
+  source_subnetwork_ip_ranges_to_nat = "LIST_OF_SUBNETWORKS"
+  project                            = var.project_id
+
+  # RTPEngine subnet
+  subnetwork {
+    name                     = google_compute_subnetwork.rtpengine_subnet.id
+    source_ip_ranges_to_nat  = ["ALL_IP_RANGES"]
+  }
+
+  # Consul subnet
+  subnetwork {
+    name                     = google_compute_subnetwork.consul_subnet.id
+    source_ip_ranges_to_nat  = ["ALL_IP_RANGES"]
+  }
 
   log_config {
     enable = true
