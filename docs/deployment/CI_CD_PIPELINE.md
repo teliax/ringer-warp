@@ -130,10 +130,19 @@ kubectl rollout undo deployment/api-gateway -n warp-api
 
 #### Image Versioning & Tagging Strategy
 
-**Semantic Versioning** (Recommended):
+⚠️ **CRITICAL**: Always tag images with BOTH a semantic version AND `latest` tag.
+
+**Why Proper Versioning Matters**:
+- ✅ **Rollback Support**: Can revert to specific versions instantly
+- ✅ **Audit Trail**: Know exactly what version is deployed in each environment
+- ✅ **Change Tracking**: Link deployments to code changes and PRs
+- ✅ **Debugging**: Reproduce issues with exact version
+- ❌ **Never use ONLY `latest`**: Impossible to rollback or track what's deployed
+
+**Semantic Versioning** (Required):
 - `v1.0.0` - Major.Minor.Patch
-- `v1.1.0` - Feature releases
-- `v1.0.1` - Patch/hotfix releases
+- `v1.1.0` - Feature releases (new functionality)
+- `v1.0.1` - Patch/hotfix releases (bug fixes)
 - `latest` - Always points to newest production build
 
 **Additional Tags**:
@@ -141,17 +150,34 @@ kubectl rollout undo deployment/api-gateway -n warp-api
 - `v1.0.0-beta` - Beta releases
 - `sha-abc1234` - Git commit SHA (future enhancement)
 
-**Example Deployment**:
+**Required Deployment Process** (BOTH tags):
 ```bash
-# Deploy specific version to production
+# ✅ CORRECT: Tag with version AND latest
+cd services/api-gateway
+
+# Build and tag with specific version
+docker build --platform linux/amd64 \
+  -t us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:v1.2.0 \
+  -t us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:latest .
+
+# Push BOTH tags
+docker push us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:v1.2.0
+docker push us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:latest
+
+# OR use Makefile (auto-tags both)
 make docker-push VERSION=v1.2.0
 
-# Deploy to staging with RC tag
-make docker-push VERSION=v1.2.0-rc1
+# Deploy
+kubectl apply -f deployments/kubernetes/
+kubectl rollout status deployment/api-gateway -n warp-api
+```
 
-# Update latest tag
-docker tag api-gateway:v1.2.0 api-gateway:latest
+**❌ INCORRECT: Only using `latest`**:
+```bash
+# DON'T DO THIS - No version tracking!
+docker build -t api-gateway:latest .
 docker push api-gateway:latest
+# ❌ Problem: Can't rollback, can't audit, can't reproduce
 ```
 
 **Tag Management**:

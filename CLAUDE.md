@@ -133,6 +133,56 @@ kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80
 ./scripts/deploy-k8s-services-v01.sh
 ```
 
+## Deployment Best Practices
+
+### Docker Image Versioning (CRITICAL)
+
+⚠️ **ALWAYS tag Docker images with BOTH semantic version AND `latest`**
+
+**Required Practice**:
+```bash
+# ✅ CORRECT: Tag with version AND latest
+docker build --platform linux/amd64 \
+  -t us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/SERVICE:vX.Y.Z \
+  -t us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/SERVICE:latest .
+
+# Push BOTH tags
+docker push us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/SERVICE:vX.Y.Z
+docker push us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/SERVICE:latest
+
+# OR use Makefile (handles both automatically)
+make docker-push VERSION=vX.Y.Z
+```
+
+**❌ NEVER push only `latest` to production**:
+```bash
+# DON'T DO THIS - No rollback capability!
+docker push SERVICE:latest  # ❌ Missing version tag
+```
+
+**Why This Matters**:
+- ✅ **Rollback**: Can instantly revert to previous version
+- ✅ **Audit Trail**: Know exactly what's deployed in production
+- ✅ **Debugging**: Reproduce issues with specific versions
+- ✅ **Change Tracking**: Link deployments to code changes
+- ❌ Only `latest`: Impossible to rollback or audit deployments
+
+**Semantic Versioning Rules**:
+- `v1.0.1` - **Patch**: Bug fixes, config changes, hotfixes
+- `v1.1.0` - **Minor**: New features, backwards compatible
+- `v2.0.0` - **Major**: Breaking changes, API contract changes
+
+**After Each Deployment**:
+1. Update `CHANGELOG.md` with version and changes
+2. Tag git commit with version: `git tag v1.0.1 && git push --tags`
+3. Verify both tags in Artifact Registry
+4. Document deployed version in deployment docs
+
+**See Also**:
+- [CI/CD Pipeline Guide](docs/deployment/CI_CD_PIPELINE.md#image-versioning--tagging-strategy)
+- [Deployment Guide](docs/deployment/DEPLOYMENT.md)
+- [API Gateway CHANGELOG](services/api-gateway/CHANGELOG.md)
+
 ## Authorization & Security
 
 **Pattern**: Database-driven, endpoint-based authorization with multi-tenant customer scoping

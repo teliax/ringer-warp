@@ -7,13 +7,20 @@ import axios from 'axios';
 // Set base URL from environment
 axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
-// Request interceptor: Add JWT token to all requests
+// Request interceptor: Add JWT token and customer context to all requests
 axios.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Add X-Customer-ID header for multi-tenant customer scoping
+    const activeBanId = localStorage.getItem('active_ban_id');
+    if (activeBanId) {
+      config.headers['X-Customer-ID'] = activeBanId;
+    }
+
     return config;
   },
   (error) => {

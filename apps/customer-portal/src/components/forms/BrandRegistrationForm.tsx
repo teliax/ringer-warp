@@ -107,6 +107,26 @@ export function BrandRegistrationForm({
       country: "US",
       entity_type: "PRIVATE_PROFIT",
       alt_business_id_type: "NONE",
+      vertical: "",
+      stock_exchange: "",
+      stock_symbol: "",
+      website: "",
+      tax_id: "",
+      contact_first_name: "",
+      contact_last_name: "",
+      contact_email: "",
+      contact_phone: "",
+      alt_business_id: "",
+      reference_id: "",
+      display_name: "",
+      legal_name: "",
+      email: "",
+      phone: "",
+      street: "",
+      city: "",
+      state: "",
+      postal_code: "",
+      company_name: "",
     },
   });
 
@@ -205,7 +225,7 @@ export function BrandRegistrationForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Industry Vertical {!isSoleProprietor && "*"}</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select industry" />
@@ -486,7 +506,7 @@ export function BrandRegistrationForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Stock Exchange *</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select exchange" />
@@ -542,7 +562,7 @@ export function BrandRegistrationForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>ID Type</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || "NONE"}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select type" />

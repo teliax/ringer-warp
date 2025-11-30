@@ -258,22 +258,41 @@ Evaluating two approaches:
 
 #### 1. Build and Push Docker Image
 
+⚠️ **CRITICAL**: Always tag with BOTH semantic version AND `latest`. Never push only `latest` to production!
+
+**Why Both Tags Matter**:
+- ✅ Version tag: Enables rollback, audit trail, debugging
+- ✅ `latest` tag: Convenience for development/testing
+- ❌ Only `latest`: Impossible to track what's deployed or rollback
+
 ```bash
 cd services/api-gateway
 
-# Build Docker image
+# ✅ CORRECT: Build with BOTH tags
 docker build --platform linux/amd64 \
-  -t us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:latest \
-  -t us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:v1.0.0 .
+  -t us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:v1.0.1 \
+  -t us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:latest .
 
-# Push to Artifact Registry
+# Push BOTH tags to Artifact Registry
+docker push us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:v1.0.1
 docker push us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:latest
-docker push us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:v1.0.0
 ```
 
-Or use the Makefile:
+**Version Numbering** (Semantic Versioning):
+- `v1.0.1` - Patch/hotfix (bug fix, small change)
+- `v1.1.0` - Minor release (new features, backwards compatible)
+- `v2.0.0` - Major release (breaking changes)
+
+Or use the Makefile (auto-handles both tags):
 ```bash
-make docker-push VERSION=v1.0.0
+make docker-push VERSION=v1.0.1
+```
+
+**Verify Tags in Artifact Registry**:
+```bash
+gcloud artifacts docker images list \
+  us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway \
+  --include-tags
 ```
 
 #### 2. Deploy to GKE

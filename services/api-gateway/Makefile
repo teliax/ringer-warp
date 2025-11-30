@@ -29,12 +29,17 @@ test-coverage: ## Run tests with coverage
 	go test -v -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 
-docker-build: gen-docs ## Build Docker image
+docker-build: gen-docs ## Build Docker image (tags with VERSION and latest)
 	docker build --platform linux/amd64 -t $(IMAGE_NAME):$(VERSION) -t $(IMAGE_NAME):latest .
 
-docker-push: docker-build ## Push Docker image to Artifact Registry
+docker-push: docker-build ## Push Docker image to Artifact Registry (pushes VERSION and latest)
+	@echo "📦 Pushing version: $(VERSION)"
 	docker push $(IMAGE_NAME):$(VERSION)
+	@echo "📦 Pushing latest tag"
 	docker push $(IMAGE_NAME):latest
+	@echo "✅ Both tags pushed successfully!"
+	@echo "   - $(IMAGE_NAME):$(VERSION)"
+	@echo "   - $(IMAGE_NAME):latest"
 
 deploy-k8s: docker-push ## Deploy to Kubernetes
 	kubectl apply -f deployments/kubernetes/
