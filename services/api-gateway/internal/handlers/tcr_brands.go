@@ -173,8 +173,12 @@ func (h *TCRBrandHandler) CreateBrand(c *gin.Context) {
 	}
 
 	// Get user ID for audit
-	userID, _ := c.Get("user_id")
-	createdBy := userID.(uuid.UUID)
+	userIDUUID, exists := c.Get("user_id_uuid")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, models.NewErrorResponse("INTERNAL_ERROR", "User ID not found in context"))
+		return
+	}
+	createdBy := userIDUUID.(uuid.UUID)
 
 	// Step 1: Create brand in local database first (status: PENDING)
 	brand, err := h.brandRepo.Create(c.Request.Context(), &req, customerID, createdBy)

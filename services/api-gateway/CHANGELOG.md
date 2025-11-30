@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.0.3] - 2025-11-30
+
+### Fixed
+- **Type Assertion Panic**: Fixed panic when getting user_id from context
+  - File: `internal/handlers/tcr_brands.go`
+  - Issue: Handler tried to assert `user_id` (string) as uuid.UUID, causing panic
+  - Solution: Use `user_id_uuid` field instead which is already a uuid.UUID type
+  - Impact: No more 500 errors when creating brands
+
+### Deployment
+- **Image**: `us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:v1.0.3`
+- **Deployed**: 2025-11-30 22:31 UTC
+- **Pods**: 3 replicas (api-gateway-*)
+- **Rollout**: Successful (zero downtime)
+
+---
+
 ## [v1.0.2] - 2025-11-30
 
 ### Fixed
