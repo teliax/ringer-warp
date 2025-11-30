@@ -56,16 +56,16 @@ export function useBrands() {
   /**
    * Create a new brand registration
    */
-  const createBrand = async (data: CreateBrandRequest): Promise<Brand10DLC> => {
+  const createBrand = async (data: CreateBrandRequest): Promise<{ brand: Brand10DLC; message: string }> => {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.post<APIResponse<{ brand: Brand10DLC; message: string }>>(
+      const response = await axios.post<APIResponse<{ brand: Brand10DLC; message: string; tcr_brand_id?: string; status?: string; trust_score?: number }>>(
         `/v1/messaging/brands`,
         data
       );
-      // Backend returns { brand, message } structure
-      return response.data.data?.brand || response.data.data as any;
+      // Backend returns { brand, message, tcr_brand_id, status, trust_score } structure
+      return response.data.data as any;
     } catch (err: any) {
       const errorMsg = err.response?.data?.error?.message || 'Failed to create brand';
       setError(errorMsg);

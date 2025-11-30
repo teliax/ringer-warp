@@ -172,11 +172,14 @@ export function Messaging() {
   // Form submission handlers
   const handleBrandSubmit = async (data: CreateBrandRequest) => {
     try {
-      await brandsHook.createBrand(data);
-      toast.success("Brand submitted for registration! TCR will process within 5 minutes.");
+      const result = await brandsHook.createBrand(data);
+      // Show message from backend (includes TCR status and trust score)
+      const message = result.message || "Brand registered successfully!";
+      toast.success(message);
       await loadData(); // Refresh data
       setBrandDialogOpen(false);
     } catch (error: any) {
+      // Show specific error from backend (e.g., "TCR registration failed: credentials invalid")
       toast.error(error.message || "Failed to create brand");
       throw error; // Re-throw so form can handle it
     }
