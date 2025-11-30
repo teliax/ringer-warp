@@ -25,14 +25,6 @@ type User struct {
 	CustomerAccess []CustomerAccess `json:"customer_access,omitempty" db:"-"`
 }
 
-// UserType represents a user role
-type UserType struct {
-	ID          uuid.UUID `json:"id" db:"id"`
-	TypeName    string    `json:"type_name" db:"type_name"`
-	Description *string   `json:"description,omitempty" db:"description"`
-	CreatedAt   time.Time `json:"created_at" db:"created_at"`
-}
-
 // UserPermissions represents complete user permission information
 type UserPermissions struct {
 	UserID             uuid.UUID        `json:"user_id"`

@@ -10,6 +10,7 @@ import { Messaging } from "@/polymet/pages/messaging";
 import { Intelligence } from "@/polymet/pages/intelligence";
 import { Settings } from "@/polymet/pages/settings";
 import { SettingsUsers } from "@/polymet/pages/settings-users";
+import { SettingsRoles } from "@/polymet/pages/settings-roles";
 import { SettingsOAuth } from "@/polymet/pages/settings-oauth";
 import { SettingsKYC } from "@/polymet/pages/settings-kyc";
 import { Billing } from "@/polymet/pages/billing";
@@ -158,9 +159,11 @@ export default function TelecomPlatform() {
         <Route
           path="/"
           element={
-            <MainLayout title="Dashboard">
-              <Dashboard />
-            </MainLayout>
+            <ProtectedRoute>
+              <MainLayout title="Dashboard">
+                <Dashboard />
+              </MainLayout>
+            </ProtectedRoute>
           }
         />
 
@@ -245,6 +248,15 @@ export default function TelecomPlatform() {
           element={
             <MainLayout title="User Management">
               <SettingsUsers />
+            </MainLayout>
+          }
+        />
+
+        <Route
+          path="/settings/roles"
+          element={
+            <MainLayout title="User Roles & Permissions">
+              <SettingsRoles />
             </MainLayout>
           }
         />

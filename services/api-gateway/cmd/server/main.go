@@ -82,6 +82,7 @@ func main() {
 	
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db)
+	userTypeRepo := repository.NewUserTypeRepository(db)
 	permRepo := gatekeeper.NewPermissionRepository(db)
 	customerRepo := repository.NewCustomerRepository(db)
 	hubspotSyncRepo := repository.NewHubSpotSyncRepository(db)
@@ -131,6 +132,7 @@ func main() {
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(oauthVerifier, jwtService, userRepo, logger)
 	gatekeeperHandler := handlers.NewGatekeeperHandler(gk, userRepo)
+	userTypeHandler := handlers.NewUserTypeHandler(userTypeRepo, userRepo)
 	dashboardHandler := handlers.NewDashboardHandler(db) // Pass db pool for customer scoping
 	smppProxyHandler := handlers.NewSMPPProxyHandler()
 
@@ -313,6 +315,16 @@ func main() {
 			admin.GET("/invitations", invitationHandler.ListInvitations)
 			admin.DELETE("/invitations/:id", invitationHandler.RevokeInvitation)
 			admin.POST("/invitations/:id/resend", invitationHandler.ResendInvitation)
+
+			// User Type Management
+			admin.GET("/user-types", userTypeHandler.ListUserTypes)
+			admin.GET("/user-types/:id", userTypeHandler.GetUserType)
+			admin.POST("/user-types", userTypeHandler.CreateUserType)
+			admin.PUT("/user-types/:id", userTypeHandler.UpdateUserType)
+			admin.DELETE("/user-types/:id", userTypeHandler.DeleteUserType)
+			admin.GET("/user-types/:id/permissions", userTypeHandler.GetUserTypePermissions)
+			admin.PUT("/user-types/:id/permissions", userTypeHandler.UpdateUserTypePermissions)
+			admin.GET("/user-types/:id/users", userTypeHandler.GetUsersByType)
 
 			// Trunk Management (admin-scoped by customer ID or BAN)
 			admin.POST("/customers/:customerId/trunks", trunkHandler.CreateTrunkGroup)

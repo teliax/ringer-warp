@@ -18,8 +18,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/lib/auth/AuthContext";
 import { cn } from "@/lib/utils";
+import { BANSwitcher } from "@/components/BANSwitcher";
 import {
   LayoutDashboardIcon,
   PhoneIcon,
@@ -104,6 +106,12 @@ const navigation = [
         description: "Manage team members and roles",
       },
       {
+        name: "Roles & Permissions",
+        href: "/settings/roles",
+        icon: ShieldCheckIcon,
+        description: "Manage user types and permissions",
+      },
+      {
         name: "OAuth Tokens",
         href: "/settings/oauth",
         icon: KeyIcon,
@@ -112,26 +120,29 @@ const navigation = [
       {
         name: "KYC Information",
         href: "/settings/kyc",
-        icon: ShieldCheckIcon,
+        icon: ShieldIcon,
         description: "Know Your Customer details",
       },
     ],
   },
 ];
 
-// Mock data for company accounts
-const companyAccounts = [
-  { id: "1", company: "Teliax", ban: "644288714" },
-  { id: "2", company: "Teliax", ban: "644288715" },
-  { id: "3", company: "Ringer Communications", ban: "755399821" },
-  { id: "4", company: "VoIP Solutions Inc", ban: "866477932" },
-];
-
 export function MainLayout({ children, title }: MainLayoutProps) {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
-  const [selectedAccount, setSelectedAccount] = useState(companyAccounts[0].id);
   const location = useLocation();
+
+  // Get user display info from AuthContext
+  const userEmail = user?.email || "user@example.com";
+  const userName = user?.name || userEmail.split('@')[0];
+  const userInitials = userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2) || 'U';
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const toggleSubmenu = (itemName: string) => {
     setExpandedMenus((prev) =>
@@ -295,17 +306,16 @@ export function MainLayout({ children, title }: MainLayoutProps) {
         <div className="border-t border-gray-700 p-4">
           <div className="flex items-center space-x-3">
             <Avatar className="h-8 w-8">
-              <AvatarImage src="https://github.com/yusufhilmi.png" />
-
+              <AvatarImage src={user?.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=58C5C7&color=fff`} />
               <AvatarFallback className="bg-[#58C5C7] text-white">
-                JD
+                {userInitials}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white truncate">
-                John Doe
+                {userName}
               </p>
-              <p className="text-xs text-gray-400 truncate">john@ringer.tel</p>
+              <p className="text-xs text-gray-400 truncate">{userEmail}</p>
             </div>
           </div>
         </div>
@@ -328,40 +338,7 @@ export function MainLayout({ children, title }: MainLayoutProps) {
 
               {/* Company & BAN Selector */}
               <div className="hidden md:flex items-center">
-                <Select
-                  value={selectedAccount}
-                  onValueChange={setSelectedAccount}
-                >
-                  <SelectTrigger className="w-auto min-w-[200px] border-gray-200 bg-gray-50 hover:bg-white focus:bg-white">
-                    <div className="flex items-center space-x-2">
-                      <BuildingIcon className="h-4 w-4 text-gray-500" />
-
-                      <SelectValue>
-                        {(() => {
-                          const account = companyAccounts.find(
-                            (acc) => acc.id === selectedAccount
-                          );
-                          return account
-                            ? `${account.company} - ${account.ban}`
-                            : "Select Account";
-                        })()}
-                      </SelectValue>
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {companyAccounts.map((account) => (
-                      <SelectItem key={account.id} value={account.id}>
-                        <div className="flex items-center space-x-2">
-                          <BuildingIcon className="h-4 w-4 text-gray-500" />
-
-                          <span>
-                            {account.company} - {account.ban}
-                          </span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <BANSwitcher />
               </div>
             </div>
 
@@ -393,14 +370,13 @@ export function MainLayout({ children, title }: MainLayoutProps) {
                     className="flex items-center space-x-2"
                   >
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src="https://github.com/yusufhilmi.png" />
-
+                      <AvatarImage src={user?.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=58C5C7&color=fff`} />
                       <AvatarFallback className="bg-[#58C5C7] text-white">
-                        JD
+                        {userInitials}
                       </AvatarFallback>
                     </Avatar>
                     <span className="hidden md:block text-sm font-medium">
-                      John Doe
+                      {userName}
                     </span>
                     <ChevronDownIcon className="h-4 w-4" />
                   </Button>
@@ -423,7 +399,7 @@ export function MainLayout({ children, title }: MainLayoutProps) {
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
 
-                  <DropdownMenuItem className="text-red-600">
+                  <DropdownMenuItem className="text-red-600" onClick={handleLogout}>
                     <LogOutIcon className="mr-2 h-4 w-4" />
                     Log out
                   </DropdownMenuItem>

@@ -297,3 +297,44 @@ func (r *UserRepository) Delete(ctx context.Context, userID uuid.UUID) error {
 
 	return nil
 }
+
+// GetByUserType returns all users with a specific user type
+func (r *UserRepository) GetByUserType(ctx context.Context, userTypeID uuid.UUID) ([]models.User, error) {
+	query := `
+		SELECT id, google_id, email, display_name, photo_url, user_type_id,
+		       is_active, last_login, login_count, created_at, updated_at
+		FROM auth.users
+		WHERE user_type_id = $1
+		ORDER BY display_name, email
+	`
+
+	rows, err := r.db.Query(ctx, query, userTypeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get users by type: %w", err)
+	}
+	defer rows.Close()
+
+	var users []models.User
+	for rows.Next() {
+		var user models.User
+		err := rows.Scan(
+			&user.ID,
+			&user.GoogleID,
+			&user.Email,
+			&user.DisplayName,
+			&user.PhotoURL,
+			&user.UserTypeID,
+			&user.IsActive,
+			&user.LastLogin,
+			&user.LoginCount,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan user: %w", err)
+		}
+		users = append(users, user)
+	}
+
+	return users, nil
+}

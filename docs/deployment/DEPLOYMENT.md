@@ -243,31 +243,133 @@ Evaluating two approaches:
 - SMPP connections configured
 - Sinch API credentials
 
-## API Gateway Deployment (In Development)
+## API Gateway Deployment
 
 ### Architecture
 
-- **Language**: Go/Rust microservices
-- **Gateway**: Envoy/Kong
-- **Authentication**: OAuth2/JWT
-- **Rate Limiting**: Per-customer quotas
+- **Language**: Go microservices
+- **Framework**: Gin HTTP framework
+- **Authentication**: Google OAuth → JWT
+- **Authorization**: Gatekeeper middleware (endpoint-based permissions)
+- **Database**: PostgreSQL (Cloud SQL)
+- **Container Registry**: Google Artifact Registry
 
-### Services
+### Deployment Process
 
-1. **Customer API**
-   - Account management
-   - Trunk provisioning
-   - Usage/billing
+#### 1. Build and Push Docker Image
 
-2. **Carrier API**
-   - Routing updates
-   - Rate management
-   - CDR access
+```bash
+cd services/api-gateway
 
-3. **Admin API**
-   - System configuration
-   - Monitoring
-   - Troubleshooting
+# Build Docker image
+docker build --platform linux/amd64 \
+  -t us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:latest \
+  -t us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:v1.0.0 .
+
+# Push to Artifact Registry
+docker push us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:latest
+docker push us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:v1.0.0
+```
+
+Or use the Makefile:
+```bash
+make docker-push VERSION=v1.0.0
+```
+
+#### 2. Deploy to GKE
+
+```bash
+# Deploy to Kubernetes
+kubectl apply -f deployments/kubernetes/
+
+# Verify deployment
+kubectl get pods -n warp-api
+kubectl logs -n warp-api -l app=api-gateway
+```
+
+#### 3. Verify API Endpoints
+
+```bash
+# Health check
+curl https://api.rns.ringer.tel/health
+
+# Metrics
+curl https://api.rns.ringer.tel/metrics
+```
+
+### API Endpoints
+
+- **Base URL**: https://api.rns.ringer.tel
+- **Authentication**: `/auth/exchange`, `/auth/refresh`, `/auth/validate`
+- **Gatekeeper**: `/v1/gatekeeper/my-permissions`, `/v1/gatekeeper/check-access`
+- **Customers**: `/v1/customers`, `/v1/customers/:id/users`
+- **User Types**: `/v1/admin/user-types` (CRUD + permissions)
+- **Trunks**: `/v1/trunks`, `/v1/admin/customers/:id/trunks`
+
+## Frontend Deployment (Customer Portal)
+
+### Vercel Automatic Deployment
+
+The customer portal (`apps/customer-portal`) is deployed to Vercel with **automatic CI/CD from GitHub**.
+
+#### How It Works
+
+1. **Push to GitHub** → Vercel detects changes
+2. **Automatic Build** → Vercel runs `npm run build`
+3. **Automatic Deploy** → New version goes live
+4. **Preview Deployments** → Every PR gets a preview URL
+
+#### Configuration
+
+**File**: `apps/customer-portal/vercel.json`
+
+```json
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "env": {
+    "VITE_API_URL": "https://api.rns.ringer.tel",
+    "VITE_GOOGLE_CLIENT_ID": "791559065272-..."
+  }
+}
+```
+
+#### Manual Deployment (if needed)
+
+```bash
+cd apps/customer-portal
+
+# Install Vercel CLI
+npm i -g vercel
+
+# Deploy to production
+vercel --prod
+
+# Deploy preview
+vercel
+```
+
+#### Production URL
+
+- **Customer Portal**: https://customer.rns.ringer.tel (or Vercel-provided URL)
+
+### Environment Variables (Vercel Dashboard)
+
+Configure in Vercel project settings:
+- `VITE_API_URL` → https://api.rns.ringer.tel
+- `VITE_GOOGLE_CLIENT_ID` → OAuth client ID
+
+### Build Verification
+
+```bash
+# Test build locally
+npm run build
+npm run preview
+
+# Check for TypeScript errors
+npm run lint
+```
 
 ## Security Considerations
 

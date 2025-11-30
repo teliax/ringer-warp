@@ -68,6 +68,7 @@ export function Login() {
           googleId: userInfo.sub,
           email: userInfo.email,
           name: userInfo.name || userInfo.email,
+          picture: userInfo.picture, // Google profile picture URL
         });
 
         // Clear hash and redirect to dashboard

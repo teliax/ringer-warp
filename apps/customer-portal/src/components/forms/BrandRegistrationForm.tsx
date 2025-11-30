@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { CreateBrandRequest, EntityTypeInfo, VerticalInfo } from "@/types/messaging";
+import { formatPhoneE164 } from "@/lib/utils/phone-formatter";
 
 // Complete TCR brand schema matching API requirements
 const brandSchema = z.object({
@@ -319,9 +320,16 @@ export function BrandRegistrationForm({
                 <FormItem>
                   <FormLabel>Phone *</FormLabel>
                   <FormControl>
-                    <Input placeholder="+15551234567" {...field} />
+                    <Input
+                      placeholder="+15551234567"
+                      {...field}
+                      onChange={(e) => {
+                        const formatted = formatPhoneE164(e.target.value);
+                        field.onChange(formatted);
+                      }}
+                    />
                   </FormControl>
-                  <FormDescription>E.164 format: +1XXXXXXXXXX</FormDescription>
+                  <FormDescription>E.164 format: +1XXXXXXXXXX (auto-formatted)</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -366,9 +374,16 @@ export function BrandRegistrationForm({
                   <FormItem>
                     <FormLabel>Business Contact Phone</FormLabel>
                     <FormControl>
-                      <Input placeholder="+15551234567" {...field} />
+                      <Input
+                        placeholder="+15551234567"
+                        {...field}
+                        onChange={(e) => {
+                          const formatted = formatPhoneE164(e.target.value);
+                          field.onChange(formatted);
+                        }}
+                      />
                     </FormControl>
-                    <FormDescription>E.164 format</FormDescription>
+                    <FormDescription>E.164 format (auto-formatted)</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

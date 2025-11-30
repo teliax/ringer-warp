@@ -1,4 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "@/lib/auth/AuthContext";
+import { useBanReload } from "@/hooks/useBanReload";
+import { userManagementService, User as BackendUser } from "@/services/userManagementService";
+import { userTypeService, UserType } from "@/services/userTypeService";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -128,15 +134,149 @@ const userRoles = [
 ];
 
 export function SettingsUsers() {
-  const [users, setUsers] = useState<User[]>(mockUsers);
+  const { activeBan, user: currentUser } = useAuth();
+  const navigate = useNavigate();
+  const [users, setUsers] = useState<BackendUser[]>([]);
+  const [userTypes, setUserTypes] = useState<UserType[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [inviteForm, setInviteForm] = useState({
     email: "",
     role: "",
+    user_type: "customer_admin",
     name: "",
   });
 
-  const handleInviteUser = () => {
+  // Fetch users for the active BAN
+  const fetchUsers = useCallback(async () => {
+    if (!activeBan) {
+      setUsers([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await userManagementService.listUsers(activeBan.customer_id);
+      setUsers(data);
+    } catch (error: any) {
+      console.error('Failed to load users:', error);
+      if (error.response?.status !== 403) {
+        toast.error('Failed to load users');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [activeBan]);
+
+  // Fetch available user types
+  const fetchUserTypes = useCallback(async () => {
+    try {
+      const types = await userTypeService.listUserTypes();
+      setUserTypes(types);
+    } catch (error: any) {
+      console.error('Failed to load user types:', error);
+      // Don't show error toast - this is not critical
+    }
+  }, []);
+
+  // Load users on mount and when activeBan changes
+  useEffect(() => {
+    fetchUsers();
+    fetchUserTypes();
+  }, [fetchUsers, fetchUserTypes]);
+
+  // Reload users when BAN switches
+  useBanReload(fetchUsers);
+
+  const handleInviteUser = async () => {
+    if (!activeBan) {
+      toast.error('No customer selected');
+      return;
+    }
+
+    if (inviteForm.email && inviteForm.role && inviteForm.user_type) {
+      try {
+        await userManagementService.inviteUser(activeBan.customer_id, {
+          email: inviteForm.email,
+          user_type: inviteForm.user_type,
+          role: inviteForm.role as 'USER' | 'ADMIN' | 'OWNER',
+          message: `Welcome to ${activeBan.company_name}`,
+        });
+
+        toast.success('User invitation sent successfully');
+        setIsInviteOpen(false);
+        setInviteForm({ email: "", role: "", user_type: "customer_admin", name: "" });
+        fetchUsers();
+      } catch (error: any) {
+        console.error('Failed to invite user:', error);
+        if (error.response?.status === 403) {
+          toast.error('Permission denied - you cannot invite users');
+        } else {
+          toast.error('Failed to send invitation');
+        }
+      }
+    }
+  };
+
+  const handleUpdateRole = async (userId: string, newRole: string) => {
+    if (!activeBan) return;
+
+    try {
+      await userManagementService.updateUserRole(
+        activeBan.customer_id,
+        userId,
+        newRole as 'USER' | 'ADMIN' | 'OWNER'
+      );
+      toast.success('User role updated');
+      fetchUsers();
+    } catch (error: any) {
+      console.error('Failed to update role:', error);
+      if (error.response?.status === 403) {
+        toast.error('Permission denied');
+      } else {
+        toast.error('Failed to update user role');
+      }
+    }
+  };
+
+  const handleRemoveUser = async (userId: string) => {
+    if (!activeBan) return;
+    if (!confirm('Are you sure you want to remove this user?')) return;
+
+    try {
+      await userManagementService.removeUser(activeBan.customer_id, userId);
+      toast.success('User removed');
+      fetchUsers();
+    } catch (error: any) {
+      console.error('Failed to remove user:', error);
+      if (error.response?.status === 403) {
+        toast.error('Permission denied');
+      } else {
+        toast.error('Failed to remove user');
+      }
+    }
+  };
+
+  // Show empty state if no BAN is selected
+  if (!activeBan) {
+    return (
+      <div className="space-y-6 p-6">
+        <Card>
+          <CardContent className="py-16 text-center">
+            <UsersIcon className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-4 text-lg font-semibold">Select a Customer</h3>
+            <p className="mt-2 text-gray-600">
+              Choose a customer account from the dropdown above to manage users.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const handleInviteUserOld_DISABLED = () => {
+    // This old function is disabled - backend integration is now used
     if (inviteForm.email && inviteForm.role && inviteForm.name) {
       const newUser: User = {
         id: Date.now().toString(),
@@ -407,25 +547,69 @@ export function SettingsUsers() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>User Roles & Permissions</CardTitle>
-            <CardDescription>
-              Available roles and their access levels
-            </CardDescription>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle>User Roles & Permissions</CardTitle>
+                <CardDescription>
+                  Available roles and their access levels
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/settings/roles')}
+              >
+                <ShieldIcon className="h-4 w-4 mr-2" />
+                Manage Roles
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {userRoles.map((role) => (
-              <div key={role.value} className="flex items-start space-x-3">
-                <div className={`p-2 rounded-lg ${role.color}`}>
-                  <role.icon className="h-4 w-4 text-white" />
-                </div>
-                <div className="flex-1">
-                  <div className="font-medium">{role.label}</div>
-                  <div className="text-sm text-gray-500">
-                    {role.description}
-                  </div>
-                </div>
+            {userTypes.length === 0 ? (
+              <div className="text-center py-6 text-gray-500">
+                <p className="text-sm">Loading user types...</p>
               </div>
-            ))}
+            ) : (
+              userTypes.slice(0, 4).map((userType) => {
+                // Map to icon colors based on type name
+                const iconColor = userType.has_wildcard_permission
+                  ? 'bg-red-500'
+                  : userType.type_name.includes('admin')
+                  ? 'bg-orange-500'
+                  : userType.type_name.includes('billing')
+                  ? 'bg-yellow-500'
+                  : userType.type_name.includes('developer')
+                  ? 'bg-blue-500'
+                  : 'bg-gray-500';
+
+                return (
+                  <div key={userType.id} className="flex items-start space-x-3">
+                    <div className={`p-2 rounded-lg ${iconColor}`}>
+                      <ShieldIcon className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium">
+                        {userType.type_name.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {userType.description || `${userType.permissions.length} permissions`}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            {userTypes.length > 4 && (
+              <div className="text-center pt-2">
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={() => navigate('/settings/roles')}
+                >
+                  View all {userTypes.length} roles →
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
