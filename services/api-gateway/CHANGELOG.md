@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.0.4] - 2025-11-30
+
+### Fixed
+- **Context Cancellation in Async TCR Submissions**: Fixed goroutines using request context which gets cancelled immediately
+  - Files: `internal/handlers/tcr_brands.go`, `internal/handlers/tcr_campaigns.go`
+  - Issue: All async TCR API calls failed with "context canceled" error because goroutines used request context
+  - Solution: Changed to `context.Background()` for all async goroutines (5 locations)
+  - Impact: TCR brand/campaign submissions now complete successfully in background
+
+### Configuration
+- **TCR Sandbox Disabled**: Changed `TCR_SANDBOX="false"` to use production URL
+  - Reason: Sandbox domain `csp-api.sandbox.campaignregistry.com` doesn't exist in DNS
+  - Production URL `csp-api.campaignregistry.com` resolves correctly
+  - Note: Using test credentials on production URL for development
+
+### Deployment
+- **Image**: `us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:v1.0.4`
+- **Deployed**: 2025-11-30 23:38 UTC
+- **Pods**: 3 replicas (api-gateway-*)
+- **Rollout**: Successful (zero downtime)
+
+---
+
 ## [v1.0.3] - 2025-11-30
 
 ### Fixed

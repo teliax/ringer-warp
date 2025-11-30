@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -195,7 +196,8 @@ func (h *TCRBrandHandler) CreateBrand(c *gin.Context) {
 
 	// Step 2: Submit to TCR API (async - don't block response)
 	go func() {
-		ctx := c.Request.Context()
+		// Use background context (request context gets cancelled after response sent)
+		ctx := context.Background()
 
 		// Build TCR request
 		tcrReq := tcr.BrandRequest{
@@ -336,7 +338,8 @@ func (h *TCRBrandHandler) UpdateBrand(c *gin.Context) {
 	// If brand is already registered with TCR, sync changes
 	if brand.TCRBrandID != nil {
 		go func() {
-			ctx := c.Request.Context()
+			// Use background context (request context gets cancelled after response sent)
+			ctx := context.Background()
 
 			// Build update map
 			updates := make(map[string]interface{})
@@ -424,7 +427,8 @@ func (h *TCRBrandHandler) RequestVetting(c *gin.Context) {
 
 	// Submit vetting request to TCR (async)
 	go func() {
-		ctx := c.Request.Context()
+		// Use background context (request context gets cancelled after response sent)
+		ctx := context.Background()
 
 		tcrReq := tcr.VettingRequest{
 			EVPID:        req.Provider,

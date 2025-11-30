@@ -190,7 +190,8 @@ func (h *TCRCampaignHandler) CreateCampaign(c *gin.Context) {
 
 	// Step 2: Submit to TCR API (async - don't block response)
 	go func() {
-		ctx := c.Request.Context()
+		// Use background context (request context gets cancelled after response sent)
+		ctx := context.Background()
 
 		// Build TCR request
 		tcrReq := tcr.CampaignRequest{
@@ -317,7 +318,8 @@ func (h *TCRCampaignHandler) GetMNOStatus(c *gin.Context) {
 	// If TCR campaign ID exists, poll TCR for latest status
 	if campaign.TCRCampaignID != nil {
 		go func() {
-			ctx := c.Request.Context()
+			// Use background context (request context gets cancelled after response sent)
+			ctx := context.Background()
 			h.syncMNOStatus(ctx, campaignID, *campaign.TCRCampaignID)
 		}()
 	}
