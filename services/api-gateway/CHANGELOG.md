@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.0.2] - 2025-11-30
+
+### Fixed
+- **TCR Brand Creation for SuperAdmin**: Fixed handler logic to read `X-Customer-ID` header when SuperAdmin creates brands
+  - File: `internal/handlers/tcr_brands.go`
+  - Issue: SuperAdmin users have `accessible_customer_ids = nil` (all customers), but handler was treating this as "no access" and returning 403
+  - Solution: Check for `has_wildcard` flag and read customer context from `X-Customer-ID` header
+  - Impact: SuperAdmin can now create TCR Brands for any customer selected via BAN picker
+
+### Deployment
+- **Image**: `us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:v1.0.2`
+- **Deployed**: 2025-11-30 22:10 UTC
+- **Pods**: 3 replicas (api-gateway-6d8fb49956-*)
+- **Rollout**: Successful (zero downtime)
+
+---
+
 ## [v1.0.1] - 2025-11-30
 
 ### Fixed

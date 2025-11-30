@@ -133,23 +133,43 @@ func (h *TCRBrandHandler) CreateBrand(c *gin.Context) {
 		return
 	}
 
-	// Get customer ID from request or use first accessible customer
-	// NOTE: In production, you might want to make customer_id a required field in the request
+	// Get customer ID from X-Customer-ID header (for SuperAdmin) or accessible customers
 	var customerID uuid.UUID
 	var customerFilter []uuid.UUID
 
-	if accessibleCustomers, exists := c.Get("accessible_customer_ids"); exists {
-		customerFilter = accessibleCustomers.([]uuid.UUID)
-		if len(customerFilter) == 0 {
-			c.JSON(http.StatusForbidden, models.NewErrorResponse("NO_CUSTOMER_ACCESS", "No customer access configured"))
+	// Check if user has wildcard permission (SuperAdmin)
+	hasWildcard, _ := c.Get("has_wildcard")
+	if hasWildcard.(bool) {
+		// SuperAdmin: Read customer ID from X-Customer-ID header
+		customerIDHeader := c.GetHeader("X-Customer-ID")
+		if customerIDHeader == "" {
+			c.JSON(http.StatusBadRequest, models.NewErrorResponse("CUSTOMER_ID_REQUIRED", "X-Customer-ID header required for SuperAdmin"))
 			return
 		}
-		// Use first accessible customer (or you could require customer_id in request body)
-		customerID = customerFilter[0]
+
+		var err error
+		customerID, err = uuid.Parse(customerIDHeader)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, models.NewErrorResponse("INVALID_CUSTOMER_ID", "Invalid X-Customer-ID format"))
+			return
+		}
+
+		// SuperAdmin has access to all customers (nil filter)
+		customerFilter = nil
 	} else {
-		// SuperAdmin - needs customer_id in request
-		c.JSON(http.StatusBadRequest, models.NewErrorResponse("CUSTOMER_ID_REQUIRED", "customer_id required for SuperAdmin"))
-		return
+		// Regular user: Use accessible customers from gatekeeper
+		if accessibleCustomers, exists := c.Get("accessible_customer_ids"); exists {
+			customerFilter = accessibleCustomers.([]uuid.UUID)
+			if len(customerFilter) == 0 {
+				c.JSON(http.StatusForbidden, models.NewErrorResponse("NO_CUSTOMER_ACCESS", "No customer access configured"))
+				return
+			}
+			// Use first accessible customer
+			customerID = customerFilter[0]
+		} else {
+			c.JSON(http.StatusForbidden, models.NewErrorResponse("NO_CUSTOMER_ACCESS", "Customer access not found"))
+			return
+		}
 	}
 
 	// Get user ID for audit
