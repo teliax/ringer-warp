@@ -44,6 +44,7 @@ import {
   UsersIcon,
   KeyIcon,
   ShieldCheckIcon,
+  ShieldIcon,
   BuildingIcon,
 } from "lucide-react";
 
