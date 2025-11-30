@@ -51,7 +51,14 @@ export function BANSwitcher() {
       );
 
   const handleSelectBan = (customer: any) => {
-    setActiveBan(customer);
+    // Normalize customer object to ensure customer_id field exists
+    // SuperAdmin customers have 'id', regular customers have 'customer_id'
+    const normalizedCustomer = {
+      ...customer,
+      customer_id: customer.customer_id || customer.id,
+    };
+
+    setActiveBan(normalizedCustomer);
     setSearchQuery('');
     setOpen(false);
   };
