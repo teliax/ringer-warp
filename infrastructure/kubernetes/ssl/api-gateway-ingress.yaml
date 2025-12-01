@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-gateway-ingress
+  namespace: warp-api
+  annotations:
+    # Use cert-manager to automatically provision SSL certificate
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # Force HTTPS redirect
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # Allow large request bodies (for brand/campaign submissions)
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    # Websocket support (for future real-time updates)
+    nginx.ingress.kubernetes.io/websocket-services: "api-gateway"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - api.rns.ringer.tel
+    secretName: api-gateway-tls  # cert-manager will create this secret
+  rules:
+  - host: api.rns.ringer.tel
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway
+            port:
+              number: 8080

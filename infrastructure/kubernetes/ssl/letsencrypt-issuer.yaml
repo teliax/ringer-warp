@@ -1,0 +1,18 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    # Let's Encrypt production server
+    server: https://acme-v02.api.letsencrypt.org/directory
+    # Email for urgent notices (certificate expiration, etc.)
+    email: david.aldworth@ringer.tel
+    # Store account private key
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    # Use HTTP-01 challenge (simpler than DNS-01)
+    solvers:
+    - http01:
+        ingress:
+          class: nginx  # or 'gce' for GKE ingress
