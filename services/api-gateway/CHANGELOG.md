@@ -7,6 +7,155 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.2.3] - 2025-12-01
+
+### Added
+- **Auth+ Webhook Processing (Sprint 2)**: Real-time Auth+ verification status updates via webhooks
+  - Files modified:
+    - `internal/tcr/webhook_processor.go` - Added processAuthPlusEvent handler for 9 Auth+ events
+    - `internal/repository/tcr_webhooks.go` - Added GetUserEmailAndBrandName helper
+    - `internal/email/service.go` - Added 3 Auth+ email notification methods
+  - Files created:
+    - `infrastructure/database/migrations/003_auth_plus_tracking.sql` - Auth+ tracking fields
+    - `internal/email/templates/tcr/auth_plus_complete.html` - Verification complete email
+    - `internal/email/templates/tcr/auth_plus_failed.html` - Verification failed email
+    - `internal/email/templates/tcr/auth_plus_pin_expired.html` - PIN expiration email
+  - Features:
+    - Processes 9 Auth+ webhook events in real-time
+    - Updates vetting_status (PENDING → ACTIVE/FAILED/EXPIRED)
+    - Tracks verification progress (domain verified, 2FA verified, email sent/opened)
+    - Sends email notifications on key milestones (complete, failed, PIN expired)
+    - Stores timestamps for UI progress tracking
+  - Webhook Events Handled:
+    - BRAND_AUTHPLUS_VERIFICATION_ADD/COMPLETE/FAILED/EXPIRED
+    - BRAND_AUTHPLUS_DOMAIN_VERIFIED/FAILED
+    - BRAND_AUTHPLUS_2FA_VERIFIED/FAILED
+    - BRAND_EMAIL_2FA_SEND/OPEN/EXPIRED
+
+### Database Schema
+- **New Columns** (brands_10dlc table):
+  - auth_plus_domain_verified, auth_plus_2fa_verified
+  - auth_plus_email_sent_at, auth_plus_email_opened_at
+  - auth_plus_requested_at, auth_plus_completed_at, auth_plus_failed_at
+- **New Tables**:
+  - auth_plus_vetting_history - Timeline of all Auth+ attempts
+  - auth_plus_appeals - Appeal tracking with evidence
+
+### Technical Details
+- **Status Flow**: PENDING → (DOMAIN_VERIFIED + 2FA_VERIFIED) → ACTIVE
+- **Progress Tracking**: Granular timestamps for UI progress card (4-step timeline)
+- **Email Templates**: Professional HTML emails with dashboard links
+- **Error Handling**: Email failures logged but don't block webhook processing
+
+---
+
+## [v1.2.2] - 2025-12-01
+
+### Added
+- **Auth+ Campaign Validation (Sprint 1)**: Campaign creation blocking for PUBLIC_PROFIT brands without Auth+ verification
+  - File modified:
+    - `internal/handlers/tcr_campaigns.go` - Added Auth+ validation to CreateCampaign handler
+  - Features:
+    - Validates `identity_status` is VERIFIED or VETTED_VERIFIED for PUBLIC_PROFIT brands
+    - Validates `vetting_status` is ACTIVE for PUBLIC_PROFIT brands
+    - Returns `403 Forbidden` with clear error messages before TCR API calls
+    - Prevents cryptic TCR errors by catching invalid requests early
+  - Error codes:
+    - `IDENTITY_NOT_VERIFIED`: Brand identity verification incomplete
+    - `AUTHPLUS_REQUIRED`: Auth+ verification required for PUBLIC_PROFIT brands
+  - Business Logic:
+    - Non-PUBLIC_PROFIT brands: Only identity verification required
+    - PUBLIC_PROFIT brands: Both identity + Auth+ verification required
+    - Validation runs before campaign creation in database
+
+### Technical Details
+- **Validation Order**: TCR brand check → Identity status → Auth+ status → Campaign creation
+- **Status Fields**: Uses existing `identity_status` and `vetting_status` fields from brands_10dlc table
+- **Error Handling**: Returns HTTP 403 (Forbidden) instead of 400 (Bad Request) for authorization failures
+
+---
+
+## [v1.2.0] - 2025-12-01
+
+### Added
+- **Email Notifications for TCR Events**: Automated email notifications for brand and campaign status changes
+  - Files created/modified:
+    - `internal/email/service.go` - Centralized email service with SendGrid integration
+    - `internal/email/templates/tcr/brand_status_changed.html` - Generic brand status change template
+    - `internal/repository/tcr_webhooks.go` - User email lookup methods
+    - `internal/tcr/webhook_processor.go` - Email notification integration
+  - Features:
+    - Email notifications for **ALL brand status changes** (REGISTERED, VERIFIED, UNVERIFIED, VETTED_VERIFIED, SUSPENDED)
+    - Campaign approval/rejection emails per carrier (AT&T, T-Mobile, Verizon)
+    - User lookup via `created_by` field - notifies the user who submitted the brand/campaign
+    - Smart status messaging with context-aware next steps
+    - Vetting information for UNVERIFIED brands
+    - Notification tracking (`last_notification_sent_at`, `notification_status`)
+    - Asynchronous email sending (non-blocking)
+  - Integration:
+    - Reuses existing SendGrid configuration from invitation system
+    - Embedded HTML email templates with professional styling
+    - Dashboard links for brand/campaign details
+  - Configuration:
+    - `SENDGRID_API_KEY` - Already configured, shared with invitation system
+    - From: noreply@ringer.tel (WARP Platform)
+    - Dashboard: https://admin.rns.ringer.tel
+
+### Technical Details
+- **User Tracking**: Both `brands_10dlc` and `campaigns_10dlc` tables have `created_by` column referencing `auth.users(id)`
+- **Email Templates**: Base layout with content templates for flexible styling
+- **Error Handling**: Email failures logged but don't block webhook processing
+- **Database Queries**: Efficient joins to get user email + brand/campaign details in single query
+
+---
+
+## [v1.1.0] - 2025-11-30
+
+### Added
+- **TCR Webhook Integration**: Real-time status updates from The Campaign Registry
+  - Files created:
+    - `internal/tcr/webhooks.go` - Webhook types and client methods
+    - `internal/tcr/webhook_processor.go` - Event processing business logic
+    - `internal/tcr/webhook_subscription.go` - Subscription management
+    - `internal/handlers/tcr_webhooks.go` - HTTP webhook endpoints
+    - `internal/repository/tcr_webhooks.go` - Database operations
+  - Endpoints:
+    - `POST /webhooks/tcr/brands` - Receive brand status changes
+    - `POST /webhooks/tcr/campaigns` - Receive campaign status changes
+    - `POST /webhooks/tcr/vetting` - Receive vetting completion events
+  - Features:
+    - Automatic webhook subscription on server startup (BRAND, CAMPAIGN, VETTING categories)
+    - Event audit log in `messaging.tcr_webhook_events` table
+    - Asynchronous event processing (updates brand/campaign status in DB)
+    - Sync tracking (last_synced_at, sync_source fields)
+    - MNO status updates per carrier
+  - Configuration:
+    - `WEBHOOK_BASE_URL` env var (defaults to https://api.rns.ringer.tel)
+    - Uses existing `TCR_API_KEY` and `TCR_API_SECRET` for subscription API
+
+### Changed
+- **Database Schema**: Added sync tracking columns and webhook events table (migration 002)
+  - Tables modified: `brands_10dlc`, `campaigns_10dlc`
+  - Table created: `tcr_webhook_events`
+  - Indexes added: 8 performance indexes for webhook queries
+
+### Infrastructure
+- **HTTPS Enabled**: NGINX Ingress Controller with automated Let's Encrypt certificates
+  - LoadBalancer IP: 136.112.92.30
+  - Domains: api.rns.ringer.tel, grafana.ringer.tel, prometheus.ringer.tel
+  - Certificates: Valid until 2026-03-01 (90-day auto-renewal)
+  - See: `~/.claude/plans/snappy-petting-quill.md` for details
+
+### Deployment
+- **Image**: `us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:v1.1.0`
+- **Pods**: 3 replicas (api-gateway-*)
+- **Webhook URLs**:
+  - https://api.rns.ringer.tel/webhooks/tcr/brands
+  - https://api.rns.ringer.tel/webhooks/tcr/campaigns
+  - https://api.rns.ringer.tel/webhooks/tcr/vetting
+
+---
+
 ## [v1.0.6] - 2025-11-30
 
 ### Fixed

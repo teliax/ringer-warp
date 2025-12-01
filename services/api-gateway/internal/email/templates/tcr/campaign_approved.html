@@ -1,0 +1,47 @@
+<p>Hi {{.UserName}},</p>
+
+<p>Excellent news! Your SMS campaign <strong>{{.CampaignDescription}}</strong> has been approved by {{.CarrierName}}.</p>
+
+<div class="info-box">
+    <h3>✅ Campaign Approved</h3>
+    <ul>
+        <li><strong>Campaign:</strong> {{.CampaignDescription}}</li>
+        <li><strong>TCR Campaign ID:</strong> {{.TCRCampaignID}}</li>
+        <li><strong>Brand:</strong> {{.BrandName}}</li>
+        <li><strong>Use Case:</strong> {{.UseCase}}</li>
+        <li><strong>Status:</strong> <span class="status-badge status-success">REGISTERED</span></li>
+        <li><strong>Approved by:</strong> {{.CarrierName}}</li>
+        <li><strong>Approved:</strong> {{.ApprovedAt}}</li>
+    </ul>
+</div>
+
+<p><strong>What this means:</strong></p>
+<ul>
+    <li>You can now send {{.ThroughputLimit}} messages per minute</li>
+    <li>Your messages will be delivered to {{.CarrierName}} subscribers</li>
+    <li>Daily limit: {{.DailyLimit}} messages</li>
+</ul>
+
+<div style="text-align: center;">
+    <a href="{{.DashboardURL}}/messaging/campaigns/{{.CampaignID}}" class="button">View Campaign Details</a>
+</div>
+
+{{if .PendingCarriers}}
+<div class="info-box">
+    <h3>ℹ️  Pending Carrier Approvals</h3>
+    <p>Your campaign is still under review by these carriers:</p>
+    <ul>
+        {{range .PendingCarriers}}
+        <li>{{.}}</li>
+        {{end}}
+    </ul>
+    <p style="font-size: 13px; margin-top: 12px;">You'll receive another notification when they approve or reject your campaign.</p>
+</div>
+{{end}}
+
+<hr class="divider">
+
+<p style="font-size: 13px; color: #6c757d;">
+    <strong>Next steps:</strong> You can now assign phone numbers to this campaign and start sending messages.
+    Make sure to follow the sample messages you submitted during registration.
+</p>

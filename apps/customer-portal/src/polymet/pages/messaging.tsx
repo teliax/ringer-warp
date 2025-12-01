@@ -41,6 +41,7 @@ import {
   TrendingUpIcon,
   AlertTriangleIcon,
   CheckCircleIcon,
+  XCircleIcon,
   SettingsIcon,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -149,6 +150,34 @@ export function Messaging() {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
+  };
+
+  // Auth+ status badge variant
+  const getAuthPlusVariant = (vettingStatus?: string | null) => {
+    if (!vettingStatus) return "secondary";
+
+    const variants: Record<string, string> = {
+      ACTIVE: "bg-green-100 text-green-800",
+      PENDING: "bg-yellow-100 text-yellow-800",
+      FAILED: "bg-red-100 text-red-800",
+      EXPIRED: "bg-gray-100 text-gray-800",
+    };
+
+    return variants[vettingStatus] || "bg-gray-100 text-gray-800";
+  };
+
+  // Check if brand can create campaigns
+  const canCreateCampaigns = (brand: Brand10DLC): boolean => {
+    // Non-PUBLIC_PROFIT brands: Only need identity verification
+    if (brand.entity_type !== "PUBLIC_PROFIT") {
+      return brand.identity_status === "VERIFIED" || brand.identity_status === "VETTED_VERIFIED";
+    }
+
+    // PUBLIC_PROFIT brands: Need both identity AND Auth+ verification
+    const identityOK = brand.identity_status === "VERIFIED" || brand.identity_status === "VETTED_VERIFIED";
+    const authPlusOK = brand.vetting_status === "ACTIVE";
+
+    return identityOK && authPlusOK;
   };
 
   // Calculate stats from real data
@@ -509,6 +538,8 @@ export function Messaging() {
                       <TableHead>Entity Type</TableHead>
                       <TableHead>Vertical</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Auth+ Status</TableHead>
+                      <TableHead>Can Create Campaigns</TableHead>
                       <TableHead>Registration Date</TableHead>
                       <TableHead>Trust Score</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -517,7 +548,7 @@ export function Messaging() {
                   <TableBody>
                     {brands.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                           No brands registered yet. Click "Register Brand" to get started.
                         </TableCell>
                       </TableRow>
@@ -532,6 +563,28 @@ export function Messaging() {
                           </TableCell>
                           <TableCell>{brand.vertical || "N/A"}</TableCell>
                           <TableCell>{getStatusBadge(brand.status as BrandStatus || "PENDING")}</TableCell>
+                          <TableCell>
+                            {brand.entity_type === "PUBLIC_PROFIT" ? (
+                              brand.vetting_status ? (
+                                <Badge className={getAuthPlusVariant(brand.vetting_status)}>
+                                  {brand.vetting_status}
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                                  Required
+                                </Badge>
+                              )
+                            ) : (
+                              <span className="text-muted-foreground text-sm">N/A</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {canCreateCampaigns(brand) ? (
+                              <CheckCircleIcon className="h-4 w-4 text-green-600" />
+                            ) : (
+                              <XCircleIcon className="h-4 w-4 text-red-600" />
+                            )}
+                          </TableCell>
                           <TableCell>
                             {formatDate(brand.created_at)}
                           </TableCell>

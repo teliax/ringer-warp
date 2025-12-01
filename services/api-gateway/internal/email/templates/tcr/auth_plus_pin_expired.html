@@ -1,0 +1,33 @@
+<p>Hi there,</p>
+
+<p>The 2FA PIN for your Auth+ verification of <strong>{{.BrandName}}</strong> has expired.</p>
+
+<div class="info-box">
+    <h3>🔑 2FA PIN Expired</h3>
+    <ul>
+        <li><strong>Brand:</strong> {{.BrandName}}</li>
+        <li><strong>TCR Brand ID:</strong> {{.TCRBrandID}}</li>
+        <li><strong>PIN Validity:</strong> 7 days (now expired)</li>
+        <li><strong>Verification Status:</strong> <span class="status-badge status-warning">PENDING</span></li>
+    </ul>
+</div>
+
+<p><strong>Action Required:</strong></p>
+<p>You can request a new 2FA PIN to be sent to your business contact email. The new PIN will be valid for 7 days.</p>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{.DashboardURL}}/messaging/brands/{{.TCRBrandID}}" class="button">Resend 2FA Email</a>
+</div>
+
+<hr class="divider">
+
+<p><strong>Important Timeline:</strong></p>
+<ul>
+    <li><strong>PIN Expiration:</strong> 7 days after each email is sent</li>
+    <li><strong>Maximum Window:</strong> 30 days to complete 2FA verification</li>
+    <li><strong>After 30 Days:</strong> Verification will fail and you'll need to start over</li>
+</ul>
+
+<p style="font-size: 13px; color: #6c757d;">
+    <strong>Tip:</strong> Contact your business contact before requesting a new PIN to ensure they can complete the verification promptly.
+</p>

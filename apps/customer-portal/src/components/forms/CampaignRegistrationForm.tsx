@@ -21,7 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { PlusIcon, XIcon, InfoIcon } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { PlusIcon, XIcon, InfoIcon, AlertCircleIcon } from "lucide-react";
 import type { CreateCampaignRequest, Brand10DLC, UseCaseInfo } from "@/types/messaging";
 
 // Complete TCR campaign schema matching API requirements
@@ -125,6 +126,35 @@ export function CampaignRegistrationForm({
   const selectedBrandId = form.watch("brand_id");
   const selectedBrand = brands.find((b) => b.id === selectedBrandId);
 
+  // Check if selected brand can create campaigns (Auth+ validation)
+  const canCreateCampaigns = (brand: Brand10DLC | undefined): boolean => {
+    if (!brand) return false;
+
+    // Non-PUBLIC_PROFIT brands: Only need identity verification
+    if (brand.entity_type !== "PUBLIC_PROFIT") {
+      return brand.identity_status === "VERIFIED" || brand.identity_status === "VETTED_VERIFIED";
+    }
+
+    // PUBLIC_PROFIT brands: Need both identity AND Auth+ verification
+    const identityOK = brand.identity_status === "VERIFIED" || brand.identity_status === "VETTED_VERIFIED";
+    const authPlusOK = brand.vetting_status === "ACTIVE";
+
+    return identityOK && authPlusOK;
+  };
+
+  const canProceed = canCreateCampaigns(selectedBrand);
+
+  // Determine blocking reason
+  let blockedReason = "";
+  if (selectedBrand && !canProceed) {
+    const identityOK = selectedBrand.identity_status === "VERIFIED" || selectedBrand.identity_status === "VETTED_VERIFIED";
+    if (!identityOK) {
+      blockedReason = "Brand must be verified before creating campaigns";
+    } else if (selectedBrand.entity_type === "PUBLIC_PROFIT") {
+      blockedReason = "Auth+ verification required for PUBLIC_PROFIT brands";
+    }
+  }
+
   const handleSubmit = async (data: CampaignFormData) => {
     try {
       // Filter out empty sample messages
@@ -148,6 +178,21 @@ export function CampaignRegistrationForm({
           <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
             {form.formState.errors.root.message}
           </div>
+        )}
+
+        {/* Auth+ Validation Alert */}
+        {selectedBrand && !canProceed && (
+          <Alert variant="destructive">
+            <AlertCircleIcon className="h-4 w-4" />
+            <AlertTitle>Cannot Create Campaign</AlertTitle>
+            <AlertDescription>
+              {blockedReason}
+              <br />
+              <span className="text-sm">
+                Complete brand verification requirements before creating campaigns.
+              </span>
+            </AlertDescription>
+          </Alert>
         )}
 
         {/* Campaign Selection */}
@@ -689,7 +734,7 @@ export function CampaignRegistrationForm({
           <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <Button type="submit" disabled={form.formState.isSubmitting}>
+          <Button type="submit" disabled={form.formState.isSubmitting || !canProceed}>
             {form.formState.isSubmitting ? "Submitting to TCR..." : "Create Campaign"}
           </Button>
         </div>

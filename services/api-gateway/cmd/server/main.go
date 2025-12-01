@@ -14,6 +14,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/ringer-warp/api-gateway/internal/auth"
 	"github.com/ringer-warp/api-gateway/internal/database"
+	"github.com/ringer-warp/api-gateway/internal/email"
 	"github.com/ringer-warp/api-gateway/internal/gatekeeper"
 	"github.com/ringer-warp/api-gateway/internal/handlers"
 	"github.com/ringer-warp/api-gateway/internal/hubspot"
@@ -183,6 +184,18 @@ func main() {
 
 	log.Println("✅ Trunk management system initialized")
 
+	// Initialize centralized email service for TCR notifications
+	tcrEmailService, err := email.NewService(email.Config{
+		FromEmail:      "noreply@ringer.tel",
+		FromName:       "WARP Platform",
+		DashboardURL:   "https://admin.rns.ringer.tel",
+		SendGridAPIKey: sendGridAPIKey, // Already loaded above for invitations
+	}, logger)
+	if err != nil {
+		log.Fatalf("Failed to initialize email service: %v", err)
+	}
+	log.Println("✅ Email service initialized for TCR notifications")
+
 	// Initialize TCR (The Campaign Registry) client for 10DLC compliance
 	tcrAPIKey := os.Getenv("TCR_API_KEY")
 	tcrAPISecret := os.Getenv("TCR_API_SECRET")
@@ -191,6 +204,7 @@ func main() {
 	var tcrBrandHandler *handlers.TCRBrandHandler
 	var tcrCampaignHandler *handlers.TCRCampaignHandler
 	var tcrEnumHandler *handlers.TCREnumerationHandler
+	var tcrWebhookHandler *handlers.TCRWebhookHandler
 
 	if tcrAPIKey != "" && tcrAPISecret != "" {
 		tcrClient := tcr.NewClient(tcr.Config{
@@ -202,11 +216,42 @@ func main() {
 		// Initialize TCR repositories
 		tcrBrandRepo := repository.NewTCRBrandRepository(db)
 		tcrCampaignRepo := repository.NewTCRCampaignRepository(db)
+		tcrWebhookRepo := repository.NewTCRWebhookEventRepository(db)
+
+		// Initialize TCR webhook processor with email service
+		tcrWebhookProcessor := tcr.NewWebhookProcessor(db, tcrEmailService, logger)
+
+		// Initialize TCR webhook handler
+		tcrWebhookHandler = handlers.NewTCRWebhookHandler(tcrWebhookRepo, tcrWebhookProcessor, logger)
 
 		// Initialize TCR handlers
 		tcrBrandHandler = handlers.NewTCRBrandHandler(tcrBrandRepo, tcrClient, logger)
 		tcrCampaignHandler = handlers.NewTCRCampaignHandler(tcrCampaignRepo, tcrBrandRepo, tcrClient, logger)
 		tcrEnumHandler = handlers.NewTCREnumerationHandler(tcrClient, logger)
+
+		// Initialize TCR webhook subscription manager
+		webhookManager := tcr.NewWebhookSubscriptionManager(tcrClient, logger)
+
+		// Subscribe to TCR webhooks on startup
+		webhookBaseURL := os.Getenv("WEBHOOK_BASE_URL")
+		if webhookBaseURL == "" {
+			webhookBaseURL = "https://api.rns.ringer.tel" // Default production URL
+		}
+
+		go func() {
+			// Wait 5 seconds for server to be ready
+			time.Sleep(5 * time.Second)
+
+			if err := webhookManager.SubscribeAllEvents(context.Background(), webhookBaseURL); err != nil {
+				logger.Error("Failed to subscribe to TCR webhooks",
+					zap.Error(err),
+				)
+			} else {
+				logger.Info("✅ Subscribed to all TCR webhooks",
+					zap.String("base_url", webhookBaseURL),
+				)
+			}
+		}()
 
 		if tcrSandbox {
 			log.Println("✅ TCR client initialized (SANDBOX MODE)")
@@ -247,10 +292,18 @@ func main() {
 	}
 
 	// Webhook endpoints (public, no auth - signature validated in handler)
-	if hubspotWebhookHandler != nil {
-		webhooks := router.Group("/webhooks")
-		{
+	webhooks := router.Group("/webhooks")
+	{
+		// HubSpot webhooks (if enabled)
+		if hubspotWebhookHandler != nil {
 			webhooks.POST("/hubspot/company", hubspotWebhookHandler.HandleCompanyWebhook)
+		}
+
+		// TCR webhooks (if enabled)
+		if tcrWebhookHandler != nil {
+			webhooks.POST("/tcr/brands", tcrWebhookHandler.HandleBrandWebhook)
+			webhooks.POST("/tcr/campaigns", tcrWebhookHandler.HandleCampaignWebhook)
+			webhooks.POST("/tcr/vetting", tcrWebhookHandler.HandleVettingWebhook)
 		}
 	}
 

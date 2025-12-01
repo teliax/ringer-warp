@@ -23,6 +23,14 @@ export interface Brand10DLC {
   vetting_provider?: string;
   vetting_class?: string;
   vetting_date?: string;
+  // Auth+ progress tracking
+  auth_plus_domain_verified?: boolean;
+  auth_plus_2fa_verified?: boolean;
+  auth_plus_email_sent_at?: string;
+  auth_plus_email_opened_at?: string;
+  auth_plus_requested_at?: string;
+  auth_plus_completed_at?: string;
+  auth_plus_failed_at?: string;
   vertical?: string;
   website?: string;
   country: string;
@@ -88,6 +96,11 @@ export interface UpdateBrandRequest {
   primary_contact_name?: string;
   primary_contact_email?: string;
   primary_contact_phone?: string;
+  // Business contact fields (required for TCR identity verification & Auth+)
+  business_contact_first_name?: string;
+  business_contact_last_name?: string;
+  business_contact_email?: string;
+  business_contact_phone?: string;
 }
 
 // =============================================================================
@@ -330,3 +343,45 @@ export type UseCase =
   | 'LOW_VOLUME'
   | 'HIGHER_EDUCATION'
   | 'K12_EDUCATION';
+
+// =============================================================================
+// AUTH+ VETTING TYPES
+// =============================================================================
+
+export type AuthPlusVettingStatus =
+  | 'PENDING'
+  | 'ACTIVE'
+  | 'FAILED'
+  | 'EXPIRED';
+
+export interface VettingStatusDetail {
+  vettingId: string;
+  vettingClass: string;
+  vettingProvider: string;
+  status: AuthPlusVettingStatus;
+  requestedAt: string;
+  completedAt?: string;
+  expirationDate?: string;
+  domainVerified: boolean;
+  twoFAVerified: boolean;
+  failureReason?: string;
+  canResend2FA: boolean;
+  canAppeal: boolean;
+  daysRemaining: number;
+}
+
+export interface AppealCategory {
+  code: string;
+  description: string;
+}
+
+export const AUTH_PLUS_APPEAL_CATEGORIES: AppealCategory[] = [
+  {
+    code: 'VERIFY_EMAIL_OWNERSHIP',
+    description: 'Email delivery issues (bounce, DNS problems, etc.)'
+  },
+  {
+    code: 'VERIFY_DOMAIN_OWNERSHIP',
+    description: 'Domain ownership not recognized'
+  }
+];

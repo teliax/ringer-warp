@@ -170,6 +170,28 @@ func (h *TCRCampaignHandler) CreateCampaign(c *gin.Context) {
 		return
 	}
 
+	// Auth+ Validation for PUBLIC_PROFIT brands
+	if brand.EntityType == "PUBLIC_PROFIT" {
+		// Check identity status
+		if brand.IdentityStatus == nil ||
+			!(*brand.IdentityStatus == "VERIFIED" || *brand.IdentityStatus == "VETTED_VERIFIED") {
+			c.JSON(http.StatusForbidden, models.NewErrorResponse(
+				"IDENTITY_NOT_VERIFIED",
+				"Brand must be in VERIFIED or VETTED_VERIFIED status to create campaigns",
+			))
+			return
+		}
+
+		// Check Auth+ vetting status
+		if brand.VettingStatus == nil || *brand.VettingStatus != "ACTIVE" {
+			c.JSON(http.StatusForbidden, models.NewErrorResponse(
+				"AUTHPLUS_REQUIRED",
+				"Auth+ verification required for PUBLIC_PROFIT brands. Please complete Auth+ verification before creating campaigns.",
+			))
+			return
+		}
+	}
+
 	// Get user ID for audit
 	userID, _ := c.Get("user_id")
 	createdBy := userID.(uuid.UUID)

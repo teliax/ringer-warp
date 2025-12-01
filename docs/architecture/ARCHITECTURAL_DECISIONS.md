@@ -1125,3 +1125,139 @@ gcloud compute routers nats describe warp-nat-gke --router=warp-router --region=
 
 *Last Updated: November 25, 2025*
 *Next Review: After SMPP traffic validation*
+
+## 15. SSL/TLS Termination Strategy
+
+**Date**: 2025-11-30
+**Status**: Accepted
+**Decision**: NGINX Ingress Controller with cert-manager for automated Let's Encrypt certificates
+
+### Context
+WARP platform required HTTPS for all public-facing services to:
+- Enable secure TCR webhooks (requires HTTPS endpoints)
+- Protect user credentials and API tokens in transit
+- Meet enterprise customer security requirements
+- Comply with PCI DSS requirements for payment processing
+
+**Options Evaluated**:
+1. **NGINX Ingress + cert-manager** (chosen)
+2. GCP Application Load Balancer with Managed Certificates
+3. Manual SSL certificates on individual LoadBalancers
+
+### Architecture
+
+**Single Ingress Pattern**:
+```
+Internet (HTTPS) → GCP Load Balancer → NGINX Ingress Controller → Backend Services
+                                              ↓
+                                        cert-manager (Let's Encrypt)
+```
+
+**Services**:
+- `api.rns.ringer.tel` → API Gateway (warp-api namespace)
+- `grafana.ringer.tel` → Grafana (monitoring namespace)
+- `prometheus.ringer.tel` → Prometheus (monitoring namespace)
+
+**Certificate Management**:
+- Provider: Let's Encrypt (free, automated)
+- Challenge Type: HTTP-01 (no DNS API required)
+- Renewal: Automatic (cert-manager renews at 30 days before expiry)
+- Certificate Lifetime: 90 days
+
+### Rationale
+
+**Cost Savings**:
+- Before: 3 LoadBalancers × $18/month = $54/month (projected)
+- After: 1 LoadBalancer × $18/month = $18/month  
+- **Savings: $36/month ($432/year)**
+
+**Operational Benefits**:
+- Automatic certificate renewal (no manual intervention)
+- Centralized TLS configuration
+- Single point for security policies (rate limiting, WAF rules)
+- Native Kubernetes integration (annotations, CRDs)
+
+**Technical Benefits**:
+- Path-based routing (critical for TCR webhooks on `/webhooks/*`)
+- WebSocket support (required for real-time UI updates)
+- Header manipulation (X-Forwarded-For, custom headers)
+- Cloud-agnostic (can migrate off GCP without rewrite)
+
+**Why Not GCP Load Balancer**:
+- Vendor lock-in (GCP-specific configuration)
+- Higher cost at scale (per-GB data processing charges)
+- Slower provisioning (5-10 min vs 30 sec for certificates)
+- Less flexible routing than NGINX
+
+### Consequences
+
+**Positive**:
+- $36/month cost reduction
+- Zero manual certificate management
+- Foundation for advanced routing (webhooks, WebSocket, API versioning)
+- Prometheus metrics built-in (ingress request rates, latencies)
+
+**Negative**:
+- Extra component to maintain (NGINX controller pod)
+- Minimal latency overhead (~1-2ms per request)
+- Single point of failure (mitigated by GCP LoadBalancer HA + pod autoscaling)
+
+### Monitoring & Alerts
+
+**Metrics** (automatically scraped by Prometheus):
+- `nginx_ingress_controller_requests` - Request rates per ingress
+- `nginx_ingress_controller_request_duration_seconds` - Latency percentiles
+- `nginx_ingress_controller_ssl_expire_time_seconds` - Certificate expiry
+
+**Alerts** (to be configured):
+- Certificate expiry < 7 days → Page on-call
+- NGINX pod crash loop → Page on-call
+- 5xx error rate > 1% → Alert
+- P95 latency > 500ms → Alert
+
+### Impact on Dependent Services
+
+**TCR Webhooks** (Phase 3 of implementation):
+- Webhook URLs will use HTTPS: `https://api.rns.ringer.tel/webhooks/tcr/*`
+- Path-based routing allows multiple webhook endpoints on single domain
+- SSL termination at ingress → backend receives plain HTTP (simplifies webhook handler)
+
+**Customer Portal** (Vercel-hosted):
+- No changes required (separate domain: console.rns.ringer.tel)
+- Vercel manages its own SSL certificates
+
+**Admin Portal** (Vercel-hosted):
+- No changes required (separate domain: admin.rns.ringer.tel)
+
+**Kamailio/RTPEngine**:
+- No changes required (SIP/RTP traffic uses separate network paths)
+
+### Rollback Plan
+
+If issues arise with NGINX Ingress:
+1. Revert DNS to old LoadBalancer IP (34.58.150.254)
+2. Keep old LoadBalancer service for 7 days before deletion
+3. Total rollback time: ~5 minutes (DNS TTL: 300 seconds)
+
+### Future Considerations
+
+**Phase 2** (Q1 2026): Add Cloud Armor policies to NGINX LoadBalancer
+- DDoS protection (rate limiting at edge)
+- Geographic restrictions (block non-US traffic if needed)
+- IP allowlisting for sensitive endpoints
+
+**Phase 3** (Q2 2026): Multi-region ingress
+- Deploy NGINX Ingress Controllers in us-west1, europe-west1
+- Global load balancing via DNS-based routing
+- Sub-50ms latency worldwide
+
+### References
+- NGINX Ingress Controller: https://kubernetes.github.io/ingress-nginx/
+- cert-manager: https://cert-manager.io/
+- Let's Encrypt: https://letsencrypt.org/
+- Implementation Plan: `~/.claude/plans/snappy-petting-quill.md`
+
+---
+
+*Last Updated: November 30, 2025*
+*Next Review: After TCR webhook implementation*

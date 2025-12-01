@@ -1,0 +1,41 @@
+<p>Hi {{.UserName}},</p>
+
+<p>Your 10DLC brand <strong>{{.BrandName}}</strong> has been updated by The Campaign Registry.</p>
+
+<div class="info-box">
+    <h3>📋 Brand Status Update</h3>
+    <ul>
+        <li><strong>Brand Name:</strong> {{.BrandName}}</li>
+        <li><strong>TCR Brand ID:</strong> {{.TCRBrandID}}</li>
+        {{if .PreviousStatus}}<li><strong>Previous Status:</strong> <span class="status-badge">{{.PreviousStatus}}</span></li>{{end}}
+        <li><strong>New Status:</strong> <span class="status-badge {{.StatusClass}}">{{.NewStatus}}</span></li>
+        {{if .IdentityStatus}}<li><strong>Identity Status:</strong> {{.IdentityStatus}}</li>{{end}}
+        {{if .TrustScore}}<li><strong>Trust Score:</strong> {{.TrustScore}}/100</li>{{end}}
+        <li><strong>Updated:</strong> {{.UpdatedAt}}</li>
+    </ul>
+</div>
+
+{{if .StatusMessage}}
+<p><strong>{{.StatusMessage}}</strong></p>
+{{end}}
+
+{{if .NextSteps}}
+<p><strong>What's next?</strong></p>
+<p>{{.NextSteps}}</p>
+{{end}}
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{.DashboardURL}}/messaging/brands/{{.BrandID}}" class="button">View Brand Details</a>
+</div>
+
+{{if .VettingInfo}}
+<hr class="divider">
+<div class="info-box">
+    <h4>🔍 Vetting Information</h4>
+    <p>{{.VettingInfo}}</p>
+</div>
+{{end}}
+
+<p style="font-size: 13px; color: #6c757d;">
+    <strong>Note:</strong> Brand status updates are provided by The Campaign Registry. If you have questions about your brand status, please contact TCR support.
+</p>

@@ -1,0 +1,33 @@
+<p>Hi there,</p>
+
+<p>Great news! Your Auth+ verification for <strong>{{.BrandName}}</strong> is complete.</p>
+
+<div class="info-box">
+    <h3>✅ Auth+ Verification Active</h3>
+    <ul>
+        <li><strong>Brand:</strong> {{.BrandName}}</li>
+        <li><strong>TCR Brand ID:</strong> {{.TCRBrandID}}</li>
+        <li><strong>Status:</strong> <span class="status-badge status-success">ACTIVE</span></li>
+        <li><strong>Verification Type:</strong> Auth+ 2FA</li>
+    </ul>
+</div>
+
+<p><strong>What's next?</strong></p>
+<p>You can now create SMS campaigns for this brand! Your campaigns will be reviewed by carriers (AT&T, T-Mobile, Verizon) typically within 1-2 business days.</p>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{.DashboardURL}}/messaging/brands/{{.TCRBrandID}}" class="button">Create Your First Campaign</a>
+</div>
+
+<hr class="divider">
+
+<p><strong>About Auth+ Verification:</strong></p>
+<p>Auth+ is a two-factor authentication process that prevents brand impersonation and ensures the security of A2P messaging. Your brand has successfully completed:</p>
+<ul>
+    <li>✓ Domain verification</li>
+    <li>✓ Business contact 2FA email verification</li>
+</ul>
+
+<p style="font-size: 13px; color: #6c757d;">
+    <strong>Note:</strong> Your Auth+ verification remains active until expiration. You'll be notified 30 days before it expires so you can renew seamlessly.
+</p>

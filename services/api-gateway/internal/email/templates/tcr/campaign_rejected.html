@@ -1,0 +1,49 @@
+<p>Hi {{.UserName}},</p>
+
+<p>Your SMS campaign <strong>{{.CampaignDescription}}</strong> was not approved by {{.CarrierName}}.</p>
+
+<div class="info-box">
+    <h3>⚠️ Campaign Rejected</h3>
+    <ul>
+        <li><strong>Campaign:</strong> {{.CampaignDescription}}</li>
+        <li><strong>TCR Campaign ID:</strong> {{.TCRCampaignID}}</li>
+        <li><strong>Brand:</strong> {{.BrandName}}</li>
+        <li><strong>Use Case:</strong> {{.UseCase}}</li>
+        <li><strong>Status:</strong> <span class="status-badge status-error">REJECTED</span></li>
+        <li><strong>Rejected by:</strong> {{.CarrierName}}</li>
+    </ul>
+</div>
+
+{{if .RejectionReason}}
+<div class="info-box" style="border-left-color: #dc3545;">
+    <h3>Rejection Reason</h3>
+    <p>{{.RejectionReason}}</p>
+</div>
+{{end}}
+
+<p><strong>What you can do:</strong></p>
+<ol>
+    <li>Review the rejection reason above</li>
+    <li>Update your campaign details to address the concerns</li>
+    <li>Resubmit your campaign for review</li>
+</ol>
+
+<div style="text-align: center;">
+    <a href="{{.DashboardURL}}/messaging/campaigns/{{.CampaignID}}/edit" class="button">Update Campaign</a>
+</div>
+
+<hr class="divider">
+
+<p style="font-size: 13px; color: #6c757d;">
+    <strong>Common rejection reasons:</strong>
+</p>
+<ul style="font-size: 13px; color: #6c757d;">
+    <li>Sample messages don't match the declared use case</li>
+    <li>Missing required opt-out keywords (STOP, UNSTOP)</li>
+    <li>Embedded links or phone numbers not declared</li>
+    <li>Use case requires additional documentation</li>
+</ul>
+
+<p style="font-size: 13px; color: #6c757d;">
+    <strong>Need help?</strong> Contact our support team at <a href="mailto:support@ringer.tel">support@ringer.tel</a> and we'll help you get approved.
+</p>

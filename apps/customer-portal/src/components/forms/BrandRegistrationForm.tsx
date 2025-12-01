@@ -84,6 +84,21 @@ const brandSchema = z.object({
 }, {
   message: "Tax ID (EIN) required for this entity type",
   path: ["tax_id"],
+}).refine((data) => {
+  // Business contact email required for all brands (TCR identity verification)
+  return data.contact_email && data.contact_email.length > 0;
+}, {
+  message: "Business contact email required for TCR identity verification",
+  path: ["contact_email"],
+}).refine((data) => {
+  // Business contact name required when email provided
+  if (data.contact_email && data.contact_email.length > 0) {
+    return data.contact_first_name && data.contact_last_name;
+  }
+  return true;
+}, {
+  message: "Business contact first and last name required",
+  path: ["contact_first_name"],
 });
 
 type BrandFormData = z.infer<typeof brandSchema>;

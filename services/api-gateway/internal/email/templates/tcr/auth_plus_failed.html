@@ -1,0 +1,38 @@
+<p>Hi there,</p>
+
+<p>Your Auth+ verification for <strong>{{.BrandName}}</strong> was unsuccessful.</p>
+
+<div class="info-box alert">
+    <h3>⚠️ Auth+ Verification Failed</h3>
+    <ul>
+        <li><strong>Brand:</strong> {{.BrandName}}</li>
+        <li><strong>TCR Brand ID:</strong> {{.TCRBrandID}}</li>
+        <li><strong>Status:</strong> <span class="status-badge status-danger">FAILED</span></li>
+        <li><strong>Reason:</strong> {{.FailureReason}}</li>
+    </ul>
+</div>
+
+<p><strong>What you can do:</strong></p>
+<ul>
+    <li><strong>Appeal (within 45 days):</strong> If you believe the failure was in error, submit an appeal with supporting evidence. Appeals cost $10 (non-refundable).</li>
+    <li><strong>Request New Verification:</strong> Update your business contact email if needed and request a new Auth+ verification.</li>
+</ul>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{.DashboardURL}}/messaging/brands/{{.TCRBrandID}}" class="button">View Brand & Take Action</a>
+</div>
+
+<hr class="divider">
+
+<p><strong>Common Failure Reasons:</strong></p>
+<ul>
+    <li>Domain verification failed - Business contact email domain doesn't match your company domain</li>
+    <li>2FA not completed within 30 days - Business contact didn't click the verification link</li>
+    <li>Email delivery issues - 2FA email bounced or was blocked by spam filters</li>
+</ul>
+
+<p style="font-size: 13px; color: #6c757d;">
+    <strong>Appeal Deadline:</strong> You have 45 days from the failure date to submit an appeal<br>
+    <strong>Appeal Cost:</strong> $10 (charged regardless of outcome)<br>
+    <strong>Processing Time:</strong> 2-5 business days
+</p>
