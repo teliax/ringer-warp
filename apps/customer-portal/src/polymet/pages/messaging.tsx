@@ -152,10 +152,14 @@ export function Messaging() {
   };
 
   // Calculate stats from real data
+  // Active = Fully verified and ready for campaigns
   const activeBrands = brands.filter(
-    (brand) => brand.status === "VERIFIED" || brand.status === "VETTED_VERIFIED" || brand.status === "ACTIVE" || brand.status === "REGISTERED"
+    (brand) => brand.status === "VERIFIED" || brand.status === "VETTED_VERIFIED" || brand.status === "ACTIVE"
   );
-  const pendingBrands = brands.filter((brand) => brand.status === "PENDING" || brand.status === "UNVERIFIED");
+  // Pending = Registered but awaiting verification, or in review
+  const pendingBrands = brands.filter(
+    (brand) => brand.status === "REGISTERED" || brand.status === "PENDING" || brand.status === "UNVERIFIED" || brand.status === "SELF_DECLARED"
+  );
 
   const activeCampaigns = campaigns.filter((campaign) => campaign.status === "ACTIVE");
   const pendingCampaigns = campaigns.filter((campaign) => campaign.status === "PENDING");
