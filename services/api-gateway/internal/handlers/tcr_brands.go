@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -194,79 +195,88 @@ func (h *TCRBrandHandler) CreateBrand(c *gin.Context) {
 		zap.String("customer_id", customerID.String()),
 	)
 
-	// Step 2: Submit to TCR API (async - don't block response)
-	go func() {
-		// Use background context (request context gets cancelled after response sent)
-		ctx := context.Background()
+	// Step 2: Submit to TCR API (synchronous with timeout for accurate user feedback)
+	// Create context with 10-second timeout
+	tcrCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-		// Build TCR request
-		tcrReq := tcr.BrandRequest{
-			BrandRelationship: "DIRECT_CUSTOMER",
-			Country:           req.Country,
-			DisplayName:       req.DisplayName,
-			Email:             req.Email,
-			EntityType:        req.EntityType,
-			Phone:             req.Phone,
-			CompanyName:       strOrEmpty(req.CompanyName),
-			EIN:               strOrEmpty(req.TaxID),
-			EINIssuingCountry: "US",
-			Website:           strOrEmpty(req.Website),
-			Vertical:          strOrEmpty(req.Vertical),
-			Street:            strOrEmpty(req.Street),
-			City:              strOrEmpty(req.City),
-			State:             strOrEmpty(req.State),
-			PostalCode:        strOrEmpty(req.PostalCode),
-			StockExchange:     strOrEmpty(req.StockExchange),
-			StockSymbol:       strOrEmpty(req.StockSymbol),
-			AltBusinessID:     strOrEmpty(req.AltBusinessID),
-			AltBusinessIDType: strOrEmpty(req.AltBusinessIDType),
-			ReferenceID:       brand.ID.String(), // Use our UUID as reference
-		}
+	// Build TCR request
+	tcrReq := tcr.BrandRequest{
+		BrandRelationship: "DIRECT_CUSTOMER",
+		Country:           req.Country,
+		DisplayName:       req.DisplayName,
+		Email:             req.Email,
+		EntityType:        req.EntityType,
+		Phone:             req.Phone,
+		CompanyName:       strOrEmpty(req.CompanyName),
+		EIN:               strOrEmpty(req.TaxID),
+		EINIssuingCountry: "US",
+		Website:           strOrEmpty(req.Website),
+		Vertical:          strOrEmpty(req.Vertical),
+		Street:            strOrEmpty(req.Street),
+		City:              strOrEmpty(req.City),
+		State:             strOrEmpty(req.State),
+		PostalCode:        strOrEmpty(req.PostalCode),
+		StockExchange:     strOrEmpty(req.StockExchange),
+		StockSymbol:       strOrEmpty(req.StockSymbol),
+		AltBusinessID:     strOrEmpty(req.AltBusinessID),
+		AltBusinessIDType: strOrEmpty(req.AltBusinessIDType),
+		ReferenceID:       brand.ID.String(), // Use our UUID as reference
+	}
 
-		// Submit to TCR
-		tcrBrand, err := h.tcrClient.CreateBrand(ctx, tcrReq)
-		if err != nil {
-			h.logger.Error("Failed to submit brand to TCR",
-				zap.Error(err),
-				zap.String("brand_id", brand.ID.String()),
-			)
-			// Update status to FAILED in database
-			_ = h.brandRepo.UpdateTCRInfo(ctx, brand.ID, "", "FAILED", nil, "")
-			return
-		}
-
-		// Update database with TCR response
-		h.logger.Info("Brand registered with TCR successfully",
+	// Submit to TCR synchronously
+	tcrBrand, err := h.tcrClient.CreateBrand(tcrCtx, tcrReq)
+	if err != nil {
+		h.logger.Error("Failed to submit brand to TCR",
+			zap.Error(err),
 			zap.String("brand_id", brand.ID.String()),
-			zap.String("tcr_brand_id", tcrBrand.BrandID),
-			zap.Int("trust_score", tcrBrand.TrustScore),
 		)
 
-		status := "REGISTERED"
-		if tcrBrand.IdentityStatus != "" {
-			status = tcrBrand.IdentityStatus
-		}
+		// Update status to FAILED in database
+		_ = h.brandRepo.UpdateTCRInfo(context.Background(), brand.ID, "", "FAILED", nil, "")
 
-		err = h.brandRepo.UpdateTCRInfo(
-			ctx,
-			brand.ID,
-			tcrBrand.BrandID,
-			status,
-			&tcrBrand.TrustScore,
-			tcrBrand.IdentityStatus,
+		// Return error to user (don't claim success!)
+		c.JSON(http.StatusInternalServerError, models.NewErrorResponse(
+			"TCR_SUBMISSION_FAILED",
+			fmt.Sprintf("Brand saved locally but TCR registration failed: %v. Please contact support or try again later.", err),
+		))
+		return
+	}
+
+	// TCR submission succeeded - update database with TCR response
+	h.logger.Info("Brand registered with TCR successfully",
+		zap.String("brand_id", brand.ID.String()),
+		zap.String("tcr_brand_id", tcrBrand.BrandID),
+		zap.Int("trust_score", tcrBrand.TrustScore),
+	)
+
+	status := "REGISTERED"
+	if tcrBrand.IdentityStatus != "" {
+		status = tcrBrand.IdentityStatus
+	}
+
+	err = h.brandRepo.UpdateTCRInfo(
+		context.Background(),
+		brand.ID,
+		tcrBrand.BrandID,
+		status,
+		&tcrBrand.TrustScore,
+		tcrBrand.IdentityStatus,
+	)
+	if err != nil {
+		h.logger.Error("Failed to update brand with TCR info",
+			zap.Error(err),
+			zap.String("brand_id", brand.ID.String()),
 		)
-		if err != nil {
-			h.logger.Error("Failed to update brand with TCR info",
-				zap.Error(err),
-				zap.String("brand_id", brand.ID.String()),
-			)
-		}
-	}()
+	}
 
-	// Return immediate response (brand will be updated async)
+	// Return success with TCR data
 	c.JSON(http.StatusCreated, models.NewSuccessResponse(gin.H{
 		"brand":   brand,
-		"message": "Brand submitted to TCR for registration. Status will be updated once processed.",
+		"tcr_brand_id": tcrBrand.BrandID,
+		"status": status,
+		"trust_score": tcrBrand.TrustScore,
+		"message": fmt.Sprintf("Brand successfully registered with TCR! Status: %s, Trust Score: %d", status, tcrBrand.TrustScore),
 	}))
 }
 

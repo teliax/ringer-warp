@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.0.6] - 2025-11-30
+
+### Fixed
+- **Synchronous TCR Submission for Accurate UX**: Changed brand creation from async to synchronous with 10-second timeout
+  - File: `internal/handlers/tcr_brands.go`
+  - Issue: Users saw "success" message even when TCR submission failed silently in background
+  - Solution: Wait for TCR response before returning to user
+  - Impact:
+    - Success: User sees "Brand successfully registered with TCR! Status: {status}, Trust Score: {score}"
+    - Failure: User sees specific error "TCR registration failed: {error message}"
+    - No more misleading success messages
+    - Backend waits up to 10 seconds for TCR response
+
+### Deployment
+- **Image**: `us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:v1.0.6`
+- **Deployed**: 2025-11-30 23:57 UTC
+- **Pods**: 3 replicas (api-gateway-*)
+- **Rollout**: Successful (zero downtime)
+
+---
+
+## [v1.0.5] - 2025-11-30
+
+### Fixed
+- **Correct TCR Brand Creation Endpoint**: Changed from `/brand` to `/brand/nonBlocking`
+  - File: `internal/tcr/brands.go`
+  - Issue: Using wrong endpoint resulted in HTTP 405 Method Not Allowed errors
+  - Solution: TCR uses `/brand/nonBlocking` for async brand registration (per API docs)
+  - Impact: Brand submissions now use correct TCR API endpoint
+
+### Deployment
+- **Image**: `us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:v1.0.5`
+- **Deployed**: 2025-11-30 23:49 UTC
+- **Pods**: 3 replicas (api-gateway-*)
+- **Rollout**: Successful (zero downtime)
+
+---
+
 ## [v1.0.4] - 2025-11-30
 
 ### Fixed

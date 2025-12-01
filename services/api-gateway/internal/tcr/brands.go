@@ -74,7 +74,8 @@ func (c *Client) CreateBrand(ctx context.Context, req BrandRequest) (*Brand, err
 		req.Mock = true
 	}
 
-	path := "/brand"
+	// Use nonBlocking endpoint for async brand registration
+	path := "/brand/nonBlocking"
 
 	resp, err := c.doRequest(ctx, http.MethodPost, path, req)
 	if err != nil {
