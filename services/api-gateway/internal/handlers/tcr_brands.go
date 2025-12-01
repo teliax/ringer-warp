@@ -200,19 +200,32 @@ func (h *TCRBrandHandler) CreateBrand(c *gin.Context) {
 	tcrCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// Validate required fields for TCR
+	// CompanyName required for non-SOLE_PROPRIETOR
+	companyName := req.DisplayName // Default to display name if not provided
+	if req.CompanyName != nil && *req.CompanyName != "" {
+		companyName = *req.CompanyName
+	}
+
+	// Vertical required for most entity types
+	vertical := "PROFESSIONAL" // Default if not specified
+	if req.Vertical != nil && *req.Vertical != "" {
+		vertical = *req.Vertical
+	}
+
 	// Build TCR request
 	tcrReq := tcr.BrandRequest{
-		BrandRelationship: "DIRECT_CUSTOMER",
+		BrandRelationship: "BASIC_ACCOUNT", // TCR requires account tier, not DIRECT_CUSTOMER
 		Country:           req.Country,
 		DisplayName:       req.DisplayName,
 		Email:             req.Email,
 		EntityType:        req.EntityType,
 		Phone:             req.Phone,
-		CompanyName:       strOrEmpty(req.CompanyName),
+		CompanyName:       companyName, // Required - use display name as fallback
 		EIN:               strOrEmpty(req.TaxID),
 		EINIssuingCountry: "US",
 		Website:           strOrEmpty(req.Website),
-		Vertical:          strOrEmpty(req.Vertical),
+		Vertical:          vertical, // Required - default to PROFESSIONAL
 		Street:            strOrEmpty(req.Street),
 		City:              strOrEmpty(req.City),
 		State:             strOrEmpty(req.State),
