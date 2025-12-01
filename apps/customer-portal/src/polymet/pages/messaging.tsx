@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -556,7 +557,12 @@ export function Messaging() {
                       brands.map((brand) => (
                         <TableRow key={brand.id}>
                           <TableCell className="font-medium">
-                            {brand.display_name}
+                            <Link
+                              to={`/messaging/brands/${brand.id}`}
+                              className="text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                              {brand.display_name}
+                            </Link>
                           </TableCell>
                           <TableCell>
                             {brand.entity_type?.replace(/_/g, " ")}
@@ -606,9 +612,11 @@ export function Messaging() {
                             )}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button variant="ghost" size="sm">
-                              <SettingsIcon className="w-4 h-4" />
-                            </Button>
+                            <Link to={`/messaging/brands/${brand.id}`}>
+                              <Button variant="ghost" size="sm">
+                                <SettingsIcon className="w-4 h-4" />
+                              </Button>
+                            </Link>
                           </TableCell>
                         </TableRow>
                       ))

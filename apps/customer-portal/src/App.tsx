@@ -7,6 +7,7 @@ import { Dashboard } from "@/polymet/pages/dashboard";
 import { Trunks } from "@/polymet/pages/trunks";
 import { Numbers } from "@/polymet/pages/numbers";
 import { Messaging } from "@/polymet/pages/messaging";
+import { BrandDetail } from "@/polymet/pages/BrandDetail";
 import { Intelligence } from "@/polymet/pages/intelligence";
 import { Settings } from "@/polymet/pages/settings";
 import { SettingsUsers } from "@/polymet/pages/settings-users";
@@ -202,6 +203,17 @@ export default function TelecomPlatform() {
             <ProtectedRoute>
               <MainLayout title="Messaging">
                 <Messaging />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/messaging/brands/:id"
+          element={
+            <ProtectedRoute>
+              <MainLayout title="Brand Details">
+                <BrandDetail />
               </MainLayout>
             </ProtectedRoute>
           }
