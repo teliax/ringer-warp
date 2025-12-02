@@ -94,7 +94,7 @@ func (c *Client) CreateBrand(ctx context.Context, req BrandRequest) (*Brand, err
 func (c *Client) UpdateBrand(ctx context.Context, brandID string, updates map[string]interface{}) (*Brand, error) {
 	path := fmt.Sprintf("/brand/%s", brandID)
 
-	resp, err := c.doRequest(ctx, http.MethodPatch, path, updates)
+	resp, err := c.doRequest(ctx, http.MethodPut, path, updates)
 	if err != nil {
 		return nil, err
 	}

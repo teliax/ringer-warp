@@ -215,26 +215,29 @@ func (h *TCRBrandHandler) CreateBrand(c *gin.Context) {
 
 	// Build TCR request
 	tcrReq := tcr.BrandRequest{
-		BrandRelationship: "BASIC_ACCOUNT", // TCR requires account tier, not DIRECT_CUSTOMER
-		Country:           req.Country,
-		DisplayName:       req.DisplayName,
-		Email:             req.Email,
-		EntityType:        req.EntityType,
-		Phone:             req.Phone,
-		CompanyName:       companyName, // Required - use display name as fallback
-		EIN:               strOrEmpty(req.TaxID),
-		EINIssuingCountry: "US",
-		Website:           strOrEmpty(req.Website),
-		Vertical:          vertical, // Required - default to PROFESSIONAL
-		Street:            strOrEmpty(req.Street),
-		City:              strOrEmpty(req.City),
-		State:             strOrEmpty(req.State),
-		PostalCode:        strOrEmpty(req.PostalCode),
-		StockExchange:     strOrEmpty(req.StockExchange),
-		StockSymbol:       strOrEmpty(req.StockSymbol),
-		AltBusinessID:     strOrEmpty(req.AltBusinessID),
-		AltBusinessIDType: strOrEmpty(req.AltBusinessIDType),
-		ReferenceID:       brand.ID.String(), // Use our UUID as reference
+		BrandRelationship:        "BASIC_ACCOUNT", // TCR requires account tier, not DIRECT_CUSTOMER
+		Country:                  req.Country,
+		DisplayName:              req.DisplayName,
+		Email:                    req.Email,
+		EntityType:               req.EntityType,
+		Phone:                    req.Phone,
+		CompanyName:              companyName, // Required - use display name as fallback
+		EIN:                      strOrEmpty(req.TaxID),
+		EINIssuingCountry:        "US",
+		Website:                  strOrEmpty(req.Website),
+		Vertical:                 vertical, // Required - default to PROFESSIONAL
+		Street:                   strOrEmpty(req.Street),
+		City:                     strOrEmpty(req.City),
+		State:                    strOrEmpty(req.State),
+		PostalCode:               strOrEmpty(req.PostalCode),
+		StockExchange:            strOrEmpty(req.StockExchange),
+		StockSymbol:              strOrEmpty(req.StockSymbol),
+		AltBusinessID:            strOrEmpty(req.AltBusinessID),
+		AltBusinessIDType:        strOrEmpty(req.AltBusinessIDType),
+		BusinessContactEmail:     strOrEmpty(req.ContactEmail),     // Required for identity verification & Auth+
+		BusinessContactFirstName: strOrEmpty(req.ContactFirstName), // Required when email provided
+		BusinessContactLastName:  strOrEmpty(req.ContactLastName),  // Required when email provided
+		ReferenceID:              brand.ID.String(),                // Use our UUID as reference
 	}
 
 	// Submit to TCR synchronously
@@ -364,40 +367,42 @@ func (h *TCRBrandHandler) UpdateBrand(c *gin.Context) {
 		return
 	}
 
-	// If brand is already registered with TCR, sync changes
+	// If brand is already registered with TCR, sync changes (SYNCHRONOUS - must succeed!)
 	if brand.TCRBrandID != nil {
-		go func() {
-			// Use background context (request context gets cancelled after response sent)
-			ctx := context.Background()
+		// Build update map
+		updates := make(map[string]interface{})
+		if req.DisplayName != nil {
+			updates["displayName"] = *req.DisplayName
+		}
+		if req.Website != nil {
+			updates["website"] = *req.Website
+		}
+		if req.BusinessContactEmail != nil {
+			updates["businessContactEmail"] = *req.BusinessContactEmail
+		}
+		if req.BusinessContactFirstName != nil {
+			updates["businessContactFirstName"] = *req.BusinessContactFirstName
+		}
+		if req.BusinessContactLastName != nil {
+			updates["businessContactLastName"] = *req.BusinessContactLastName
+		}
 
-			// Build update map
-			updates := make(map[string]interface{})
-			if req.DisplayName != nil {
-				updates["displayName"] = *req.DisplayName
+		if len(updates) > 0 {
+			_, err := h.tcrClient.UpdateBrand(c.Request.Context(), *brand.TCRBrandID, updates)
+			if err != nil {
+				h.logger.Error("Failed to sync brand update to TCR",
+					zap.Error(err),
+					zap.String("tcr_brand_id", *brand.TCRBrandID),
+				)
+				c.JSON(http.StatusInternalServerError, models.NewErrorResponse("TCR_SYNC_FAILED",
+					"Brand updated locally but failed to sync to TCR: "+err.Error()))
+				return
 			}
-			if req.Website != nil {
-				updates["website"] = *req.Website
-			}
-			if req.BusinessContactEmail != nil {
-				updates["businessContactEmail"] = *req.BusinessContactEmail
-			}
-			if req.BusinessContactFirstName != nil {
-				updates["businessContactFirstName"] = *req.BusinessContactFirstName
-			}
-			if req.BusinessContactLastName != nil {
-				updates["businessContactLastName"] = *req.BusinessContactLastName
-			}
-
-			if len(updates) > 0 {
-				_, err := h.tcrClient.UpdateBrand(ctx, *brand.TCRBrandID, updates)
-				if err != nil {
-					h.logger.Error("Failed to sync brand update to TCR",
-						zap.Error(err),
-						zap.String("tcr_brand_id", *brand.TCRBrandID),
-					)
-				}
-			}
-		}()
+			h.logger.Info("Brand synced to TCR successfully",
+				zap.String("tcr_brand_id", *brand.TCRBrandID),
+				zap.Int("fields_updated", len(updates)),
+			)
+		}
 	}
 
 	c.JSON(http.StatusOK, models.NewSuccessResponse(updatedBrand))
