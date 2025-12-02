@@ -141,6 +141,27 @@ export function useBrands() {
     }
   };
 
+  /**
+   * Resubmit brand for verification after updating core identity fields
+   * Required after updating: companyName, ein (tax_id), or entityType
+   */
+  const resubmitBrand = async (id: string): Promise<any> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await axios.post<APIResponse<any>>(
+        `/v1/messaging/brands/${id}/resubmit`
+      );
+      return response.data.data;
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error?.message || 'Failed to resubmit brand';
+      setError(errorMsg);
+      throw new Error(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
     error,
@@ -150,5 +171,6 @@ export function useBrands() {
     updateBrand,
     getVettingStatus,
     requestVetting,
+    resubmitBrand,
   };
 }
