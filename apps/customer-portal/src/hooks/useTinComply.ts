@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { apiClient } from "@/lib/axios-config";
+import axios from "@/lib/axios-config";
 
 // Types matching backend and actual TinComply API
 export interface CompanyNameLookupByEinResult {
@@ -64,7 +64,7 @@ export function useTinComply() {
     setError(null);
 
     try {
-      const response = await apiClient.get<{ data: EINFormatValidation }>(
+      const response = await axios.get<{ data: EINFormatValidation }>(
         `/v1/tincomply/validate-ein-format`,
         { params: { ein } }
       );
@@ -87,7 +87,7 @@ export function useTinComply() {
     setError(null);
 
     try {
-      const response = await apiClient.get<{ data: EINLookupResponse }>(
+      const response = await axios.get<{ data: EINLookupResponse }>(
         `/v1/tincomply/lookup-ein`,
         { params: { ein } }
       );
@@ -113,7 +113,7 @@ export function useTinComply() {
     setError(null);
 
     try {
-      const response = await apiClient.post<{ data: TINNameMatchResponse }>(
+      const response = await axios.post<{ data: TINNameMatchResponse }>(
         `/v1/tincomply/verify-tin-name`,
         { tin, company_name: companyName }
       );
