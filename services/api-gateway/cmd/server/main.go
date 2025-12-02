@@ -22,6 +22,7 @@ import (
 	"github.com/ringer-warp/api-gateway/internal/middleware"
 	"github.com/ringer-warp/api-gateway/internal/repository"
 	"github.com/ringer-warp/api-gateway/internal/tcr"
+	"github.com/ringer-warp/api-gateway/internal/tincomply"
 	"github.com/ringer-warp/api-gateway/internal/trunk"
 	"go.uber.org/zap"
 )
@@ -262,6 +263,22 @@ func main() {
 		log.Println("⚠️  TCR client disabled (TCR_API_KEY or TCR_API_SECRET not set)")
 	}
 
+	// Initialize TinComply client for EIN/Tax ID verification
+	tincomplyAPIKey := os.Getenv("TINCOMPLY_API_KEY")
+
+	var tincomplyHandler *handlers.TinComplyHandler
+
+	if tincomplyAPIKey != "" {
+		tincomplyClient := tincomply.NewClient(tincomply.Config{
+			APIKey: tincomplyAPIKey,
+		})
+
+		tincomplyHandler = handlers.NewTinComplyHandler(tincomplyClient, logger)
+		log.Println("✅ TinComply client initialized")
+	} else {
+		log.Println("⚠️  TinComply client disabled (TINCOMPLY_API_KEY not set)")
+	}
+
 	// Initialize JWT and Gatekeeper middleware
 	jwtMiddleware := middleware.NewJWTAuthMiddleware(jwtService)
 	gatekeeperMiddleware := middleware.NewGatekeeperMiddleware(gk, logger)
@@ -453,6 +470,17 @@ func main() {
 				messaging.GET("/carriers", tcrEnumHandler.GetCarriers)
 				messaging.GET("/use-case-requirements", tcrEnumHandler.GetUseCaseRequirements)
 				messaging.GET("/throughput-estimate", tcrEnumHandler.GetThroughputEstimate)
+			}
+		}
+
+		// TinComply EIN/Tax ID Verification (if enabled)
+		if tincomplyHandler != nil {
+			tincomply := v1.Group("/tincomply")
+			{
+				tincomply.GET("/lookup-ein", tincomplyHandler.LookupEIN)
+				tincomply.POST("/verify-tin-name", tincomplyHandler.VerifyTINName)
+				tincomply.POST("/lookup-company-details", tincomplyHandler.LookupCompanyDetails)
+				tincomply.GET("/validate-ein-format", tincomplyHandler.ValidateEINFormat)
 			}
 		}
 	}

@@ -122,6 +122,11 @@ spec:
             secretKeyRef:
               name: api-gateway-secrets
               key: TCR_SANDBOX
+        - name: TINCOMPLY_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-gateway-secrets
+              key: TINCOMPLY_API_KEY
         volumeMounts:
         - name: config
           mountPath: /app/config.yaml

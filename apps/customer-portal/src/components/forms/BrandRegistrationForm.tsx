@@ -1,6 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -19,8 +20,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "sonner";
 import type { CreateBrandRequest, EntityTypeInfo, VerticalInfo } from "@/types/messaging";
 import { formatPhoneE164 } from "@/lib/utils/phone-formatter";
+import { useTinComply } from "@/hooks/useTinComply";
 
 // Complete TCR brand schema matching API requirements
 const brandSchema = z.object({
@@ -116,6 +119,10 @@ export function BrandRegistrationForm({
   onSubmit,
   onCancel,
 }: BrandRegistrationFormProps) {
+  const [einVerified, setEinVerified] = useState(false);
+  const [einVerifying, setEinVerifying] = useState(false);
+  const { lookupEIN, formatEIN } = useTinComply();
+
   const form = useForm<BrandFormData>({
     resolver: zodResolver(brandSchema),
     defaultValues: {
@@ -148,6 +155,78 @@ export function BrandRegistrationForm({
   const selectedEntityType = form.watch("entity_type");
   const isPublicCompany = selectedEntityType === "PUBLIC_PROFIT";
   const isSoleProprietor = selectedEntityType === "SOLE_PROPRIETOR";
+
+  /**
+   * Handle EIN verification via TinComply
+   */
+  const handleVerifyEIN = async () => {
+    const ein = form.getValues("tax_id");
+
+    if (!ein || ein.trim().length === 0) {
+      toast.error("Please enter an EIN/Tax ID first");
+      return;
+    }
+
+    setEinVerifying(true);
+
+    try {
+      const result = await lookupEIN(ein);
+
+      if (result.status === "completed" && result.result) {
+        const companyData = result.result;
+
+        // Auto-fill fields if company found
+        if (companyData.verified) {
+          if (companyData.legal_name && !form.getValues("legal_name")) {
+            form.setValue("legal_name", companyData.legal_name);
+          }
+          if (companyData.company_name && !form.getValues("display_name")) {
+            form.setValue("display_name", companyData.company_name);
+          }
+          if (companyData.entity_type && !form.getValues("entity_type")) {
+            // Map TinComply entity types to TCR entity types if possible
+            // This is a simplified mapping - you may need to adjust
+            const entityTypeMap: Record<string, string> = {
+              "Corporation": "PRIVATE_PROFIT",
+              "LLC": "PRIVATE_PROFIT",
+              "Partnership": "PRIVATE_PROFIT",
+              "Non-Profit": "NON_PROFIT",
+              "Government": "GOVERNMENT",
+              "Sole Proprietor": "SOLE_PROPRIETOR",
+            };
+            const mappedType = entityTypeMap[companyData.entity_type] || "PRIVATE_PROFIT";
+            form.setValue("entity_type", mappedType as any);
+          }
+          if (companyData.state && !form.getValues("state")) {
+            form.setValue("state", companyData.state);
+          }
+
+          setEinVerified(true);
+          toast.success(`✓ EIN Verified: ${companyData.company_name || companyData.legal_name}`, {
+            description: `Match Score: ${companyData.match_score?.toFixed(0) || 100}% | Status: ${companyData.status || "Active"}`,
+          });
+        } else {
+          toast.warning("EIN found but not verified", {
+            description: "Please manually verify company information",
+          });
+        }
+      } else if (result.status === "failed") {
+        toast.error("EIN verification failed", {
+          description: result.error || "Unable to verify EIN with TinComply",
+        });
+      } else {
+        toast.info("EIN lookup pending", {
+          description: "Verification is taking longer than expected",
+        });
+      }
+    } catch (error: any) {
+      toast.error("Failed to verify EIN", {
+        description: error.message || "Unable to connect to verification service",
+      });
+    } finally {
+      setEinVerifying(false);
+    }
+  };
 
   const handleSubmit = async (data: BrandFormData) => {
     try {
@@ -268,11 +347,30 @@ export function BrandRegistrationForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>EIN / Tax ID {!isSoleProprietor && "*"}</FormLabel>
-                  <FormControl>
-                    <Input placeholder="12-3456789" {...field} />
-                  </FormControl>
+                  <div className="flex gap-2">
+                    <FormControl>
+                      <Input
+                        placeholder="12-3456789"
+                        {...field}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          setEinVerified(false); // Reset verification status on change
+                        }}
+                      />
+                    </FormControl>
+                    <Button
+                      type="button"
+                      variant={einVerified ? "default" : "outline"}
+                      size="sm"
+                      onClick={handleVerifyEIN}
+                      disabled={einVerifying || !field.value}
+                      className="min-w-[100px]"
+                    >
+                      {einVerifying ? "Verifying..." : einVerified ? "✓ Verified" : "Verify EIN"}
+                    </Button>
+                  </div>
                   <FormDescription>
-                    US Employer Identification Number (required for most entity types)
+                    US Employer Identification Number (click Verify to auto-fill company info)
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
