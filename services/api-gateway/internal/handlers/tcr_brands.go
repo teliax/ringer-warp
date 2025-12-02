@@ -400,16 +400,16 @@ func (h *TCRBrandHandler) UpdateBrand(c *gin.Context) {
 		if req.Vertical != nil {
 			updates["vertical"] = *req.Vertical
 		}
-		if req.StockSymbol != nil {
+		if req.StockSymbol != nil && *req.StockSymbol != "" {
 			updates["stockSymbol"] = *req.StockSymbol
 		}
-		if req.StockExchange != nil {
+		if req.StockExchange != nil && *req.StockExchange != "" {
 			updates["stockExchange"] = *req.StockExchange
 		}
-		if req.AltBusinessID != nil {
+		if req.AltBusinessID != nil && *req.AltBusinessID != "" {
 			updates["altBusinessId"] = *req.AltBusinessID
 		}
-		if req.AltBusinessIDType != nil {
+		if req.AltBusinessIDType != nil && *req.AltBusinessIDType != "" && *req.AltBusinessIDType != "NONE" {
 			updates["altBusinessIdType"] = *req.AltBusinessIDType
 		}
 		if req.ReferenceID != nil {
