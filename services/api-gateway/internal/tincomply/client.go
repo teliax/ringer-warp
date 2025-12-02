@@ -14,7 +14,7 @@ import (
 
 const (
 	// DefaultBaseURL is the production TinComply API base URL
-	DefaultBaseURL = "https://www.tincomply.com/api"
+	DefaultBaseURL = "https://www.tincomply.com/api/v1"
 
 	// DefaultTimeout is the HTTP client timeout
 	DefaultTimeout = 30 * time.Second

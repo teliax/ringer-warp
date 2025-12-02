@@ -4,32 +4,31 @@ import "time"
 
 // EINLookupRequest represents a request to lookup company name by EIN
 type EINLookupRequest struct {
-	EIN string `json:"ein" binding:"required"`
+	TIN string `json:"tin" binding:"required"`
 }
 
 // EINLookupResponse represents the response from EIN lookup
+// Actual TinComply response structure
 type EINLookupResponse struct {
-	RequestID      string                 `json:"request_id"`
-	ServiceType    string                 `json:"service_type"`
-	Status         string                 `json:"status"` // "completed", "pending", "failed"
-	CompletedAt    *time.Time             `json:"completed_at,omitempty"`
-	Result         *EINLookupResult       `json:"result,omitempty"`
-	Error          *string                `json:"error,omitempty"`
-	OriginalParams map[string]interface{} `json:"original_params,omitempty"`
+	ID      string                        `json:"id"`
+	Request TinComplyRequestInfo          `json:"request"`
+	Result  CompanyNameLookupByEinResult `json:"companyNameLookupByEinResult"`
 }
 
-// EINLookupResult contains the validated company information
-type EINLookupResult struct {
-	EIN            string  `json:"ein"`
-	CompanyName    string  `json:"company_name"`
-	LegalName      string  `json:"legal_name,omitempty"`
-	BusinessName   string  `json:"business_name,omitempty"`
-	Verified       bool    `json:"verified"`
-	MatchScore     float64 `json:"match_score,omitempty"` // 0-100 confidence score
-	EntityType     string  `json:"entity_type,omitempty"` // Corporation, LLC, Partnership, etc.
-	IncorporatedAt string  `json:"incorporated_at,omitempty"`
-	State          string  `json:"state,omitempty"`
-	Status         string  `json:"status,omitempty"` // Active, Inactive, etc.
+// TinComplyRequestInfo contains request metadata
+type TinComplyRequestInfo struct {
+	TIN               string   `json:"tin"` // Masked as XXXXX9949
+	RequestDate       string   `json:"requestDate"`
+	RequestedServices string   `json:"requestedServices"`
+	EnabledServices   []string `json:"enabledServices"`
+}
+
+// CompanyNameLookupByEinResult contains the validated company information
+type CompanyNameLookupByEinResult struct {
+	Name      string `json:"name,omitempty"`      // Official registered company name
+	Message   string `json:"message"`              // "EIN lookup match found" or "No match found"
+	Found     bool   `json:"found"`                // true if match found
+	Completed bool   `json:"completed"`            // true if lookup completed
 }
 
 // TINNameMatchRequest represents a request to verify TIN and name match

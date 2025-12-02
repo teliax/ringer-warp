@@ -172,51 +172,31 @@ export function BrandRegistrationForm({
     try {
       const result = await lookupEIN(ein);
 
-      if (result.status === "completed" && result.result) {
-        const companyData = result.result;
+      // Check if company was found using actual TinComply response structure
+      if (result.companyNameLookupByEinResult.found && result.companyNameLookupByEinResult.completed) {
+        const companyName = result.companyNameLookupByEinResult.name;
 
-        // Auto-fill fields if company found
-        if (companyData.verified) {
-          if (companyData.legal_name && !form.getValues("legal_name")) {
-            form.setValue("legal_name", companyData.legal_name);
+        if (companyName) {
+          // Auto-fill legal name and display name with the found company name
+          if (!form.getValues("legal_name")) {
+            form.setValue("legal_name", companyName);
           }
-          if (companyData.company_name && !form.getValues("display_name")) {
-            form.setValue("display_name", companyData.company_name);
-          }
-          if (companyData.entity_type && !form.getValues("entity_type")) {
-            // Map TinComply entity types to TCR entity types if possible
-            // This is a simplified mapping - you may need to adjust
-            const entityTypeMap: Record<string, string> = {
-              "Corporation": "PRIVATE_PROFIT",
-              "LLC": "PRIVATE_PROFIT",
-              "Partnership": "PRIVATE_PROFIT",
-              "Non-Profit": "NON_PROFIT",
-              "Government": "GOVERNMENT",
-              "Sole Proprietor": "SOLE_PROPRIETOR",
-            };
-            const mappedType = entityTypeMap[companyData.entity_type] || "PRIVATE_PROFIT";
-            form.setValue("entity_type", mappedType as any);
-          }
-          if (companyData.state && !form.getValues("state")) {
-            form.setValue("state", companyData.state);
+          if (!form.getValues("display_name")) {
+            form.setValue("display_name", companyName);
           }
 
           setEinVerified(true);
-          toast.success(`✓ EIN Verified: ${companyData.company_name || companyData.legal_name}`, {
-            description: `Match Score: ${companyData.match_score?.toFixed(0) || 100}% | Status: ${companyData.status || "Active"}`,
-          });
-        } else {
-          toast.warning("EIN found but not verified", {
-            description: "Please manually verify company information",
+          toast.success(`✓ EIN Verified: ${companyName}`, {
+            description: result.companyNameLookupByEinResult.message,
           });
         }
-      } else if (result.status === "failed") {
-        toast.error("EIN verification failed", {
-          description: result.error || "Unable to verify EIN with TinComply",
+      } else if (result.companyNameLookupByEinResult.completed && !result.companyNameLookupByEinResult.found) {
+        toast.warning("EIN not found", {
+          description: result.companyNameLookupByEinResult.message,
         });
       } else {
-        toast.info("EIN lookup pending", {
-          description: "Verification is taking longer than expected",
+        toast.error("EIN verification incomplete", {
+          description: "Please try again or enter company information manually",
         });
       }
     } catch (error: any) {

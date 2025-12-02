@@ -12,9 +12,9 @@ func (c *Client) LookupCompanyByEIN(ctx context.Context, ein string) (*EINLookup
 		return nil, fmt.Errorf("EIN cannot be empty")
 	}
 
-	// Prepare request payload
+	// Prepare request payload - TinComply uses "tin" not "ein"
 	payload := map[string]interface{}{
-		"ein": ein,
+		"tin": ein,
 	}
 
 	// Make API request

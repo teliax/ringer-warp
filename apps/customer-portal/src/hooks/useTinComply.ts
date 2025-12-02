@@ -1,28 +1,25 @@
 import { useState } from "react";
 import { apiClient } from "@/lib/axios-config";
 
-// Types matching backend
-export interface EINLookupResult {
-  ein: string;
-  company_name: string;
-  legal_name?: string;
-  business_name?: string;
-  verified: boolean;
-  match_score?: number;
-  entity_type?: string;
-  incorporated_at?: string;
-  state?: string;
-  status?: string;
+// Types matching backend and actual TinComply API
+export interface CompanyNameLookupByEinResult {
+  name?: string;        // Official registered company name
+  message: string;      // "EIN lookup match found" or "No match found"
+  found: boolean;       // true if match found
+  completed: boolean;   // true if lookup completed
+}
+
+export interface TinComplyRequestInfo {
+  tin: string;                    // Masked as XXXXX9949
+  requestDate: string;
+  requestedServices: string;
+  enabledServices: string[];
 }
 
 export interface EINLookupResponse {
-  request_id: string;
-  service_type: string;
-  status: "completed" | "pending" | "failed";
-  completed_at?: string;
-  result?: EINLookupResult;
-  error?: string;
-  original_params?: Record<string, any>;
+  id: string;
+  request: TinComplyRequestInfo;
+  companyNameLookupByEinResult: CompanyNameLookupByEinResult;
 }
 
 export interface TINNameMatchResult {
