@@ -31,6 +31,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { InfoIcon, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import type { Brand10DLC, UpdateBrandRequest, EntityTypeInfo, VerticalInfo } from "@/types/messaging";
+import { formatPhoneE164 } from "@/lib/utils/phone-formatter";
 
 // Comprehensive brand update schema - all fields optional
 const updateBrandSchema = z.object({
@@ -367,7 +368,20 @@ export function EditBrandDialog({
                   <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="phone" render={({ field }) => (
-                  <FormItem><FormLabel>Phone</FormLabel><FormControl><Input {...field} /></FormControl><FormDescription>+1XXXXXXXXXX</FormDescription><FormMessage /></FormItem>
+                  <FormItem>
+                    <FormLabel>Phone</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        onChange={(e) => {
+                          const formatted = formatPhoneE164(e.target.value);
+                          field.onChange(formatted);
+                        }}
+                      />
+                    </FormControl>
+                    <FormDescription>Auto-formats to +1XXXXXXXXXX</FormDescription>
+                    <FormMessage />
+                  </FormItem>
                 )} />
               </div>
 
@@ -385,7 +399,20 @@ export function EditBrandDialog({
                   <FormItem><FormLabel>Business Contact Email *</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="business_contact_phone" render={({ field }) => (
-                  <FormItem><FormLabel>Business Contact Phone</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                  <FormItem>
+                    <FormLabel>Business Contact Phone</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        onChange={(e) => {
+                          const formatted = formatPhoneE164(e.target.value);
+                          field.onChange(formatted);
+                        }}
+                      />
+                    </FormControl>
+                    <FormDescription>Auto-formats to +1XXXXXXXXXX</FormDescription>
+                    <FormMessage />
+                  </FormItem>
                 )} />
               </div>
             </div>
@@ -404,7 +431,10 @@ export function EditBrandDialog({
                           <SelectItem value="NASDAQ">NASDAQ</SelectItem>
                           <SelectItem value="NYSE">NYSE</SelectItem>
                           <SelectItem value="AMEX">AMEX</SelectItem>
-                          <SelectItem value="OTC">OTC</SelectItem>
+                          <SelectItem value="AMX">AMX (Mexican Stock Exchange)</SelectItem>
+                          <SelectItem value="TSX">TSX (Toronto)</SelectItem>
+                          <SelectItem value="LON">LON (London)</SelectItem>
+                          <SelectItem value="OTHER">Other</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
