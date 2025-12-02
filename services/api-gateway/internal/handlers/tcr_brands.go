@@ -379,10 +379,10 @@ func (h *TCRBrandHandler) UpdateBrand(c *gin.Context) {
 		if req.Website != nil {
 			updates["website"] = *req.Website
 		}
-		if req.Phone != nil {
+		if req.Phone != nil && *req.Phone != "" {
 			updates["phone"] = *req.Phone
 		}
-		if req.Email != nil {
+		if req.Email != nil && *req.Email != "" {
 			updates["email"] = *req.Email
 		}
 		if req.Street != nil {
