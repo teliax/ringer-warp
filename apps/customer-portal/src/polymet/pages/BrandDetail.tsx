@@ -243,57 +243,180 @@ export function BrandDetail() {
         </Alert>
       )}
 
-      {/* Brand Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Brand Information</CardTitle>
-          <CardDescription>Company registration details</CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">Legal Name</p>
-            <p className="font-medium">{brand.legal_name}</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">Entity Type</p>
-            <p className="font-medium">{brand.entity_type?.replace(/_/g, " ")}</p>
-          </div>
-          {brand.tax_id && (
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Tax ID / EIN</p>
-              <p className="font-medium">{brand.tax_id}</p>
-            </div>
+      {/* Brand Information - Comprehensive View */}
+      <div className="grid grid-cols-2 gap-6">
+        {/* Left Column */}
+        <div className="space-y-6">
+          {/* Business Info */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Business Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Display Name</p>
+                <p className="font-medium">{brand.display_name || brand.legal_name}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Legal Name</p>
+                <p className="font-medium">{brand.legal_name}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Entity Type</p>
+                <p className="font-medium">{brand.entity_type?.replace(/_/g, " ")}</p>
+              </div>
+              {brand.tax_id && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Tax ID / EIN</p>
+                  <p className="font-medium">{brand.tax_id}</p>
+                </div>
+              )}
+              {brand.vertical && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Industry Vertical</p>
+                  <p className="font-medium">{brand.vertical}</p>
+                </div>
+              )}
+              {brand.website && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Website</p>
+                  <p className="font-medium">
+                    <a href={brand.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                      {brand.website}
+                    </a>
+                  </p>
+                </div>
+              )}
+              {brand.trust_score !== null && brand.trust_score !== undefined && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Trust Score</p>
+                  <p className="font-medium text-2xl">{brand.trust_score}<span className="text-sm text-muted-foreground">/100</span></p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Contact Info */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Contact Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {brand.email && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Primary Email</p>
+                  <p className="font-medium">{brand.email}</p>
+                </div>
+              )}
+              {brand.phone && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Primary Phone</p>
+                  <p className="font-medium">{brand.phone}</p>
+                </div>
+              )}
+              {brand.business_contact_email && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Business Contact</p>
+                  <p className="font-medium">
+                    {brand.business_contact_first_name} {brand.business_contact_last_name}
+                  </p>
+                  <p className="text-sm text-muted-foreground">{brand.business_contact_email}</p>
+                  {brand.business_contact_phone && (
+                    <p className="text-sm text-muted-foreground">{brand.business_contact_phone}</p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right Column */}
+        <div className="space-y-6">
+          {/* Address */}
+          {(brand.street || brand.city || brand.state) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Business Address</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1">
+                {brand.street && <p>{brand.street}</p>}
+                {(brand.city || brand.state || brand.postal_code) && (
+                  <p>{brand.city}, {brand.state} {brand.postal_code}</p>
+                )}
+              </CardContent>
+            </Card>
           )}
-          {brand.vertical && (
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Vertical</p>
-              <p className="font-medium">{brand.vertical}</p>
-            </div>
+
+          {/* Stock Info (if public company) */}
+          {isPublicProfit && (brand.stock_symbol || brand.stock_exchange) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Stock Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {brand.stock_symbol && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Stock Symbol</p>
+                    <p className="font-medium">{brand.stock_symbol}</p>
+                  </div>
+                )}
+                {brand.stock_exchange && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Stock Exchange</p>
+                    <p className="font-medium">{brand.stock_exchange}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
-          {brand.website && (
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Website</p>
-              <p className="font-medium">{brand.website}</p>
-            </div>
+
+          {/* Alternative IDs */}
+          {brand.alt_business_id && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Alternative Business IDs</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Type</p>
+                  <p className="font-medium">{brand.alt_business_id_type}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">ID Number</p>
+                  <p className="font-medium">{brand.alt_business_id}</p>
+                </div>
+              </CardContent>
+            </Card>
           )}
-          {brand.business_contact_email && (
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Business Contact</p>
-              <p className="font-medium">
-                {brand.business_contact_first_name} {brand.business_contact_last_name}
-                <br />
-                <span className="text-sm text-muted-foreground">{brand.business_contact_email}</span>
-              </p>
-            </div>
-          )}
-          {brand.trust_score && (
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Trust Score</p>
-              <p className="font-medium text-lg">{brand.trust_score}/100</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+
+          {/* Metadata */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Metadata</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {brand.reference_id && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Reference ID</p>
+                  <p className="font-medium">{brand.reference_id}</p>
+                </div>
+              )}
+              {brand.created_at && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Created</p>
+                  <p className="font-medium">{new Date(brand.created_at).toLocaleDateString()}</p>
+                </div>
+              )}
+              {brand.updated_at && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Last Updated</p>
+                  <p className="font-medium">{new Date(brand.updated_at).toLocaleDateString()}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       {/* Auth+ Progress Card (only for PUBLIC_PROFIT) */}
       {isPublicProfit && brand.vetting_status && (
