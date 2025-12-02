@@ -201,8 +201,7 @@ export function EditBrandDialog({
             {/* Guidelines Alert */}
             <Alert>
               <InfoIcon className="h-4 w-4" />
-              <AlertDescription className="text-xs space-y-1">
-                <p><strong>Freely updatable:</strong> Display name, website, address, contact info</p>
+              <AlertDescription className="text-xs">
                 <p className="text-red-600"><strong>⚠️ Requires resubmission:</strong> Legal name, Tax ID, Entity Type</p>
               </AlertDescription>
             </Alert>
@@ -379,7 +378,6 @@ export function EditBrandDialog({
                         }}
                       />
                     </FormControl>
-                    <FormDescription>Auto-formats to +1XXXXXXXXXX</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )} />
@@ -410,7 +408,6 @@ export function EditBrandDialog({
                         }}
                       />
                     </FormControl>
-                    <FormDescription>Auto-formats to +1XXXXXXXXXX</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )} />
