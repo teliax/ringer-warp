@@ -340,7 +340,13 @@ func (h *TCRBrandHandler) UpdateBrand(c *gin.Context) {
 
 	// Get user ID for audit
 	userID, _ := c.Get("user_id")
-	updatedBy := userID.(uuid.UUID)
+	var updatedBy uuid.UUID
+	switch v := userID.(type) {
+	case uuid.UUID:
+		updatedBy = v
+	case string:
+		updatedBy, _ = uuid.Parse(v)
+	}
 
 	// Update brand
 	err = h.brandRepo.Update(c.Request.Context(), brandID, &req, updatedBy)
