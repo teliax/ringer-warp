@@ -11,7 +11,8 @@ import { RequestAuthPlusDialog } from "@/components/dialogs/RequestAuthPlusDialo
 import { EditBrandDialog } from "@/components/dialogs/EditBrandDialog";
 import { RequestVettingDialog } from "@/components/dialogs/RequestVettingDialog";
 import { useBrands } from "@/hooks/useBrands";
-import type { Brand10DLC, UpdateBrandRequest } from "@/types/messaging";
+import { useMessagingEnums } from "@/hooks/useMessagingEnums";
+import type { Brand10DLC, UpdateBrandRequest, EntityTypeInfo, VerticalInfo } from "@/types/messaging";
 import { toast } from "sonner";
 
 export function BrandDetail() {
@@ -21,12 +22,29 @@ export function BrandDetail() {
   const [authPlusDialogOpen, setAuthPlusDialogOpen] = useState(false);
   const [editBrandDialogOpen, setEditBrandDialogOpen] = useState(false);
   const [vettingDialogOpen, setVettingDialogOpen] = useState(false);
+  const [entityTypes, setEntityTypes] = useState<EntityTypeInfo[]>([]);
+  const [verticals, setVerticals] = useState<VerticalInfo[]>([]);
 
   const brandsHook = useBrands();
+  const enumsHook = useMessagingEnums();
 
   useEffect(() => {
     loadBrand();
+    loadEnums();
   }, [id]);
+
+  const loadEnums = async () => {
+    try {
+      const [entityTypesData, verticalsData] = await Promise.all([
+        enumsHook.getEntityTypes(),
+        enumsHook.getVerticals(),
+      ]);
+      setEntityTypes(entityTypesData);
+      setVerticals(verticalsData);
+    } catch (error) {
+      console.error('Failed to load enums:', error);
+    }
+  };
 
   const loadBrand = async () => {
     if (!id) return;
@@ -74,6 +92,17 @@ export function BrandDetail() {
       await loadBrand();
     } catch (error: any) {
       toast.error(error.message || "Failed to request vetting");
+      throw error;
+    }
+  };
+
+  const handleResubmitBrand = async (brandId: string) => {
+    try {
+      await brandsHook.resubmitBrand(brandId);
+      toast.success("Brand resubmitted for verification!");
+      await loadBrand();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to resubmit brand");
       throw error;
     }
   };
@@ -282,7 +311,10 @@ export function BrandDetail() {
         open={editBrandDialogOpen}
         onOpenChange={setEditBrandDialogOpen}
         brand={brand}
+        entityTypes={entityTypes}
+        verticals={verticals}
         onSubmit={handleUpdateBrand}
+        onResubmit={handleResubmitBrand}
       />
       <RequestVettingDialog
         open={vettingDialogOpen}
