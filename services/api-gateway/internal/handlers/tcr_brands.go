@@ -232,12 +232,12 @@ func (h *TCRBrandHandler) CreateBrand(c *gin.Context) {
 		PostalCode:               strOrEmpty(req.PostalCode),
 		StockExchange:            strOrEmpty(req.StockExchange),
 		StockSymbol:              strOrEmpty(req.StockSymbol),
-		AltBusinessID:            strOrEmpty(req.AltBusinessID),
-		AltBusinessIDType:        strOrEmpty(req.AltBusinessIDType),
-		BusinessContactEmail:     strOrEmpty(req.ContactEmail),     // Required for identity verification & Auth+
-		BusinessContactFirstName: strOrEmpty(req.ContactFirstName), // Required when email provided
-		BusinessContactLastName:  strOrEmpty(req.ContactLastName),  // Required when email provided
-		ReferenceID:              brand.ID.String(),                // Use our UUID as reference
+		AltBusinessID:        strOrEmpty(req.AltBusinessID),
+		AltBusinessIDType:    strOrEmpty(req.AltBusinessIDType),
+		FirstName:            strOrEmpty(req.ContactFirstName), // Business contact first name
+		LastName:             strOrEmpty(req.ContactLastName),  // Business contact last name
+		BusinessContactEmail: strOrEmpty(req.ContactEmail),     // Required for identity verification & Auth+
+		ReferenceID:          brand.ID.String(),                // Use our UUID as reference
 	}
 
 	// Submit to TCR synchronously
