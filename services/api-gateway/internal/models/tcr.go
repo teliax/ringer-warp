@@ -84,20 +84,43 @@ type CreateBrandRequest struct {
 
 // UpdateBrandRequest represents a request to update a brand
 type UpdateBrandRequest struct {
-	DisplayName              *string `json:"display_name,omitempty"`
-	Website                  *string `json:"website,omitempty"`
-	Vertical                 *string `json:"vertical,omitempty"`
-	Street                   *string `json:"street,omitempty"`
-	City                     *string `json:"city,omitempty"`
-	State                    *string `json:"state,omitempty"`
-	PostalCode               *string `json:"postal_code,omitempty"`
-	PrimaryContactName       *string `json:"primary_contact_name,omitempty"`
-	PrimaryContactEmail      *string `json:"primary_contact_email,omitempty"`
-	PrimaryContactPhone      *string `json:"primary_contact_phone,omitempty"`
+	// Business Information
+	DisplayName  *string `json:"display_name,omitempty"`
+	CompanyName  *string `json:"company_name,omitempty"` // Legal name - requires resubmission
+	Website      *string `json:"website,omitempty"`
+	Vertical     *string `json:"vertical,omitempty"`
+	EntityType   *string `json:"entity_type,omitempty"` // Requires resubmission
+	TaxID        *string `json:"tax_id,omitempty"`      // EIN - requires resubmission
+
+	// Address
+	Street     *string `json:"street,omitempty"`
+	City       *string `json:"city,omitempty"`
+	State      *string `json:"state,omitempty"`
+	PostalCode *string `json:"postal_code,omitempty"`
+
+	// Contact Information
+	Email *string `json:"email,omitempty"` // Primary support email
+	Phone *string `json:"phone,omitempty"` // Primary support phone
+	PrimaryContactName  *string `json:"primary_contact_name,omitempty"`
+	PrimaryContactEmail *string `json:"primary_contact_email,omitempty"`
+	PrimaryContactPhone *string `json:"primary_contact_phone,omitempty"`
+
+	// Business Contact (separate from primary contact)
 	BusinessContactFirstName *string `json:"business_contact_first_name,omitempty"`
 	BusinessContactLastName  *string `json:"business_contact_last_name,omitempty"`
 	BusinessContactEmail     *string `json:"business_contact_email,omitempty"`
 	BusinessContactPhone     *string `json:"business_contact_phone,omitempty"`
+
+	// Stock Information (for public companies)
+	StockSymbol   *string `json:"stock_symbol,omitempty"`
+	StockExchange *string `json:"stock_exchange,omitempty"`
+
+	// Alternative Business IDs
+	AltBusinessID     *string `json:"alt_business_id,omitempty"`
+	AltBusinessIDType *string `json:"alt_business_id_type,omitempty"`
+
+	// Reference/Tracking
+	ReferenceID *string `json:"reference_id,omitempty"`
 }
 
 // RequestVettingRequest represents a request for external brand vetting
