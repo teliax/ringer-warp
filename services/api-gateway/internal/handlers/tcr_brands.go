@@ -372,7 +372,15 @@ func (h *TCRBrandHandler) UpdateBrand(c *gin.Context) {
 			if req.Website != nil {
 				updates["website"] = *req.Website
 			}
-			// Add other updatable fields...
+			if req.BusinessContactEmail != nil {
+				updates["businessContactEmail"] = *req.BusinessContactEmail
+			}
+			if req.BusinessContactFirstName != nil {
+				updates["businessContactFirstName"] = *req.BusinessContactFirstName
+			}
+			if req.BusinessContactLastName != nil {
+				updates["businessContactLastName"] = *req.BusinessContactLastName
+			}
 
 			if len(updates) > 0 {
 				_, err := h.tcrClient.UpdateBrand(ctx, *brand.TCRBrandID, updates)

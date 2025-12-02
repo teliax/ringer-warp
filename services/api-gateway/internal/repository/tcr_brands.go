@@ -213,14 +213,19 @@ func (r *TCRBrandRepository) Update(ctx context.Context, id uuid.UUID, req *mode
 		    primary_contact_name = COALESCE($8, primary_contact_name),
 		    primary_contact_email = COALESCE($9, primary_contact_email),
 		    primary_contact_phone = COALESCE($10, primary_contact_phone),
-		    updated_by = $11,
+		    business_contact_first_name = COALESCE($11, business_contact_first_name),
+		    business_contact_last_name = COALESCE($12, business_contact_last_name),
+		    business_contact_email = COALESCE($13, business_contact_email),
+		    business_contact_phone = COALESCE($14, business_contact_phone),
+		    updated_by = $15,
 		    updated_at = NOW()
-		WHERE id = $12
+		WHERE id = $16
 	`
 
 	_, err := r.db.Exec(ctx, query,
 		req.DisplayName, req.Website, req.Vertical, req.Street, req.City, req.State, req.PostalCode,
 		req.PrimaryContactName, req.PrimaryContactEmail, req.PrimaryContactPhone,
+		req.BusinessContactFirstName, req.BusinessContactLastName, req.BusinessContactEmail, req.BusinessContactPhone,
 		updatedBy, id,
 	)
 

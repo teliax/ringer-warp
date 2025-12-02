@@ -11,7 +11,7 @@ func HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "healthy",
 		"service": "warp-api-gateway",
-		"version": "0.1.0",
+		"version": "1.2.3",
 	})
 }
 
