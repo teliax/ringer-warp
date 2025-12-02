@@ -369,14 +369,54 @@ func (h *TCRBrandHandler) UpdateBrand(c *gin.Context) {
 
 	// If brand is already registered with TCR, sync changes (SYNCHRONOUS - must succeed!)
 	if brand.TCRBrandID != nil {
-		// Build update map
+		// Build update map with all TCR-updatable fields
 		updates := make(map[string]interface{})
+
+		// Freely updatable fields (no resubmission required)
 		if req.DisplayName != nil {
 			updates["displayName"] = *req.DisplayName
 		}
 		if req.Website != nil {
 			updates["website"] = *req.Website
 		}
+		if req.Phone != nil {
+			updates["phone"] = *req.Phone
+		}
+		if req.Email != nil {
+			updates["email"] = *req.Email
+		}
+		if req.Street != nil {
+			updates["street"] = *req.Street
+		}
+		if req.City != nil {
+			updates["city"] = *req.City
+		}
+		if req.State != nil {
+			updates["state"] = *req.State
+		}
+		if req.PostalCode != nil {
+			updates["postalCode"] = *req.PostalCode
+		}
+		if req.Vertical != nil {
+			updates["vertical"] = *req.Vertical
+		}
+		if req.StockSymbol != nil {
+			updates["stockSymbol"] = *req.StockSymbol
+		}
+		if req.StockExchange != nil {
+			updates["stockExchange"] = *req.StockExchange
+		}
+		if req.AltBusinessID != nil {
+			updates["altBusinessId"] = *req.AltBusinessID
+		}
+		if req.AltBusinessIDType != nil {
+			updates["altBusinessIdType"] = *req.AltBusinessIDType
+		}
+		if req.ReferenceID != nil {
+			updates["referenceId"] = *req.ReferenceID
+		}
+
+		// Business contact fields
 		if req.BusinessContactEmail != nil {
 			updates["businessContactEmail"] = *req.BusinessContactEmail
 		}
@@ -385,6 +425,21 @@ func (h *TCRBrandHandler) UpdateBrand(c *gin.Context) {
 		}
 		if req.BusinessContactLastName != nil {
 			updates["businessContactLastName"] = *req.BusinessContactLastName
+		}
+		if req.BusinessContactPhone != nil {
+			updates["businessContactPhone"] = *req.BusinessContactPhone
+		}
+
+		// Core identity fields (requires resubmission after update)
+		// Only allow if brand has no campaigns and no external vets
+		if req.CompanyName != nil {
+			updates["companyName"] = *req.CompanyName
+		}
+		if req.TaxID != nil {
+			updates["ein"] = *req.TaxID
+		}
+		if req.EntityType != nil {
+			updates["entityType"] = *req.EntityType
 		}
 
 		if len(updates) > 0 {
@@ -552,6 +607,102 @@ func (h *TCRBrandHandler) GetVettingStatus(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, models.NewSuccessResponse(vettingInfo))
+}
+
+// ResubmitBrand godoc
+// @Summary Resubmit brand for verification
+// @Description Resubmit brand for identity verification after updating core fields (companyName, ein, entityType)
+// @Tags TCR/Brands
+// @Accept json
+// @Produce json
+// @Param id path string true "Brand ID (UUID)"
+// @Success 200 {object} models.APIResponse
+// @Failure 400 {object} models.APIResponse
+// @Failure 403 {object} models.APIResponse
+// @Failure 404 {object} models.APIResponse
+// @Security BearerAuth
+// @Router /messaging/brands/{id}/resubmit [post]
+func (h *TCRBrandHandler) ResubmitBrand(c *gin.Context) {
+	// Parse ID
+	brandID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.NewErrorResponse("INVALID_ID", "Invalid brand ID format"))
+		return
+	}
+
+	// Extract customer scoping
+	var customerFilter []uuid.UUID
+	if accessibleCustomers, exists := c.Get("accessible_customer_ids"); exists {
+		customerFilter = accessibleCustomers.([]uuid.UUID)
+	}
+
+	// Verify brand exists and user has access
+	brand, err := h.brandRepo.GetByID(c.Request.Context(), brandID, customerFilter)
+	if err != nil {
+		if err.Error() == "access denied" {
+			c.JSON(http.StatusForbidden, models.NewErrorResponse("ACCESS_DENIED", "You don't have access to this brand"))
+			return
+		}
+		c.JSON(http.StatusNotFound, models.NewErrorResponse("NOT_FOUND", "Brand not found"))
+		return
+	}
+
+	// Check if brand is registered with TCR
+	if brand.TCRBrandID == nil {
+		c.JSON(http.StatusBadRequest, models.NewErrorResponse("NOT_REGISTERED", "Brand must be registered with TCR before resubmitting"))
+		return
+	}
+
+	// Call TCR revet endpoint to resubmit for verification
+	h.logger.Info("Resubmitting brand to TCR for verification",
+		zap.String("brand_id", brandID.String()),
+		zap.String("tcr_brand_id", *brand.TCRBrandID),
+	)
+
+	tcrBrand, err := h.tcrClient.ResubmitBrand(c.Request.Context(), *brand.TCRBrandID)
+	if err != nil {
+		h.logger.Error("Failed to resubmit brand to TCR",
+			zap.Error(err),
+			zap.String("tcr_brand_id", *brand.TCRBrandID),
+		)
+		c.JSON(http.StatusInternalServerError, models.NewErrorResponse("RESUBMIT_FAILED",
+			fmt.Sprintf("Failed to resubmit brand to TCR: %v", err)))
+		return
+	}
+
+	// Update database with new status and trust score
+	status := "PENDING"
+	if tcrBrand.IdentityStatus != "" {
+		status = tcrBrand.IdentityStatus
+	}
+
+	err = h.brandRepo.UpdateTCRInfo(
+		c.Request.Context(),
+		brandID,
+		*brand.TCRBrandID,
+		status,
+		&tcrBrand.TrustScore,
+		tcrBrand.IdentityStatus,
+	)
+	if err != nil {
+		h.logger.Error("Failed to update brand status after resubmission",
+			zap.Error(err),
+			zap.String("brand_id", brandID.String()),
+		)
+	}
+
+	h.logger.Info("Brand resubmitted successfully",
+		zap.String("brand_id", brandID.String()),
+		zap.String("new_status", status),
+		zap.Int("trust_score", tcrBrand.TrustScore),
+	)
+
+	c.JSON(http.StatusOK, models.NewSuccessResponse(gin.H{
+		"message":       "Brand resubmitted for verification successfully",
+		"status":        status,
+		"trust_score":   tcrBrand.TrustScore,
+		"identity_status": tcrBrand.IdentityStatus,
+	}))
 }
 
 // Helper function

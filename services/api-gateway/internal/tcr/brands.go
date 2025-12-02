@@ -156,6 +156,25 @@ func (c *Client) DeleteBrand(ctx context.Context, brandID string) error {
 	return nil
 }
 
+// ResubmitBrand resubmits a brand for verification after updating core identity fields
+// This is required when updating companyName, ein, einIssuingCountry, or entityType
+// After these updates, brand status becomes UNVERIFIED and must be resubmitted
+func (c *Client) ResubmitBrand(ctx context.Context, brandID string) (*Brand, error) {
+	path := fmt.Sprintf("/brand/%s/revet", brandID)
+
+	resp, err := c.doRequest(ctx, http.MethodPut, path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var brand Brand
+	if err := c.handleResponse(resp, &brand); err != nil {
+		return nil, err
+	}
+
+	return &brand, nil
+}
+
 // =============================================================================
 // BRAND VETTING HELPERS
 // =============================================================================

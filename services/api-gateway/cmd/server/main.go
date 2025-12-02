@@ -453,6 +453,7 @@ func main() {
 				messaging.PATCH("/brands/:id", tcrBrandHandler.UpdateBrand)
 				messaging.POST("/brands/:id/vetting", tcrBrandHandler.RequestVetting)
 				messaging.GET("/brands/:id/vetting", tcrBrandHandler.GetVettingStatus)
+				messaging.POST("/brands/:id/resubmit", tcrBrandHandler.ResubmitBrand)
 
 				// Campaign Management
 				messaging.GET("/campaigns", tcrCampaignHandler.ListCampaigns)
