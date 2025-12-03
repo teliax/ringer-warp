@@ -443,7 +443,7 @@ func (h *TCRBrandHandler) UpdateBrand(c *gin.Context) {
 		}
 
 		if len(updates) > 0 {
-			_, err := h.tcrClient.UpdateBrand(c.Request.Context(), *brand.TCRBrandID, updates)
+			tcrBrand, err := h.tcrClient.UpdateBrand(c.Request.Context(), *brand.TCRBrandID, updates)
 			if err != nil {
 				h.logger.Error("Failed to sync brand update to TCR",
 					zap.Error(err),
@@ -457,7 +457,29 @@ func (h *TCRBrandHandler) UpdateBrand(c *gin.Context) {
 				zap.String("tcr_brand_id", *brand.TCRBrandID),
 				zap.Int("fields_updated", len(updates)),
 			)
+
+			// Sync TCR's normalized response back to our database
+			// TCR may normalize data (e.g., "Teliax, Inc." → "TELIAX INC")
+			if tcrBrand != nil {
+				// Update trust score and identity status if changed
+				if tcrBrand.TrustScore > 0 {
+					_ = h.brandRepo.UpdateTCRInfo(
+						c.Request.Context(),
+						brandID,
+						*brand.TCRBrandID,
+						tcrBrand.IdentityStatus,
+						&tcrBrand.TrustScore,
+						tcrBrand.IdentityStatus,
+					)
+				}
+			}
 		}
+	}
+
+	// Fetch fresh brand data to return TCR-normalized values
+	updatedBrand, err = h.brandRepo.GetByID(c.Request.Context(), brandID, customerFilter)
+	if err != nil {
+		h.logger.Error("Failed to get updated brand", zap.Error(err))
 	}
 
 	c.JSON(http.StatusOK, models.NewSuccessResponse(updatedBrand))
