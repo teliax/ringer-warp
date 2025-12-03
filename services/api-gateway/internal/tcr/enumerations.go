@@ -35,12 +35,40 @@ func (c *Client) GetEntityTypes(ctx context.Context) ([]EntityType, error) {
 		return nil, err
 	}
 
-	var entityTypes []EntityType
-	if err := c.handleResponse(resp, &entityTypes); err != nil {
+	// TCR returns entity types as an array of strings: ["PRIVATE_PROFIT", "PUBLIC_PROFIT", ...]
+	var entityTypeCodes []string
+	if err := c.handleResponse(resp, &entityTypeCodes); err != nil {
 		return nil, err
 	}
 
+	// Convert strings to EntityType objects
+	entityTypes := make([]EntityType, len(entityTypeCodes))
+	for i, code := range entityTypeCodes {
+		entityTypes[i] = EntityType{
+			Code:        code,
+			DisplayName: formatEntityTypeName(code),
+		}
+	}
+
 	return entityTypes, nil
+}
+
+// formatEntityTypeName converts code to display name
+func formatEntityTypeName(code string) string {
+	switch code {
+	case "PRIVATE_PROFIT":
+		return "Private Company"
+	case "PUBLIC_PROFIT":
+		return "Public Company"
+	case "NON_PROFIT":
+		return "Non-Profit"
+	case "GOVERNMENT":
+		return "Government"
+	case "SOLE_PROPRIETOR":
+		return "Sole Proprietor"
+	default:
+		return code
+	}
 }
 
 // GetVerticals retrieves all industry verticals
