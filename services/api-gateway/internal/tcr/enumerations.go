@@ -52,9 +52,25 @@ func (c *Client) GetVerticals(ctx context.Context) ([]Vertical, error) {
 		return nil, err
 	}
 
-	var verticals []Vertical
-	if err := c.handleResponse(resp, &verticals); err != nil {
+	// TCR returns verticals as an object: {"TECHNOLOGY": {...}, "COMMUNICATION": {...}}
+	var verticalsMap map[string]struct {
+		IndustryID  string `json:"industryId"`
+		DisplayName string `json:"displayName"`
+		Description string `json:"description"`
+	}
+
+	if err := c.handleResponse(resp, &verticalsMap); err != nil {
 		return nil, err
+	}
+
+	// Convert map to array
+	verticals := make([]Vertical, 0, len(verticalsMap))
+	for code, details := range verticalsMap {
+		verticals = append(verticals, Vertical{
+			Code:        code,
+			DisplayName: details.DisplayName,
+			Description: details.Description,
+		})
 	}
 
 	return verticals, nil
@@ -162,23 +178,32 @@ func GetStaticEntityTypes() []EntityType {
 }
 
 // GetStaticVerticals returns static list of industry verticals (fallback)
+// Based on TCR's official /enum/vertical response
 func GetStaticVerticals() []Vertical {
 	return []Vertical{
 		{Code: "PROFESSIONAL", DisplayName: "Professional Services"},
-		{Code: "TECHNOLOGY", DisplayName: "Technology"},
-		{Code: "RETAIL", DisplayName: "Retail"},
-		{Code: "HEALTHCARE", DisplayName: "Healthcare"},
+		{Code: "TECHNOLOGY", DisplayName: "Information Technology Services"},
+		{Code: "COMMUNICATION", DisplayName: "Media and Communication"},
+		{Code: "RETAIL", DisplayName: "Retail and Consumer Products"},
+		{Code: "HEALTHCARE", DisplayName: "Healthcare and Life Sciences"},
 		{Code: "FINANCIAL", DisplayName: "Financial Services"},
 		{Code: "REAL_ESTATE", DisplayName: "Real Estate"},
-		{Code: "HOSPITALITY", DisplayName: "Hospitality"},
-		{Code: "TRANSPORTATION", DisplayName: "Transportation"},
+		{Code: "HOSPITALITY", DisplayName: "Hospitality and Travel"},
+		{Code: "TRANSPORTATION", DisplayName: "Transportation or Logistics"},
 		{Code: "EDUCATION", DisplayName: "Education"},
 		{Code: "ENTERTAINMENT", DisplayName: "Entertainment"},
-		{Code: "MEDIA", DisplayName: "Media"},
-		{Code: "TELECOM", DisplayName: "Telecommunications"},
-		{Code: "UTILITIES", DisplayName: "Utilities"},
+		{Code: "INSURANCE", DisplayName: "Insurance"},
+		{Code: "LEGAL", DisplayName: "Legal"},
+		{Code: "CONSTRUCTION", DisplayName: "Construction, Materials, and Trade Services"},
 		{Code: "MANUFACTURING", DisplayName: "Manufacturing"},
 		{Code: "AGRICULTURE", DisplayName: "Agriculture"},
+		{Code: "ENERGY", DisplayName: "Energy and Utilities"},
+		{Code: "POSTAL", DisplayName: "Postal and Delivery"},
+		{Code: "POLITICAL", DisplayName: "Political"},
+		{Code: "GAMBLING", DisplayName: "Gambling and Lottery"},
+		{Code: "NGO", DisplayName: "Non-profit Organization"},
+		{Code: "GOVERNMENT", DisplayName: "Government Services and Agencies"},
+		{Code: "HUMAN_RESOURCES", DisplayName: "HR, Staffing or Recruitment"},
 	}
 }
 
