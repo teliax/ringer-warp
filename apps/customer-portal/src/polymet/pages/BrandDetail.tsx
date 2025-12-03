@@ -159,14 +159,9 @@ export function BrandDetail() {
             Edit Brand
           </Button>
           {brand.identity_status === "UNVERIFIED" && (
-            <>
-              <Button onClick={() => handleResubmitBrand(brand.id)} variant="default">
-                Resubmit for Verification
-              </Button>
-              <Button onClick={() => setVettingDialogOpen(true)} variant="outline">
-                Request Vetting
-              </Button>
-            </>
+            <Button onClick={() => setVettingDialogOpen(true)}>
+              Request Vetting
+            </Button>
           )}
         </div>
       </div>
