@@ -136,10 +136,7 @@ export function EditBrandDialog({
       const coreChanged = checkCoreFieldChanges();
       if (coreChanged) {
         setShowResubmitPrompt(true);
-        toast.warning("Core identity fields updated", {
-          description: "Brand may need resubmission for verification",
-          duration: 10000,
-        });
+        // Don't show toast - let the resubmit prompt do the talking
       } else {
         toast.success("Brand updated successfully");
         onOpenChange(false);
@@ -184,14 +181,18 @@ export function EditBrandDialog({
           <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
             {/* Resubmit Prompt */}
             {showResubmitPrompt && (
-              <Alert>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>⚠️ Resubmission Required</AlertTitle>
-                <AlertDescription>
-                  You updated core identity fields. Your brand status may have changed to UNVERIFIED.
-                  <div className="mt-3">
-                    <Button type="button" onClick={handleResubmit} size="sm">
-                      Resubmit for Verification
+              <Alert className="bg-orange-50 border-orange-200">
+                <AlertTriangle className="h-4 w-4 text-orange-600" />
+                <AlertTitle className="text-orange-900">Action Required: Resubmit Brand</AlertTitle>
+                <AlertDescription className="text-orange-800">
+                  <p className="mb-3">You changed core identity fields (legal name, EIN, or entity type). Your brand status is now UNVERIFIED.</p>
+                  <p className="mb-3 font-semibold">Next step: Click the button below to resubmit your brand to TCR for verification.</p>
+                  <div className="flex gap-2">
+                    <Button type="button" onClick={handleResubmit} variant="default" className="bg-orange-600 hover:bg-orange-700">
+                      Resubmit for Verification Now →
+                    </Button>
+                    <Button type="button" onClick={() => { setShowResubmitPrompt(false); onOpenChange(false); }} variant="outline">
+                      Skip (I'll do this later)
                     </Button>
                   </div>
                 </AlertDescription>
