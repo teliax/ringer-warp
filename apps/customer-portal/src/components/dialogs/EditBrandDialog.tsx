@@ -96,7 +96,7 @@ export function EditBrandDialog({
     resolver: zodResolver(updateBrandSchema),
     defaultValues: {
       display_name: brand.display_name || "",
-      company_name: brand.company_name || "",
+      company_name: brand.legal_name || brand.company_name || "",
       website: brand.website || "",
       vertical: brand.vertical || "",
       entity_type: brand.entity_type as any || undefined,
@@ -120,7 +120,7 @@ export function EditBrandDialog({
   });
 
   const checkCoreFieldChanges = () => {
-    const companyNameChanged = form.getValues("company_name") !== (brand.company_name || "");
+    const companyNameChanged = form.getValues("company_name") !== (brand.legal_name || brand.company_name || "");
     const taxIdChanged = form.getValues("tax_id") !== (brand.tax_id || "");
     const entityTypeChanged = form.getValues("entity_type") !== brand.entity_type;
     const hasChanges = companyNameChanged || taxIdChanged || entityTypeChanged;
