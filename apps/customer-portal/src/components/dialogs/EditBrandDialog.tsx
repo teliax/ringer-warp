@@ -169,7 +169,7 @@ export function EditBrandDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" key={brand.updated_at || brand.id}>
         <DialogHeader>
           <DialogTitle>Edit Brand: {brand.display_name}</DialogTitle>
           <DialogDescription>
