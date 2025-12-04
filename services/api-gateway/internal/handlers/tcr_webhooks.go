@@ -93,15 +93,17 @@ func (h *TCRWebhookHandler) HandleBrandWebhook(c *gin.Context) {
 	}
 
 	// Process event asynchronously
+	// IMPORTANT: Use background context since request context is cancelled after response
 	go func() {
+		ctx := context.Background()
 		if err := h.processWebhookEvent(dbEvent.ID, &event); err != nil {
 			h.logger.Error("Failed to process webhook event",
 				zap.String("event_id", dbEvent.ID.String()),
 				zap.Error(err),
 			)
-			h.webhookRepo.MarkWebhookProcessed(c.Request.Context(), dbEvent.ID, err.Error())
+			h.webhookRepo.MarkWebhookProcessed(ctx, dbEvent.ID, err.Error())
 		} else {
-			h.webhookRepo.MarkWebhookProcessed(c.Request.Context(), dbEvent.ID, "")
+			h.webhookRepo.MarkWebhookProcessed(ctx, dbEvent.ID, "")
 		}
 	}()
 
@@ -174,15 +176,17 @@ func (h *TCRWebhookHandler) HandleCampaignWebhook(c *gin.Context) {
 	}
 
 	// Process event asynchronously
+	// IMPORTANT: Use background context since request context is cancelled after response
 	go func() {
+		ctx := context.Background()
 		if err := h.processWebhookEvent(dbEvent.ID, &event); err != nil {
 			h.logger.Error("Failed to process webhook event",
 				zap.String("event_id", dbEvent.ID.String()),
 				zap.Error(err),
 			)
-			h.webhookRepo.MarkWebhookProcessed(c.Request.Context(), dbEvent.ID, err.Error())
+			h.webhookRepo.MarkWebhookProcessed(ctx, dbEvent.ID, err.Error())
 		} else {
-			h.webhookRepo.MarkWebhookProcessed(c.Request.Context(), dbEvent.ID, "")
+			h.webhookRepo.MarkWebhookProcessed(ctx, dbEvent.ID, "")
 		}
 	}()
 
@@ -251,15 +255,17 @@ func (h *TCRWebhookHandler) HandleVettingWebhook(c *gin.Context) {
 	}
 
 	// Process event asynchronously
+	// IMPORTANT: Use background context since request context is cancelled after response
 	go func() {
+		ctx := context.Background()
 		if err := h.processWebhookEvent(dbEvent.ID, &event); err != nil {
 			h.logger.Error("Failed to process webhook event",
 				zap.String("event_id", dbEvent.ID.String()),
 				zap.Error(err),
 			)
-			h.webhookRepo.MarkWebhookProcessed(c.Request.Context(), dbEvent.ID, err.Error())
+			h.webhookRepo.MarkWebhookProcessed(ctx, dbEvent.ID, err.Error())
 		} else {
-			h.webhookRepo.MarkWebhookProcessed(c.Request.Context(), dbEvent.ID, "")
+			h.webhookRepo.MarkWebhookProcessed(ctx, dbEvent.ID, "")
 		}
 	}()
 
@@ -291,4 +297,90 @@ func (h *TCRWebhookHandler) processWebhookEvent(eventID uuid.UUID, event *tcr.We
 		)
 		return nil
 	}
+}
+
+// ReprocessUnprocessedEvents godoc
+// @Summary Reprocess unprocessed webhook events
+// @Description Processes all webhook events that weren't processed due to earlier bugs
+// @Tags TCR Webhooks
+// @Produce json
+// @Param limit query int false "Max events to process (default 100)"
+// @Success 200 {object} map[string]interface{}
+// @Router /admin/webhooks/reprocess [post]
+func (h *TCRWebhookHandler) ReprocessUnprocessedEvents(c *gin.Context) {
+	limit := 100
+	if limitParam := c.Query("limit"); limitParam != "" {
+		if l, err := json.Number(limitParam).Int64(); err == nil && l > 0 {
+			limit = int(l)
+		}
+	}
+
+	h.logger.Info("Reprocessing unprocessed webhook events", zap.Int("limit", limit))
+
+	// Get unprocessed events
+	events, err := h.webhookRepo.GetUnprocessedEvents(c.Request.Context(), limit)
+	if err != nil {
+		h.logger.Error("Failed to get unprocessed events", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get unprocessed events"})
+		return
+	}
+
+	if len(events) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"message":   "No unprocessed events found",
+			"processed": 0,
+			"errors":    0,
+		})
+		return
+	}
+
+	var processed, errors int
+	for _, dbEvent := range events {
+		// Convert stored payload to WebhookEvent
+		event := &tcr.WebhookEvent{
+			EventType:     dbEvent.EventType,
+			EventCategory: dbEvent.EventCategory,
+			RawPayload:    dbEvent.Payload,
+		}
+
+		// Extract fields from payload
+		if brandID, ok := dbEvent.Payload["brandId"].(string); ok {
+			event.BrandID = brandID
+		}
+		if campaignID, ok := dbEvent.Payload["campaignId"].(string); ok {
+			event.CampaignID = campaignID
+		}
+		if status, ok := dbEvent.Payload["brandIdentityStatus"].(string); ok {
+			event.IdentityStatus = status
+		}
+		if trustScore, ok := dbEvent.Payload["trustScore"].(float64); ok {
+			event.TrustScore = int(trustScore)
+		}
+
+		// Process the event
+		ctx := context.Background()
+		if err := h.processWebhookEvent(dbEvent.ID, event); err != nil {
+			h.logger.Error("Failed to reprocess webhook event",
+				zap.String("event_id", dbEvent.ID.String()),
+				zap.Error(err),
+			)
+			h.webhookRepo.MarkWebhookProcessed(ctx, dbEvent.ID, err.Error())
+			errors++
+		} else {
+			h.webhookRepo.MarkWebhookProcessed(ctx, dbEvent.ID, "")
+			processed++
+		}
+	}
+
+	h.logger.Info("Reprocessing complete",
+		zap.Int("processed", processed),
+		zap.Int("errors", errors),
+	)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":   "Reprocessing complete",
+		"total":     len(events),
+		"processed": processed,
+		"errors":    errors,
+	})
 }

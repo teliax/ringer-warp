@@ -220,7 +220,7 @@ export function CampaignRegistrationForm({
                       brands.map((brand) => (
                         <SelectItem key={brand.id} value={brand.id}>
                           {brand.display_name}
-                          {brand.trust_score && ` (Trust: ${brand.trust_score})`}
+                          {typeof brand.trust_score === 'number' && ` (Trust: ${brand.trust_score})`}
                           {brand.status && ` - ${brand.status}`}
                         </SelectItem>
                       ))
@@ -235,7 +235,7 @@ export function CampaignRegistrationForm({
             )}
           />
 
-          {selectedBrand && selectedBrand.trust_score && (
+          {selectedBrand && typeof selectedBrand.trust_score === 'number' && (
             <div className={`p-4 rounded-md border ${
               selectedBrand.trust_score >= 75 ? 'bg-green-50 border-green-200' :
               selectedBrand.trust_score >= 50 ? 'bg-yellow-50 border-yellow-200' :

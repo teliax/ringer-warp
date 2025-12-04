@@ -288,6 +288,25 @@ func (r *TCRBrandRepository) UpdateVettingInfo(ctx context.Context, id uuid.UUID
 	return nil
 }
 
+// UpdateSyncTimestamp updates the last_synced_at and sync_source for a brand
+func (r *TCRBrandRepository) UpdateSyncTimestamp(ctx context.Context, id uuid.UUID, source string) (int64, error) {
+	query := `
+		UPDATE messaging.brands_10dlc
+		SET
+			last_synced_at = NOW(),
+			sync_source = $2,
+			updated_at = NOW()
+		WHERE id = $1
+	`
+
+	result, err := r.db.Exec(ctx, query, id, source)
+	if err != nil {
+		return 0, fmt.Errorf("failed to update sync timestamp: %w", err)
+	}
+
+	return result.RowsAffected(), nil
+}
+
 // Helper functions
 func strOrEmpty(s *string) string {
 	if s == nil {

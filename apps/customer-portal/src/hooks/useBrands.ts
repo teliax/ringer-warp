@@ -162,6 +162,42 @@ export function useBrands() {
     }
   };
 
+  /**
+   * Sync brand status from TCR
+   * Fetches latest status from TCR and updates local database
+   */
+  const syncBrand = async (id: string): Promise<{
+    message: string;
+    status: string;
+    identity_status: string;
+    trust_score: number;
+    synced_at: string;
+  }> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await axios.post<APIResponse<{
+        message: string;
+        status: string;
+        identity_status: string;
+        trust_score: number;
+        synced_at: string;
+      }>>(
+        `/v1/messaging/brands/${id}/sync`
+      );
+      if (!response.data.data) {
+        throw new Error('Failed to sync brand');
+      }
+      return response.data.data;
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error?.message || 'Failed to sync brand from TCR';
+      setError(errorMsg);
+      throw new Error(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
     error,
@@ -172,5 +208,6 @@ export function useBrands() {
     getVettingStatus,
     requestVetting,
     resubmitBrand,
+    syncBrand,
   };
 }

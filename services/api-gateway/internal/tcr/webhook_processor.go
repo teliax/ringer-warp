@@ -54,9 +54,20 @@ func (p *WebhookProcessor) ProcessBrandEvent(ctx context.Context, event *Webhook
 	case "BRAND_ADD", "BRAND_UPDATE", "BRAND_SCORE_UPDATE":
 		return p.updateBrandStatus(ctx, brandUUID, event)
 
+	case "BRAND_IDENTITY_STATUS_UPDATE":
+		// Identity verification status changed (UNVERIFIED -> VERIFIED, etc.)
+		return p.updateBrandIdentityStatus(ctx, brandUUID, event)
+
 	case "BRAND_FEEDBACK":
 		// Brand was rejected or has feedback
 		return p.storeBrandFeedback(ctx, brandUUID, event)
+
+	case "BRAND_DELETE":
+		// Brand deleted from TCR
+		p.logger.Info("Brand deleted from TCR",
+			zap.String("brand_id", event.BrandID),
+		)
+		return nil
 
 	default:
 		p.logger.Warn("Unknown brand event type",
@@ -194,6 +205,47 @@ func (p *WebhookProcessor) updateBrandStatus(ctx context.Context, brandUUID uuid
 	)
 
 	// Send email notification
+	go p.sendBrandStatusEmail(context.Background(), event.BrandID, event.EventType)
+
+	return nil
+}
+
+// updateBrandIdentityStatus handles BRAND_IDENTITY_STATUS_UPDATE events
+// This is the key event that notifies when a brand becomes VERIFIED
+func (p *WebhookProcessor) updateBrandIdentityStatus(ctx context.Context, brandUUID uuid.UUID, event *WebhookEvent) error {
+	query := `
+		UPDATE messaging.brands_10dlc
+		SET
+			identity_status = $2,
+			status = CASE
+				WHEN $2 = 'VERIFIED' THEN 'VERIFIED'
+				WHEN $2 = 'VETTED_VERIFIED' THEN 'VETTED_VERIFIED'
+				ELSE status
+			END,
+			trust_score = COALESCE($3, trust_score),
+			last_synced_at = NOW(),
+			sync_source = 'webhook',
+			updated_at = NOW()
+		WHERE id = $1
+	`
+
+	var trustScore *int
+	if event.TrustScore > 0 {
+		trustScore = &event.TrustScore
+	}
+
+	_, err := p.db.Exec(ctx, query, brandUUID, event.IdentityStatus, trustScore)
+	if err != nil {
+		return fmt.Errorf("failed to update brand identity status: %w", err)
+	}
+
+	p.logger.Info("Brand identity status updated from webhook",
+		zap.String("brand_uuid", brandUUID.String()),
+		zap.String("identity_status", event.IdentityStatus),
+		zap.String("event_type", event.EventType),
+	)
+
+	// Send email notification about the status change
 	go p.sendBrandStatusEmail(context.Background(), event.BrandID, event.EventType)
 
 	return nil

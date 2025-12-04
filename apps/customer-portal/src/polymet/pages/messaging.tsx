@@ -663,12 +663,28 @@ export function Messaging() {
                         return (
                           <TableRow key={campaign.id}>
                             <TableCell className="font-medium">
-                              {campaign.description.substring(0, 50)}
-                              {campaign.description.length > 50 ? "..." : ""}
+                              <Link
+                                to={`/messaging/campaigns/${campaign.id}`}
+                                className="text-blue-600 hover:text-blue-800 hover:underline"
+                              >
+                                {campaign.description.substring(0, 50)}
+                                {campaign.description.length > 50 ? "..." : ""}
+                              </Link>
                             </TableCell>
-                            <TableCell>{brand?.display_name || "Unknown"}</TableCell>
                             <TableCell>
-                              <Badge variant="outline">{campaign.use_case}</Badge>
+                              {brand ? (
+                                <Link
+                                  to={`/messaging/brands/${brand.id}`}
+                                  className="text-blue-600 hover:underline"
+                                >
+                                  {brand.display_name}
+                                </Link>
+                              ) : (
+                                "Unknown"
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{campaign.use_case.replace(/_/g, " ")}</Badge>
                             </TableCell>
                             <TableCell>
                               {getStatusBadge(campaign.status as CampaignStatus)}
@@ -694,9 +710,11 @@ export function Messaging() {
                               </div>
                             </TableCell>
                             <TableCell className="text-right">
-                              <Button variant="ghost" size="sm">
-                                <SettingsIcon className="w-4 h-4" />
-                              </Button>
+                              <Link to={`/messaging/campaigns/${campaign.id}`}>
+                                <Button variant="ghost" size="sm">
+                                  <SettingsIcon className="w-4 h-4" />
+                                </Button>
+                              </Link>
                             </TableCell>
                           </TableRow>
                         );

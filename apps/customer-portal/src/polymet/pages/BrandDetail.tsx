@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertTriangle, CheckCircle, Building2Icon, InfoIcon } from "lucide-react";
+import { AlertTriangle, CheckCircle, Building2Icon, InfoIcon, RefreshCw } from "lucide-react";
 import { AuthPlusProgressCard } from "@/components/vetting/AuthPlusProgressCard";
 import { RequestAuthPlusDialog } from "@/components/dialogs/RequestAuthPlusDialog";
 import { EditBrandDialog } from "@/components/dialogs/EditBrandDialog";
@@ -22,6 +22,7 @@ export function BrandDetail() {
   const [authPlusDialogOpen, setAuthPlusDialogOpen] = useState(false);
   const [editBrandDialogOpen, setEditBrandDialogOpen] = useState(false);
   const [vettingDialogOpen, setVettingDialogOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [entityTypes, setEntityTypes] = useState<EntityTypeInfo[]>([]);
   const [verticals, setVerticals] = useState<VerticalInfo[]>([]);
 
@@ -107,6 +108,20 @@ export function BrandDetail() {
     }
   };
 
+  const handleSyncBrand = async () => {
+    if (!brand?.id) return;
+    setSyncing(true);
+    try {
+      const result = await brandsHook.syncBrand(brand.id);
+      toast.success(`Brand synced! Status: ${result.identity_status}, Trust Score: ${result.trust_score}`);
+      await loadBrand();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to sync brand from TCR");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-6 space-y-6">
@@ -155,6 +170,10 @@ export function BrandDetail() {
           <p className="text-muted-foreground">TCR Brand ID: {brand.tcr_brand_id}</p>
         </div>
         <div className="flex space-x-2">
+          <Button variant="outline" onClick={handleSyncBrand} disabled={syncing}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Syncing..." : "Sync from TCR"}
+          </Button>
           <Button variant="outline" onClick={() => setEditBrandDialogOpen(true)}>
             Edit Brand
           </Button>

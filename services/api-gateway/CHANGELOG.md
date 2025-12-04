@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.2.4] - 2025-12-04
+
+### Fixed
+- **Critical Webhook Processing Bug**: Webhooks were being received but never processed
+  - **Root Cause 1**: JSON field mapping mismatch - TCR sends `brandIdentityStatus` but struct expected `identityStatus`
+    - Fixed in `internal/tcr/webhooks.go` - Updated WebhookEvent and BrandWebhookEvent structs
+  - **Root Cause 2**: Context cancellation - Async goroutines used request context which was cancelled after HTTP response
+    - Fixed in `internal/handlers/tcr_webhooks.go` - All webhook handlers now use `context.Background()` for async processing
+  - **Impact**: Brand identity status updates (UNVERIFIED → VERIFIED) were not being synced from TCR
+
+### Added
+- **Webhook Reprocess Endpoint**: POST `/v1/admin/webhooks/reprocess`
+  - Allows admin to reprocess all unprocessed webhook events
+  - Extracts fields from stored payload including `brandIdentityStatus`
+  - Returns count of successfully processed and errored events
+
+---
+
 ## [v1.2.3] - 2025-12-01
 
 ### Added

@@ -727,6 +727,111 @@ func (h *TCRBrandHandler) ResubmitBrand(c *gin.Context) {
 	}))
 }
 
+// SyncBrand godoc
+// @Summary Sync brand status from TCR
+// @Description Fetch latest brand status from TCR and update local database
+// @Tags TCR/Brands
+// @Accept json
+// @Produce json
+// @Param id path string true "Brand ID (UUID)"
+// @Success 200 {object} models.APIResponse
+// @Failure 400 {object} models.APIResponse
+// @Failure 403 {object} models.APIResponse
+// @Failure 404 {object} models.APIResponse
+// @Security BearerAuth
+// @Router /messaging/brands/{id}/sync [post]
+func (h *TCRBrandHandler) SyncBrand(c *gin.Context) {
+	// Parse ID
+	brandID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.NewErrorResponse("INVALID_ID", "Invalid brand ID format"))
+		return
+	}
+
+	// Extract customer scoping
+	var customerFilter []uuid.UUID
+	if accessibleCustomers, exists := c.Get("accessible_customer_ids"); exists {
+		customerFilter = accessibleCustomers.([]uuid.UUID)
+	}
+
+	// Get brand from our database
+	brand, err := h.brandRepo.GetByID(c.Request.Context(), brandID, customerFilter)
+	if err != nil {
+		h.logger.Error("Failed to get brand", zap.Error(err))
+		c.JSON(http.StatusNotFound, models.NewErrorResponse("NOT_FOUND", "Brand not found"))
+		return
+	}
+
+	// Check if brand has TCR ID
+	if brand.TCRBrandID == nil || *brand.TCRBrandID == "" {
+		c.JSON(http.StatusBadRequest, models.NewErrorResponse("NO_TCR_ID", "Brand not registered with TCR"))
+		return
+	}
+
+	// Fetch latest from TCR
+	tcrBrand, err := h.tcrClient.GetBrand(c.Request.Context(), *brand.TCRBrandID)
+	if err != nil {
+		h.logger.Error("Failed to fetch brand from TCR",
+			zap.Error(err),
+			zap.String("tcr_brand_id", *brand.TCRBrandID),
+		)
+		c.JSON(http.StatusBadGateway, models.NewErrorResponse("TCR_ERROR", "Failed to fetch brand from TCR: "+err.Error()))
+		return
+	}
+
+	// Map TCR status to our status
+	status := "PENDING"
+	switch tcrBrand.IdentityStatus {
+	case "VERIFIED":
+		status = "VERIFIED"
+	case "VETTED_VERIFIED":
+		status = "VETTED_VERIFIED"
+	case "UNVERIFIED":
+		status = "UNVERIFIED"
+	case "SELF_DECLARED":
+		status = "REGISTERED"
+	}
+
+	// Update brand with TCR data
+	err = h.brandRepo.UpdateTCRInfo(
+		c.Request.Context(),
+		brandID,
+		*brand.TCRBrandID,
+		status,
+		&tcrBrand.TrustScore,
+		tcrBrand.IdentityStatus,
+	)
+	if err != nil {
+		h.logger.Error("Failed to update brand after sync",
+			zap.Error(err),
+			zap.String("brand_id", brandID.String()),
+		)
+		c.JSON(http.StatusInternalServerError, models.NewErrorResponse("UPDATE_FAILED", "Failed to update brand"))
+		return
+	}
+
+	// Update sync timestamp
+	_, err = h.brandRepo.UpdateSyncTimestamp(c.Request.Context(), brandID, "manual")
+	if err != nil {
+		h.logger.Warn("Failed to update sync timestamp", zap.Error(err))
+	}
+
+	h.logger.Info("Brand synced from TCR",
+		zap.String("brand_id", brandID.String()),
+		zap.String("tcr_brand_id", *brand.TCRBrandID),
+		zap.String("identity_status", tcrBrand.IdentityStatus),
+		zap.Int("trust_score", tcrBrand.TrustScore),
+	)
+
+	c.JSON(http.StatusOK, models.NewSuccessResponse(gin.H{
+		"message":         "Brand synced from TCR successfully",
+		"status":          status,
+		"identity_status": tcrBrand.IdentityStatus,
+		"trust_score":     tcrBrand.TrustScore,
+		"synced_at":       time.Now().Format(time.RFC3339),
+	}))
+}
+
 // Helper function
 func strOrEmpty(s *string) string {
 	if s == nil {

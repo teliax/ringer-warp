@@ -56,7 +56,7 @@ type WebhookEvent struct {
 	Timestamp       string                 `json:"timestamp,omitempty"`
 	Status          string                 `json:"status,omitempty"`
 	TrustScore      int                    `json:"trustScore,omitempty"`
-	IdentityStatus  string                 `json:"identityStatus,omitempty"`
+	IdentityStatus  string                 `json:"brandIdentityStatus,omitempty"` // TCR sends brandIdentityStatus
 	RejectionReason string                 `json:"rejectionReason,omitempty"`
 	VettingID       string                 `json:"vettingId,omitempty"`   // Auth+ vetting ID
 	MNOStatuses     map[string]string      `json:"mnoStatuses,omitempty"` // MNO ID -> Status
@@ -65,10 +65,10 @@ type WebhookEvent struct {
 
 // BrandWebhookEvent represents brand-specific webhook events
 type BrandWebhookEvent struct {
-	EventType      string `json:"eventType"`      // E.g., BRAND_ADD, BRAND_UPDATE, BRAND_SCORE_UPDATE
+	EventType      string `json:"eventType"` // E.g., BRAND_ADD, BRAND_UPDATE, BRAND_SCORE_UPDATE
 	BrandID        string `json:"brandId"`
-	Status         string `json:"status,omitempty"`         // SELF_DECLARED, VERIFIED, VETTED_VERIFIED
-	IdentityStatus string `json:"identityStatus,omitempty"` // Same as status
+	Status         string `json:"status,omitempty"`              // SELF_DECLARED, VERIFIED, VETTED_VERIFIED
+	IdentityStatus string `json:"brandIdentityStatus,omitempty"` // TCR sends brandIdentityStatus
 	TrustScore     int    `json:"trustScore,omitempty"`
 	Timestamp      string `json:"timestamp,omitempty"`
 }

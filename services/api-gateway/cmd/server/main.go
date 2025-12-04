@@ -411,6 +411,11 @@ func main() {
 
 			// Utility endpoints
 			admin.POST("/trunks/sync-redis", trunkHandler.SyncAllTrunkIPs)
+
+			// TCR Webhook Management (if enabled)
+			if tcrWebhookHandler != nil {
+				admin.POST("/webhooks/reprocess", tcrWebhookHandler.ReprocessUnprocessedEvents)
+			}
 		}
 
 		// HubSpot Sync (if enabled)
@@ -454,6 +459,7 @@ func main() {
 				messaging.POST("/brands/:id/vetting", tcrBrandHandler.RequestVetting)
 				messaging.GET("/brands/:id/vetting", tcrBrandHandler.GetVettingStatus)
 				messaging.POST("/brands/:id/resubmit", tcrBrandHandler.ResubmitBrand)
+				messaging.POST("/brands/:id/sync", tcrBrandHandler.SyncBrand)
 
 				// Campaign Management
 				messaging.GET("/campaigns", tcrCampaignHandler.ListCampaigns)
