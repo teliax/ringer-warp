@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"github.com/ringer-warp/api-gateway/internal/auth"
+	"github.com/ringer-warp/api-gateway/internal/claude"
 	"github.com/ringer-warp/api-gateway/internal/database"
 	"github.com/ringer-warp/api-gateway/internal/email"
 	"github.com/ringer-warp/api-gateway/internal/gatekeeper"
@@ -279,6 +280,20 @@ func main() {
 		log.Println("⚠️  TinComply client disabled (TINCOMPLY_API_KEY not set)")
 	}
 
+	// Initialize Claude AI client (optional - only if API key is set)
+	anthropicAPIKey := os.Getenv("ANTHROPIC_API_KEY")
+
+	var aiHandler *handlers.AIHandler
+
+	if anthropicAPIKey != "" {
+		claudeClient := claude.NewClient(anthropicAPIKey, logger)
+		aiConversationRepo := repository.NewAIConversationRepository(db)
+		aiHandler = handlers.NewAIHandler(claudeClient, aiConversationRepo, logger)
+		log.Println("✅ Claude AI client initialized")
+	} else {
+		log.Println("⚠️  Claude AI disabled (ANTHROPIC_API_KEY not set)")
+	}
+
 	// Initialize JWT and Gatekeeper middleware
 	jwtMiddleware := middleware.NewJWTAuthMiddleware(jwtService)
 	gatekeeperMiddleware := middleware.NewGatekeeperMiddleware(gk, logger)
@@ -488,6 +503,15 @@ func main() {
 				tincomply.POST("/verify-tin-name", tincomplyHandler.VerifyTINName)
 				tincomply.POST("/lookup-company-details", tincomplyHandler.LookupCompanyDetails)
 				tincomply.GET("/validate-ein-format", tincomplyHandler.ValidateEINFormat)
+			}
+		}
+
+		// AI Chat Assistant (if enabled)
+		if aiHandler != nil {
+			ai := v1.Group("/ai")
+			{
+				ai.POST("/chat", aiHandler.Chat)
+				ai.POST("/conversations/:session_id/complete", aiHandler.CompleteConversation)
 			}
 		}
 	}

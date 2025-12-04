@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.4.2] - 2025-12-04
+
+### Fixed
+- **AI Tool Use Loop**: Claude now continues responding after calling tools
+  - Previously, when Claude called `update_form_fields`, the response would cut off
+  - Now implements proper tool use loop: Claude calls tool → we send result → Claude continues
+  - Accumulates all text responses and form updates across multiple tool calls
+  - Maximum 10 iterations to prevent infinite loops
+  - Properly tracks total token usage across all iterations
+
+### Changed
+- **MaxTokens**: Increased from 4096 to 8192 for more complete responses
+- **Message Format**: Claude client now supports both string and array content formats
+  - Added `NewTextMessage()`, `NewToolResultMessage()`, `NewAssistantMessageWithToolUse()` helpers
+  - Supports Claude's tool result message format
+
+---
+
+## [v1.4.0] - 2025-12-04
+
+### Added
+- **AI Campaign Assistant**: In-app AI assistant for campaign registration guidance
+  - Files created:
+    - `internal/claude/client.go` - Claude API client with streaming and tool use support
+    - `internal/ai/agents.go` - Agent configurations with campaign system prompt (TCR 10DLC knowledge base)
+    - `internal/handlers/ai.go` - AI chat handler
+    - `internal/repository/ai_conversations.go` - Conversation storage for learning/review
+    - `infrastructure/database/migrations/004_ai_conversations.sql` - AI conversations table
+  - Endpoints:
+    - `POST /v1/ai/chat` - AI chat endpoint with session tracking
+    - `POST /v1/ai/conversations/:session_id/complete` - Mark conversation as completed with final form data
+  - Features:
+    - Claude Haiku model for fast, cost-effective responses
+    - Tool use for auto-populating form fields via `update_form_fields` function
+    - Comprehensive TCR 10DLC knowledge embedded in system prompt
+    - Session-based conversation tracking (session_id for continuity)
+    - Context-aware responses (receives current form values and available brands/use cases)
+    - Conversation storage for admin review and future fine-tuning
+    - Outcome tracking: in_progress, completed, abandoned
+  - Configuration:
+    - `ANTHROPIC_API_KEY` - Stored in Kubernetes secrets
+    - Optional: AI features disabled if API key not configured
+  - Frontend Components (customer-portal):
+    - `hooks/useAIChat.ts` - Reusable chat hook
+    - `components/ai/ChatMessage.tsx` - Message bubble with avatars
+    - `components/ai/ChatInput.tsx` - Auto-resizing input with Enter-to-send
+    - `components/ai/ChatMessageSkeleton.tsx` - Loading state
+    - `components/ai/AIChatPanel.tsx` - Complete chat panel
+    - `components/dialogs/CampaignRegistrationDialog.tsx` - 70/30 split form + chat layout
+
+### Technical Details
+- **Model**: claude-3-haiku-20240307 (fast, cost-effective)
+- **Token Limits**: 8192 max tokens
+- **Tool Use**: update_form_fields function returns JSON array of field updates
+- **Storage**: ai.conversations table with JSONB for messages and form context
+- **UX**: Brain icon toggle, embedded side panel (form 70% / chat 30%)
+
+### Database Schema
+- **New Schema**: `ai`
+- **New Table**: `ai.conversations`
+  - session_id (unique), agent_type, user_id, messages (JSONB)
+  - form_context, final_form_data, outcome, timestamps
+
+### Deployment
+- **Image**: `us-central1-docker.pkg.dev/ringer-warp-v01/warp-platform/api-gateway:v1.4.0`
+- **Deployed**: 2025-12-04 22:36 UTC
+- **Pods**: 3 replicas (api-gateway-9c8b8d47d-*)
+- **Rollout**: Successful (zero downtime)
+
+---
+
 ## [v1.2.4] - 2025-12-04
 
 ### Fixed

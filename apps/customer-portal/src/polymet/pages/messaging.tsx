@@ -62,7 +62,7 @@ import type {
   CreateCampaignRequest,
 } from "@/types/messaging";
 import { BrandRegistrationForm } from "@/components/forms/BrandRegistrationForm";
-import { CampaignRegistrationForm } from "@/components/forms/CampaignRegistrationForm";
+import { CampaignRegistrationDialog } from "@/components/dialogs/CampaignRegistrationDialog";
 import { toast } from "sonner";
 
 export function Messaging() {
@@ -322,33 +322,18 @@ export function Messaging() {
             </DialogContent>
           </Dialog>
 
-          <Dialog
+          <Button onClick={() => setCampaignDialogOpen(true)}>
+            <PlusIcon className="w-4 h-4 mr-2" />
+            Create Campaign
+          </Button>
+
+          <CampaignRegistrationDialog
             open={campaignDialogOpen}
             onOpenChange={setCampaignDialogOpen}
-          >
-            <DialogTrigger asChild>
-              <Button>
-                <PlusIcon className="w-4 h-4 mr-2" />
-                Create Campaign
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Campaign Registration</DialogTitle>
-                <DialogDescription>
-                  Create a new messaging campaign for your approved brand
-                </DialogDescription>
-              </DialogHeader>
-              <div className="p-6">
-                <CampaignRegistrationForm
-                  brands={activeBrands}
-                  useCases={useCases}
-                  onSubmit={handleCampaignSubmit}
-                  onCancel={() => setCampaignDialogOpen(false)}
-                />
-              </div>
-            </DialogContent>
-          </Dialog>
+            brands={activeBrands}
+            useCases={useCases}
+            onSubmit={handleCampaignSubmit}
+          />
         </div>
       </div>
 
