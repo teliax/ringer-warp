@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -119,6 +119,33 @@ export function EditBrandDialog({
     },
   });
 
+  // Reset form when brand data changes (without losing resubmit prompt state)
+  useEffect(() => {
+    form.reset({
+      display_name: brand.display_name || "",
+      company_name: brand.legal_name || brand.company_name || "",
+      website: brand.website || "",
+      vertical: brand.vertical || "",
+      entity_type: brand.entity_type as any || undefined,
+      tax_id: brand.tax_id || "",
+      street: brand.street || "",
+      city: brand.city || "",
+      state: brand.state || "",
+      postal_code: brand.postal_code || "",
+      email: brand.email || "",
+      phone: brand.phone || "",
+      business_contact_first_name: brand.business_contact_first_name || "",
+      business_contact_last_name: brand.business_contact_last_name || "",
+      business_contact_email: brand.business_contact_email || "",
+      business_contact_phone: brand.business_contact_phone || "",
+      stock_symbol: brand.stock_symbol || "",
+      stock_exchange: brand.stock_exchange || "",
+      alt_business_id: brand.alt_business_id || "",
+      alt_business_id_type: (brand.alt_business_id_type as any) || "NONE",
+      reference_id: brand.reference_id || "",
+    });
+  }, [brand.updated_at, brand.id]);
+
   const checkCoreFieldChanges = () => {
     const companyNameChanged = form.getValues("company_name") !== (brand.legal_name || brand.company_name || "");
     const taxIdChanged = form.getValues("tax_id") !== (brand.tax_id || "");
@@ -169,7 +196,7 @@ export function EditBrandDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" key={brand.updated_at || brand.id}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Brand: {brand.display_name}</DialogTitle>
           <DialogDescription>
