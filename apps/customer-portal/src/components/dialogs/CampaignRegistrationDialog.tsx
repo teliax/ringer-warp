@@ -202,7 +202,15 @@ export function CampaignRegistrationDialog({
         }
       }
 
-      form.setValue(mappedField as keyof CampaignFormData, value as never, {
+      // Convert arrays to comma-separated strings for keyword fields
+      // The AI sometimes returns ["STOP", "CANCEL"] instead of "STOP,CANCEL"
+      let processedValue = value;
+      const keywordFields = ['optin_keywords', 'optout_keywords', 'help_keywords'];
+      if (keywordFields.includes(mappedField) && Array.isArray(value)) {
+        processedValue = value.join(',');
+      }
+
+      form.setValue(mappedField as keyof CampaignFormData, processedValue as never, {
         shouldValidate: true,
         shouldDirty: true,
       });

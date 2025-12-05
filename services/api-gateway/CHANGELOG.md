@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.4.4] - 2025-12-05
+
+### Fixed
+- **Keyword Field Types**: AI now returns comma-separated strings for keyword fields
+  - Previously returned arrays like `["STOP", "CANCEL"]` causing form validation errors
+  - Now correctly returns `"STOP,CANCEL"` as expected by the form
+- **Added Required Fields Checklist**: AI now prompts for all required fields
+  - Asks about Privacy Policy URL and Terms URL
+  - Provides summary of completed vs remaining fields before submission
+  - Reminds user to select Brand from dropdown
+
+### Changed
+- **System Prompt**: Added explicit field type documentation
+  - CRITICAL section specifying keyword fields must be comma-separated strings
+  - Required vs recommended fields checklist
+  - "Before User Submits" guidance for AI to summarize completion status
+
+---
+
 ## [v1.4.3] - 2025-12-05
 
 ### Fixed
