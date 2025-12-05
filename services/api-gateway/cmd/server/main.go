@@ -203,6 +203,7 @@ func main() {
 	tcrAPISecret := os.Getenv("TCR_API_SECRET")
 	tcrResellerID := os.Getenv("TCR_RESELLER_ID")
 	tcrSandbox := os.Getenv("TCR_SANDBOX") == "true"
+	tcrCNPID := os.Getenv("TCR_CNP_ID") // Upstream CNP for auto-election (e.g., Sinch)
 
 	var tcrBrandHandler *handlers.TCRBrandHandler
 	var tcrCampaignHandler *handlers.TCRCampaignHandler
@@ -222,8 +223,14 @@ func main() {
 		tcrCampaignRepo := repository.NewTCRCampaignRepository(db)
 		tcrWebhookRepo := repository.NewTCRWebhookEventRepository(db)
 
-		// Initialize TCR webhook processor with email service
-		tcrWebhookProcessor := tcr.NewWebhookProcessor(db, tcrEmailService, logger)
+		// Initialize TCR webhook processor with email service and auto-CNP election
+		tcrWebhookProcessor := tcr.NewWebhookProcessorWithConfig(tcr.WebhookProcessorConfig{
+			DB:           db,
+			EmailService: tcrEmailService,
+			Logger:       logger,
+			TCRClient:    tcrClient,
+			CNPID:        tcrCNPID, // Auto-elect this CNP when campaigns become ACTIVE
+		})
 
 		// Initialize TCR webhook handler
 		tcrWebhookHandler = handlers.NewTCRWebhookHandler(tcrWebhookRepo, tcrWebhookProcessor, logger)
@@ -261,6 +268,13 @@ func main() {
 			log.Println("✅ TCR client initialized (SANDBOX MODE)")
 		} else {
 			log.Println("✅ TCR client initialized (PRODUCTION)")
+		}
+
+		// Log CNP auto-election status
+		if tcrCNPID != "" {
+			log.Printf("✅ CNP auto-election enabled (CNP ID: %s)", tcrCNPID)
+		} else {
+			log.Println("ℹ️  CNP auto-election disabled (TCR_CNP_ID not set)")
 		}
 	} else {
 		log.Println("⚠️  TCR client disabled (TCR_API_KEY or TCR_API_SECRET not set)")
@@ -492,6 +506,7 @@ func main() {
 				messaging.GET("/entity-types", tcrEnumHandler.GetEntityTypes)
 				messaging.GET("/verticals", tcrEnumHandler.GetVerticals)
 				messaging.GET("/carriers", tcrEnumHandler.GetCarriers)
+				messaging.GET("/dcas", tcrEnumHandler.GetDCAs)
 				messaging.GET("/use-case-requirements", tcrEnumHandler.GetUseCaseRequirements)
 				messaging.GET("/throughput-estimate", tcrEnumHandler.GetThroughputEstimate)
 			}

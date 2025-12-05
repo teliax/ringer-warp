@@ -290,3 +290,9 @@ type MNOInfo struct {
 	MNOID string `json:"mno_id"`
 	Name  string `json:"name"`
 }
+
+// DCAInfo represents a Direct Connect Aggregator (DCA/CNP)
+type DCAInfo struct {
+	DCAID       string `json:"dca_id"`
+	DisplayName string `json:"display_name"`
+}

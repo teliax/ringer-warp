@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.5.0] - 2025-12-05
+
+### Added
+- **Auto CNP Election**: Campaigns automatically shared to upstream CNP when status becomes ACTIVE
+  - New `TCR_CNP_ID` environment variable to configure upstream CNP (e.g., Sinch)
+  - `ShareCampaign()` method added to TCR client (`PUT /campaign/{id}/sharing/{cnpId}`)
+  - Webhook processor automatically triggers CNP share when campaign transitions to ACTIVE
+  - Runs in background - doesn't delay webhook response
+  - Prevents duplicate shares by checking `cnp_sharing_status` before sharing
+
+- **DCA/CNP Lookup Endpoint**: New `GET /api/v1/messaging/dcas` endpoint
+  - Lists all Direct Connect Aggregators from TCR `/enum/dca`
+  - Use to find Sinch's CNP ID for configuration
+
+- **Database Fields for CNP Tracking**:
+  - `cnp_id` - Upstream CNP ID
+  - `cnp_sharing_status` - NONE/PENDING/ACCEPTED/REJECTED/FAILED
+  - `cnp_sharing_error` - Error message if sharing failed
+  - `cnp_sharing_attempted_at` - Timestamp of last share attempt
+
+### Configuration
+To enable auto CNP election, set the environment variable:
+```bash
+TCR_CNP_ID=<sinch-dca-id>  # Get from /api/v1/messaging/dcas endpoint
+```
+
+---
+
 ## [v1.4.13] - 2025-12-05
 
 ### Fixed

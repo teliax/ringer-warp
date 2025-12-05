@@ -221,6 +221,12 @@ type MNO struct {
 	Name  string `json:"name"`
 }
 
+// DCA represents a Direct Connect Aggregator (also used for CNP lookup)
+type DCA struct {
+	DCAID       string `json:"dcaId"`
+	DisplayName string `json:"displayName"`
+}
+
 // CampaignStatus represents a campaign status value
 type CampaignStatus struct {
 	Code        string `json:"code"`

@@ -193,6 +193,36 @@ func (h *TCREnumerationHandler) GetCarriers(c *gin.Context) {
 	c.JSON(http.StatusOK, models.NewSuccessResponse(mnoInfos))
 }
 
+// GetDCAs godoc
+// @Summary Get Direct Connect Aggregators (DCAs/CNPs)
+// @Description Get list of participating Direct Connect Aggregators for campaign sharing
+// @Tags TCR/Enumerations
+// @Accept json
+// @Produce json
+// @Success 200 {object} models.APIResponse{data=[]models.DCAInfo}
+// @Failure 500 {object} models.APIResponse
+// @Security BearerAuth
+// @Router /messaging/dcas [get]
+func (h *TCREnumerationHandler) GetDCAs(c *gin.Context) {
+	dcas, err := h.tcrClient.GetDCAs(c.Request.Context())
+	if err != nil {
+		h.logger.Error("Failed to get DCAs from TCR", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, models.NewErrorResponse("TCR_ERROR", "Failed to retrieve DCAs"))
+		return
+	}
+
+	// Convert TCR response to our model
+	dcaInfos := make([]models.DCAInfo, len(dcas))
+	for i, d := range dcas {
+		dcaInfos[i] = models.DCAInfo{
+			DCAID:       d.DCAID,
+			DisplayName: d.DisplayName,
+		}
+	}
+
+	c.JSON(http.StatusOK, models.NewSuccessResponse(dcaInfos))
+}
+
 // GetUseCaseRequirements godoc
 // @Summary Get use case requirements
 // @Description Get detailed requirements for a specific campaign use case

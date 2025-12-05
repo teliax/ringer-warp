@@ -121,6 +121,24 @@ func (c *Client) GetMNOs(ctx context.Context) ([]MNO, error) {
 	return mnos, nil
 }
 
+// GetDCAs retrieves all Direct Connect Aggregators (DCAs/CNPs)
+// Use this to find the CNP ID for upstream campaign sharing (e.g., Sinch)
+func (c *Client) GetDCAs(ctx context.Context) ([]DCA, error) {
+	path := "/enum/dca"
+
+	resp, err := c.doRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var dcas []DCA
+	if err := c.handleResponse(resp, &dcas); err != nil {
+		return nil, err
+	}
+
+	return dcas, nil
+}
+
 // GetCampaignStatuses retrieves all campaign status values
 func (c *Client) GetCampaignStatuses(ctx context.Context) ([]CampaignStatus, error) {
 	path := "/enum/campaignStatus"

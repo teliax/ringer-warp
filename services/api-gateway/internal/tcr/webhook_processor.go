@@ -19,6 +19,17 @@ type WebhookProcessor struct {
 	emailService *email.Service
 	webhookRepo  *repository.TCRWebhookEventRepository
 	logger       *zap.Logger
+	tcrClient    *Client // TCR API client for auto-CNP election
+	cnpID        string  // Upstream CNP ID (e.g., Sinch)
+}
+
+// WebhookProcessorConfig holds configuration for the webhook processor
+type WebhookProcessorConfig struct {
+	DB           *pgxpool.Pool
+	EmailService *email.Service
+	Logger       *zap.Logger
+	TCRClient    *Client // Optional - if nil, auto-CNP election is disabled
+	CNPID        string  // Upstream CNP ID for auto-election
 }
 
 // NewWebhookProcessor creates a new webhook processor
@@ -28,6 +39,18 @@ func NewWebhookProcessor(db *pgxpool.Pool, emailService *email.Service, logger *
 		emailService: emailService,
 		webhookRepo:  repository.NewTCRWebhookEventRepository(db),
 		logger:       logger,
+	}
+}
+
+// NewWebhookProcessorWithConfig creates a webhook processor with full configuration
+func NewWebhookProcessorWithConfig(cfg WebhookProcessorConfig) *WebhookProcessor {
+	return &WebhookProcessor{
+		db:           cfg.DB,
+		emailService: cfg.EmailService,
+		webhookRepo:  repository.NewTCRWebhookEventRepository(cfg.DB),
+		logger:       cfg.Logger,
+		tcrClient:    cfg.TCRClient,
+		cnpID:        cfg.CNPID,
 	}
 }
 
@@ -315,6 +338,10 @@ func (p *WebhookProcessor) updateCampaignStatus(ctx context.Context, campaignUUI
 
 // syncCampaignStatus synchronizes campaign status without forcing a specific status
 func (p *WebhookProcessor) syncCampaignStatus(ctx context.Context, campaignUUID uuid.UUID, event *WebhookEvent) error {
+	// Get current status to detect transitions
+	var previousStatus string
+	_ = p.db.QueryRow(ctx, `SELECT COALESCE(status, '') FROM messaging.campaigns_10dlc WHERE id = $1`, campaignUUID).Scan(&previousStatus)
+
 	query := `
 		UPDATE messaging.campaigns_10dlc
 		SET
@@ -338,7 +365,14 @@ func (p *WebhookProcessor) syncCampaignStatus(ctx context.Context, campaignUUID 
 	p.logger.Info("Campaign synced from webhook",
 		zap.String("campaign_uuid", campaignUUID.String()),
 		zap.String("event_type", event.EventType),
+		zap.String("previous_status", previousStatus),
+		zap.String("new_status", event.Status),
 	)
+
+	// Auto-elect CNP when campaign transitions to ACTIVE
+	if event.Status == "ACTIVE" && previousStatus != "ACTIVE" {
+		go p.autoElectCNP(context.Background(), event.CampaignID, campaignUUID)
+	}
 
 	// Update MNO statuses if present
 	if len(event.MNOStatuses) > 0 {
@@ -346,6 +380,80 @@ func (p *WebhookProcessor) syncCampaignStatus(ctx context.Context, campaignUUID 
 	}
 
 	return nil
+}
+
+// autoElectCNP automatically shares campaign to upstream CNP (e.g., Sinch)
+// This runs in background so webhook response isn't delayed
+func (p *WebhookProcessor) autoElectCNP(ctx context.Context, tcrCampaignID string, campaignUUID uuid.UUID) {
+	// Check if CNP auto-election is configured
+	if p.tcrClient == nil || p.cnpID == "" {
+		p.logger.Debug("CNP auto-election not configured, skipping",
+			zap.String("campaign_id", tcrCampaignID),
+		)
+		return
+	}
+
+	// Check if already shared (avoid duplicate shares)
+	var cnpSharingStatus string
+	err := p.db.QueryRow(ctx, `
+		SELECT COALESCE(cnp_sharing_status, '') FROM messaging.campaigns_10dlc WHERE id = $1
+	`, campaignUUID).Scan(&cnpSharingStatus)
+	if err == nil && cnpSharingStatus != "" && cnpSharingStatus != "NONE" {
+		p.logger.Debug("Campaign already shared to CNP, skipping",
+			zap.String("campaign_id", tcrCampaignID),
+			zap.String("cnp_sharing_status", cnpSharingStatus),
+		)
+		return
+	}
+
+	p.logger.Info("Auto-electing CNP for ACTIVE campaign",
+		zap.String("campaign_id", tcrCampaignID),
+		zap.String("cnp_id", p.cnpID),
+	)
+
+	// Share campaign to CNP
+	err = p.tcrClient.ShareCampaign(ctx, tcrCampaignID, p.cnpID)
+	if err != nil {
+		p.logger.Error("Failed to auto-elect CNP for campaign",
+			zap.String("campaign_id", tcrCampaignID),
+			zap.String("cnp_id", p.cnpID),
+			zap.Error(err),
+		)
+
+		// Update database with failure status
+		_, _ = p.db.Exec(ctx, `
+			UPDATE messaging.campaigns_10dlc
+			SET cnp_sharing_status = 'FAILED',
+			    cnp_sharing_error = $2,
+			    cnp_sharing_attempted_at = NOW(),
+			    updated_at = NOW()
+			WHERE id = $1
+		`, campaignUUID, err.Error())
+		return
+	}
+
+	// Update database with pending status (CNP will send webhook when accepted)
+	_, err = p.db.Exec(ctx, `
+		UPDATE messaging.campaigns_10dlc
+		SET cnp_sharing_status = 'PENDING',
+		    cnp_id = $2,
+		    cnp_sharing_attempted_at = NOW(),
+		    updated_at = NOW()
+		WHERE id = $1
+	`, campaignUUID, p.cnpID)
+
+	if err != nil {
+		p.logger.Error("Failed to update CNP sharing status in database",
+			zap.String("campaign_id", tcrCampaignID),
+			zap.Error(err),
+		)
+		return
+	}
+
+	p.logger.Info("Successfully submitted campaign to CNP",
+		zap.String("campaign_id", tcrCampaignID),
+		zap.String("cnp_id", p.cnpID),
+	)
 }
 
 // updateMNOStatuses updates per-carrier campaign statuses

@@ -160,6 +160,23 @@ func (c *Client) DeleteCampaign(ctx context.Context, campaignID string) error {
 	return nil
 }
 
+// ShareCampaign shares a campaign with an upstream CNP (Connectivity Partner)
+// This is required for campaigns to be provisioned on carrier networks
+func (c *Client) ShareCampaign(ctx context.Context, campaignID, upstreamCnpID string) error {
+	path := fmt.Sprintf("/campaign/%s/sharing/%s", campaignID, upstreamCnpID)
+
+	resp, err := c.doRequest(ctx, http.MethodPut, path, nil)
+	if err != nil {
+		return err
+	}
+
+	if err := c.handleResponse(resp, nil); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // =============================================================================
 // CAMPAIGN BUILDER (Simplified Flow)
 // =============================================================================
