@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.4.3] - 2025-12-05
+
+### Fixed
+- **MaxTokens**: Reverted to 4096 (Claude Haiku's maximum supported output tokens)
+  - v1.4.2 incorrectly set 8192 which caused 400 errors from Claude API
+
+---
+
 ## [v1.4.2] - 2025-12-04
 
 ### Fixed
@@ -18,7 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Properly tracks total token usage across all iterations
 
 ### Changed
-- **MaxTokens**: Increased from 4096 to 8192 for more complete responses
 - **Message Format**: Claude client now supports both string and array content formats
   - Added `NewTextMessage()`, `NewToolResultMessage()`, `NewAssistantMessageWithToolUse()` helpers
   - Supports Claude's tool result message format

@@ -45,7 +45,7 @@ func getCampaignAgentConfig() *AgentConfig {
 	return &AgentConfig{
 		Type:         AgentTypeCampaign,
 		SystemPrompt: campaignSystemPrompt,
-		MaxTokens:    8192,
+		MaxTokens:    4096, // Claude Haiku max output tokens
 		Model:        claude.DefaultModel,
 		Tools: []claude.Tool{
 			{
@@ -93,7 +93,7 @@ func getBrandAgentConfig() *AgentConfig {
 	return &AgentConfig{
 		Type:         AgentTypeBrand,
 		SystemPrompt: "You are a brand registration assistant. Help users register their brand for 10DLC messaging.",
-		MaxTokens:    8192,
+		MaxTokens:    4096, // Claude Haiku max output tokens
 		Model:        claude.DefaultModel,
 		Tools:        []claude.Tool{},
 	}
