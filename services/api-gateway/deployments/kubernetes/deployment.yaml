@@ -122,6 +122,12 @@ spec:
             secretKeyRef:
               name: api-gateway-secrets
               key: TCR_SANDBOX
+        - name: TCR_RESELLER_ID
+          valueFrom:
+            secretKeyRef:
+              name: api-gateway-secrets
+              key: TCR_RESELLER_ID
+              optional: true  # Optional - only needed if using resellers
         - name: TINCOMPLY_API_KEY
           valueFrom:
             secretKeyRef:

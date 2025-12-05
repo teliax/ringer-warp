@@ -45,11 +45,11 @@ import type {
 } from "@/types/messaging";
 import { toast } from "sonner";
 
-// MNO name mapping for display
+// MNO name mapping for display (IDs from TCR /enum/mno endpoint)
 const MNO_DISPLAY_NAMES: Record<string, string> = {
-  "10017": "T-Mobile",
-  "10035": "AT&T",
-  "10036": "Verizon",
+  "10017": "AT&T",
+  "10035": "T-Mobile",
+  "10038": "Verizon",
 };
 
 export function CampaignDetail() {
@@ -354,7 +354,7 @@ export function CampaignDetail() {
           )}
 
           <div className="grid grid-cols-3 gap-4">
-            {["10017", "10035", "10036"].map((mnoId) => {
+            {["10017", "10035", "10038"].map((mnoId) => {
               const status = mnoStatuses.find(s => s.mno_id === mnoId);
               return (
                 <Card key={mnoId} className="border-2">

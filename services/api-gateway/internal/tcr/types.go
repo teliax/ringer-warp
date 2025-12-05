@@ -156,14 +156,15 @@ type CampaignRequest struct {
 	OptoutMessage        string   `json:"optoutMessage,omitempty"`
 	HelpKeywords         string   `json:"helpKeywords,omitempty"`
 	HelpMessage          string   `json:"helpMessage,omitempty"`
-	EmbeddedLink         bool     `json:"embeddedLink"`
-	EmbeddedPhone        bool     `json:"embeddedPhone"`
-	NumberPool           bool     `json:"numberPool"`
-	AgeGated             bool     `json:"ageGated"`
-	DirectLending        bool     `json:"directLending"`
-	PrivacyPolicyLink    string   `json:"privacyPolicyLink,omitempty"`
-	TermsAndConditions   string   `json:"termsAndConditions,omitempty"`
-	AutoRenewal          bool     `json:"autoRenewal"`
+	EmbeddedLink              bool     `json:"embeddedLink"`
+	EmbeddedPhone             bool     `json:"embeddedPhone"`
+	NumberPool                bool     `json:"numberPool"`
+	AgeGated                  bool     `json:"ageGated"`
+	DirectLending             bool     `json:"directLending"`
+	PrivacyPolicyLink         string   `json:"privacyPolicyLink,omitempty"`
+	TermsAndConditions        bool     `json:"termsAndConditions"`
+	TermsAndConditionsLink    string   `json:"termsAndConditionsLink,omitempty"`
+	AutoRenewal               bool     `json:"autoRenewal"`
 	ReferenceID          string   `json:"referenceId,omitempty"`
 	MNOIDs               []int    `json:"mnoIds,omitempty"`
 	SubUseCases          []string `json:"subUsecases,omitempty"`

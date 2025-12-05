@@ -201,6 +201,7 @@ func main() {
 	// Initialize TCR (The Campaign Registry) client for 10DLC compliance
 	tcrAPIKey := os.Getenv("TCR_API_KEY")
 	tcrAPISecret := os.Getenv("TCR_API_SECRET")
+	tcrResellerID := os.Getenv("TCR_RESELLER_ID")
 	tcrSandbox := os.Getenv("TCR_SANDBOX") == "true"
 
 	var tcrBrandHandler *handlers.TCRBrandHandler
@@ -210,9 +211,10 @@ func main() {
 
 	if tcrAPIKey != "" && tcrAPISecret != "" {
 		tcrClient := tcr.NewClient(tcr.Config{
-			APIKey:    tcrAPIKey,
-			APISecret: tcrAPISecret,
-			Sandbox:   tcrSandbox,
+			APIKey:     tcrAPIKey,
+			APISecret:  tcrAPISecret,
+			ResellerID: tcrResellerID,
+			Sandbox:    tcrSandbox,
 		})
 
 		// Initialize TCR repositories

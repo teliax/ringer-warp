@@ -79,7 +79,7 @@ func (c *Client) CreateCampaign(ctx context.Context, req CampaignRequest) (*Camp
 		return nil, fmt.Errorf("invalid campaign request: %w", err)
 	}
 
-	path := "/campaign"
+	path := "/campaignBuilder"
 
 	resp, err := c.doRequest(ctx, http.MethodPost, path, req)
 	if err != nil {
@@ -367,11 +367,15 @@ func GetThroughputLimits(trustScore int, vetted bool) map[string]int {
 }
 
 // ParseMNOStatus converts TCR MNO ID to name
+// MNO IDs sourced from TCR /enum/mno endpoint
 func ParseMNOStatus(mnoID string) string {
 	mnoNames := map[string]string{
-		"10017": "T-Mobile",
-		"10035": "AT&T",
-		"10036": "Verizon",
+		"10017": "AT&T",
+		"10035": "T-Mobile",
+		"10037": "US Cellular",
+		"10038": "Verizon",
+		"10631": "ClearSky",
+		"10901": "Interop",
 	}
 
 	if name, ok := mnoNames[mnoID]; ok {
@@ -382,7 +386,8 @@ func ParseMNOStatus(mnoID string) string {
 
 // IsApprovedByAllCarriers checks if campaign is registered with all major MNOs
 func IsApprovedByAllCarriers(status CampaignOperationStatus) bool {
-	majorMNOs := []string{"10017", "10035", "10036"} // T-Mobile, AT&T, Verizon
+	// Major US carriers: AT&T (10017), T-Mobile (10035), Verizon (10038)
+	majorMNOs := []string{"10017", "10035", "10038"}
 
 	for _, mnoID := range majorMNOs {
 		if s, ok := status[mnoID]; !ok || s != "REGISTERED" {

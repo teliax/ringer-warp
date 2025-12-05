@@ -7,6 +7,118 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.4.13] - 2025-12-05
+
+### Fixed
+- **MNO ID Mapping Corrected**: Fixed incorrect carrier ID mappings for MNO status display
+  - Previous mapping had AT&T/T-Mobile swapped and Verizon ID wrong (10036 instead of 10038)
+  - Correct mappings (from TCR `/enum/mno` endpoint):
+    - 10017 = AT&T
+    - 10035 = T-Mobile
+    - 10037 = US Cellular
+    - 10038 = Verizon
+    - 10631 = ClearSky
+    - 10901 = Interop
+  - Updated `IsApprovedByAllCarriers()` to use correct Verizon ID (10038)
+  - Verizon now shows correctly as REGISTERED instead of PENDING
+
+---
+
+## [v1.4.12] - 2025-12-05
+
+### Fixed
+- **TCR Status Constraint Violation**: Fixed "inconsistent types" error when updating campaign with TCR info
+  - TCR API returns empty status (`""`) on initial campaign creation
+  - Database constraint `chk_status_valid` only allows: PENDING, ACTIVE, REJECTED, SUSPENDED, EXPIRED
+  - Added `normalizeTCRStatus()` helper to default empty/unknown status to "PENDING"
+  - This prevented tcr_campaign_id from being saved, breaking webhook processing
+  - Webhooks now work correctly - campaign can be found by tcr_campaign_id
+
+---
+
+## [v1.4.11] - 2025-12-05
+
+### Fixed
+- **TCR Reseller ID Default**: Fixed "resellerId required" error when no reseller configured
+  - TCR API requires `resellerId` field even when no reseller is involved
+  - Per TCR documentation: use `"R000000"` to indicate "No Reseller"
+  - Now defaults to `R000000` when `TCR_RESELLER_ID` env var is not set
+  - Reference: TCR OpenAPI spec - "If set to a valid reseller, can only be changed to R000000 to indicate No Reseller"
+
+---
+
+## [v1.4.10] - 2025-12-05
+
+### Fixed
+- **TCR Reseller ID Required**: Added missing `resellerId` field for campaign creation
+  - TCR API requires CSP's Reseller ID for all campaign submissions
+  - Added `ResellerID` to TCR client config (from `TCR_RESELLER_ID` env var)
+  - Kubernetes deployment updated to pull from secrets
+
+### Changed
+- **Campaign Creation Flow**: Submit to TCR first, then save locally
+  - Previously: Create local campaign → Submit to TCR → If fails, mark as REJECTED
+  - Now: Submit to TCR → If accepted, create local campaign → No orphaned records on failure
+  - Prevents cluttering the database with failed/rejected campaigns
+
+---
+
+## [v1.4.9] - 2025-12-05
+
+### Fixed
+- **TCR Campaign Request Format**: Fixed "Malformed JSON" error from TCR
+  - TCR expects `termsAndConditions` as boolean (T&C acceptance), not string (URL)
+  - Added `termsAndConditionsLink` field for the actual terms URL
+  - Now correctly sets `termsAndConditions: true` (acceptance) and `termsAndConditionsLink` (URL)
+
+---
+
+## [v1.4.8] - 2025-12-05
+
+### Fixed
+- **TCR Campaign Creation Endpoint**: Fixed HTTP 405 error when creating campaigns
+  - Was using `POST /campaign` which only supports GET (list campaigns)
+  - Changed to `POST /campaignBuilder` which is the correct TCR API endpoint for campaign creation
+  - Reference: TCR OpenAPI spec `/campaignBuilder` endpoint
+
+---
+
+## [v1.4.7] - 2025-12-05
+
+### Fixed
+- **Campaign TCR Error Status**: Changed error status from "FAILED" to "REJECTED"
+  - "FAILED" was not a valid status per database constraint
+  - Valid statuses: PENDING, ACTIVE, REJECTED, SUSPENDED, EXPIRED
+
+---
+
+## [v1.4.6] - 2025-12-05
+
+### Changed
+- **Campaign TCR Submission**: Made synchronous instead of async for accurate user feedback
+  - Previously: Campaign created locally → success returned → TCR submission async (could fail silently)
+  - Now: Campaign created locally → submit to TCR → wait for TCR response → return result
+  - Users only see success toast when TCR actually accepts the campaign
+  - TCR rejection errors now properly returned to the user (HTTP 502 with error message)
+  - MNO status polling remains async (doesn't block user response)
+  - Response now includes `tcr_campaign_id` and `tcr_status` from TCR
+
+---
+
+## [v1.4.5] - 2025-12-05
+
+### Fixed
+- **AI Conversation Storage**: Fixed context cancellation bug that prevented conversations from being stored
+  - The async goroutine was using `c.Request.Context()` which gets canceled after HTTP response returns
+  - Changed to `context.Background()` for async storage operations
+  - This was causing "conversation not found" errors when completing conversations
+- **Campaign Creation**: Fixed user ID type assertion panic in CreateCampaign handler
+  - JWT middleware sets `user_id` as string, but handler was asserting it as `uuid.UUID`
+  - Now properly parses string to UUID with error handling
+  - Also fixed same issue in `AssignPhoneNumbers` and `RemovePhoneNumbers` handlers
+
+---
+
 ## [v1.4.4] - 2025-12-05
 
 ### Fixed

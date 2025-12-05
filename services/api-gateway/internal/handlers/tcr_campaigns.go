@@ -193,101 +193,129 @@ func (h *TCRCampaignHandler) CreateCampaign(c *gin.Context) {
 	}
 
 	// Get user ID for audit
-	userID, _ := c.Get("user_id")
-	createdBy := userID.(uuid.UUID)
-
-	// Step 1: Create campaign in local database first (status: PENDING)
-	campaign, err := h.campaignRepo.Create(c.Request.Context(), &req, brand.CustomerID, createdBy)
+	userIDVal, _ := c.Get("user_id")
+	userIDStr, _ := userIDVal.(string)
+	createdBy, err := uuid.Parse(userIDStr)
 	if err != nil {
-		h.logger.Error("Failed to create campaign in database", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, models.NewErrorResponse("CREATE_FAILED", "Failed to create campaign"))
+		h.logger.Error("Invalid user ID format", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, models.NewErrorResponse("AUTH_ERROR", "Invalid user ID"))
 		return
 	}
 
-	h.logger.Info("Campaign created in database, submitting to TCR",
-		zap.String("campaign_id", campaign.ID.String()),
+	// Step 1: Submit to TCR API FIRST (before saving locally)
+	// This ensures we don't create orphaned local campaigns if TCR rejects
+	h.logger.Info("Submitting campaign to TCR",
 		zap.String("brand_id", brand.ID.String()),
-		zap.String("use_case", campaign.UseCase),
+		zap.String("tcr_brand_id", *brand.TCRBrandID),
+		zap.String("use_case", req.UseCase),
 	)
 
-	// Step 2: Submit to TCR API (async - don't block response)
-	go func() {
-		// Use background context (request context gets cancelled after response sent)
-		ctx := context.Background()
+	// Build TCR request
+	tcrReq := tcr.CampaignRequest{
+		BrandID:                *brand.TCRBrandID,
+		ResellerID:             getResellerID(h.tcrClient.ResellerID()), // "R000000" = No Reseller
+		UseCase:                req.UseCase,
+		Description:            req.Description,
+		MessageFlow:            req.MessageFlow,
+		Sample1:                req.SampleMessages[0],
+		Sample2:                getOrEmpty(req.SampleMessages, 1),
+		Sample3:                getOrEmpty(req.SampleMessages, 2),
+		Sample4:                getOrEmpty(req.SampleMessages, 3),
+		Sample5:                getOrEmpty(req.SampleMessages, 4),
+		SubscriberOptin:        req.SubscriberOptin,
+		SubscriberOptout:       req.SubscriberOptout,
+		SubscriberHelp:         req.SubscriberHelp,
+		OptinKeywords:          strOrEmpty(req.OptinKeywords),
+		OptinMessage:           strOrEmpty(req.OptinMessage),
+		OptoutKeywords:         req.OptoutKeywords,
+		OptoutMessage:          strOrEmpty(req.OptoutMessage),
+		HelpKeywords:           req.HelpKeywords,
+		HelpMessage:            strOrEmpty(req.HelpMessage),
+		EmbeddedLink:           req.EmbeddedLink,
+		EmbeddedPhone:          req.EmbeddedPhone,
+		NumberPool:             req.NumberPool,
+		AgeGated:               req.AgeGated,
+		DirectLending:          req.DirectLending,
+		PrivacyPolicyLink:      strOrEmpty(req.PrivacyPolicyURL),
+		TermsAndConditions:     true, // Always true - indicates acceptance of TCR T&C
+		TermsAndConditionsLink: strOrEmpty(req.TermsURL),
+		AutoRenewal:            req.AutoRenewal,
+		SubUseCases:            req.SubUseCases,
+	}
 
-		// Build TCR request
-		tcrReq := tcr.CampaignRequest{
-			BrandID:              *brand.TCRBrandID,
-			UseCase:              req.UseCase,
-			Description:          req.Description,
-			MessageFlow:          req.MessageFlow,
-			Sample1:              req.SampleMessages[0],
-			Sample2:              getOrEmpty(req.SampleMessages, 1),
-			Sample3:              getOrEmpty(req.SampleMessages, 2),
-			Sample4:              getOrEmpty(req.SampleMessages, 3),
-			Sample5:              getOrEmpty(req.SampleMessages, 4),
-			SubscriberOptin:      req.SubscriberOptin,
-			SubscriberOptout:     req.SubscriberOptout,
-			SubscriberHelp:       req.SubscriberHelp,
-			OptinKeywords:        strOrEmpty(req.OptinKeywords),
-			OptinMessage:         strOrEmpty(req.OptinMessage),
-			OptoutKeywords:       req.OptoutKeywords,
-			OptoutMessage:        strOrEmpty(req.OptoutMessage),
-			HelpKeywords:         req.HelpKeywords,
-			HelpMessage:          strOrEmpty(req.HelpMessage),
-			EmbeddedLink:         req.EmbeddedLink,
-			EmbeddedPhone:        req.EmbeddedPhone,
-			NumberPool:           req.NumberPool,
-			AgeGated:             req.AgeGated,
-			DirectLending:        req.DirectLending,
-			PrivacyPolicyLink:    strOrEmpty(req.PrivacyPolicyURL),
-			TermsAndConditions:   strOrEmpty(req.TermsURL),
-			AutoRenewal:          req.AutoRenewal,
-			ReferenceID:          campaign.ID.String(),
-			SubUseCases:          req.SubUseCases,
-		}
+	// Submit to TCR - wait for response
+	tcrCampaign, err := h.tcrClient.CreateCampaign(c.Request.Context(), tcrReq)
+	if err != nil {
+		h.logger.Error("Failed to submit campaign to TCR",
+			zap.Error(err),
+			zap.String("brand_id", brand.ID.String()),
+			zap.String("use_case", req.UseCase),
+		)
+		// Don't create local campaign - TCR rejected it
+		c.JSON(http.StatusBadGateway, models.NewErrorResponse("TCR_SUBMISSION_FAILED", "Campaign rejected by TCR: "+err.Error()))
+		return
+	}
 
-		// Submit to TCR
-		tcrCampaign, err := h.tcrClient.CreateCampaign(ctx, tcrReq)
-		if err != nil {
-			h.logger.Error("Failed to submit campaign to TCR",
-				zap.Error(err),
-				zap.String("campaign_id", campaign.ID.String()),
-			)
-			// Update status to FAILED in database
-			_ = h.campaignRepo.UpdateTCRInfo(ctx, campaign.ID, "", "FAILED", nil, nil)
-			return
-		}
+	h.logger.Info("Campaign registered with TCR successfully",
+		zap.String("tcr_campaign_id", tcrCampaign.CampaignID),
+		zap.String("tcr_status", tcrCampaign.Status),
+	)
 
-		// Update database with TCR response
-		h.logger.Info("Campaign registered with TCR successfully",
-			zap.String("campaign_id", campaign.ID.String()),
+	// Step 2: TCR accepted - now save to local database
+	campaign, err := h.campaignRepo.Create(c.Request.Context(), &req, brand.CustomerID, createdBy)
+	if err != nil {
+		h.logger.Error("Failed to create campaign in database after TCR success",
+			zap.Error(err),
 			zap.String("tcr_campaign_id", tcrCampaign.CampaignID),
 		)
+		// This is a problem - TCR accepted but we failed to save locally
+		// Return success since TCR has it, but log the error
+		c.JSON(http.StatusCreated, models.NewSuccessResponse(gin.H{
+			"tcr_campaign_id": tcrCampaign.CampaignID,
+			"tcr_status":      tcrCampaign.Status,
+			"message":         "Campaign registered with TCR but failed to save locally. Please contact support.",
+			"warning":         "Local database save failed - campaign exists in TCR only",
+		}))
+		return
+	}
 
-		err = h.campaignRepo.UpdateTCRInfo(
-			ctx,
-			campaign.ID,
-			tcrCampaign.CampaignID,
-			tcrCampaign.Status,
-			&tcrCampaign.ThroughputLimit,
-			&tcrCampaign.DailyLimit,
+	// Update local campaign with TCR info
+	// Normalize status - TCR sometimes returns empty on initial creation
+	normalizedStatus := normalizeTCRStatus(tcrCampaign.Status)
+	err = h.campaignRepo.UpdateTCRInfo(
+		c.Request.Context(),
+		campaign.ID,
+		tcrCampaign.CampaignID,
+		normalizedStatus,
+		&tcrCampaign.ThroughputLimit,
+		&tcrCampaign.DailyLimit,
+	)
+	if err != nil {
+		h.logger.Error("Failed to update campaign with TCR info",
+			zap.Error(err),
+			zap.String("campaign_id", campaign.ID.String()),
 		)
-		if err != nil {
-			h.logger.Error("Failed to update campaign with TCR info",
-				zap.Error(err),
-				zap.String("campaign_id", campaign.ID.String()),
-			)
-		}
+		// Don't fail the request - we have the campaign, just missing some TCR metadata
+	}
 
-		// Poll for MNO status updates (TCR assigns to carriers)
-		go h.pollMNOStatus(ctx, campaign.ID, tcrCampaign.CampaignID)
+	// Refresh campaign with updated TCR info for response
+	updatedCampaign, _ := h.campaignRepo.GetByID(c.Request.Context(), campaign.ID, nil)
+	if updatedCampaign != nil {
+		campaign = updatedCampaign
+	}
+
+	// Poll for MNO status updates (async - this doesn't affect the user response)
+	go func() {
+		ctx := context.Background()
+		h.pollMNOStatus(ctx, campaign.ID, tcrCampaign.CampaignID)
 	}()
 
-	// Return immediate response (campaign will be updated async)
+	// Return success
 	c.JSON(http.StatusCreated, models.NewSuccessResponse(gin.H{
-		"campaign": campaign,
-		"message":  "Campaign submitted to TCR for registration. Status will be updated once processed.",
+		"campaign":        campaign,
+		"tcr_campaign_id": tcrCampaign.CampaignID,
+		"tcr_status":      tcrCampaign.Status,
+		"message":         "Campaign successfully registered with TCR. Carrier approvals are in progress.",
 	}))
 }
 
@@ -398,8 +426,14 @@ func (h *TCRCampaignHandler) AssignPhoneNumbers(c *gin.Context) {
 	}
 
 	// Get user ID for audit
-	userID, _ := c.Get("user_id")
-	assignedBy := userID.(uuid.UUID)
+	userIDVal, _ := c.Get("user_id")
+	userIDStr, _ := userIDVal.(string)
+	assignedBy, err := uuid.Parse(userIDStr)
+	if err != nil {
+		h.logger.Error("Invalid user ID format", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, models.NewErrorResponse("AUTH_ERROR", "Invalid user ID"))
+		return
+	}
 
 	// Assign numbers
 	err = h.campaignRepo.AssignPhoneNumbers(c.Request.Context(), campaignID, req.PhoneNumbers, assignedBy)
@@ -462,8 +496,14 @@ func (h *TCRCampaignHandler) RemovePhoneNumbers(c *gin.Context) {
 	}
 
 	// Get user ID for audit
-	userID, _ := c.Get("user_id")
-	removedBy := userID.(uuid.UUID)
+	userIDVal, _ := c.Get("user_id")
+	userIDStr, _ := userIDVal.(string)
+	removedBy, err := uuid.Parse(userIDStr)
+	if err != nil {
+		h.logger.Error("Invalid user ID format", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, models.NewErrorResponse("AUTH_ERROR", "Invalid user ID"))
+		return
+	}
 
 	// Remove numbers
 	err = h.campaignRepo.RemovePhoneNumbers(c.Request.Context(), campaignID, req.PhoneNumbers, removedBy)
@@ -539,6 +579,32 @@ func getOrEmpty(arr []string, index int) string {
 		return arr[index]
 	}
 	return ""
+}
+
+// NoResellerID is the TCR value indicating no reseller is involved
+// Per TCR documentation: "If set to a valid reseller, can only be changed to R000000 to indicate No Reseller"
+const NoResellerID = "R000000"
+
+// getResellerID returns the configured reseller ID or "R000000" for "No Reseller"
+func getResellerID(configuredID string) string {
+	if configuredID == "" {
+		return NoResellerID
+	}
+	return configuredID
+}
+
+// normalizeTCRStatus ensures the status is a valid database value
+// TCR sometimes returns empty status on initial creation
+// Valid values: PENDING, ACTIVE, REJECTED, SUSPENDED, EXPIRED
+func normalizeTCRStatus(tcrStatus string) string {
+	switch tcrStatus {
+	case "ACTIVE", "REJECTED", "SUSPENDED", "EXPIRED":
+		return tcrStatus
+	default:
+		// TCR returns empty or unknown status on initial submission
+		// Default to PENDING until webhook confirms actual status
+		return "PENDING"
+	}
 }
 
 // pollMNOStatus polls TCR for MNO status updates

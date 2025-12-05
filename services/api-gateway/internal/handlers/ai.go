@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -222,7 +223,7 @@ func (h *AIHandler) Chat(c *gin.Context) {
 				uid, _ := uuid.Parse(userIDStr)
 				conv.UserID = &uid
 			}
-			if err := h.convRepo.StoreConversation(c.Request.Context(), conv); err != nil {
+			if err := h.convRepo.StoreConversation(context.Background(), conv); err != nil {
 				h.logger.Error("Failed to store conversation",
 					zap.Error(err),
 					zap.String("session_id", sessionID),

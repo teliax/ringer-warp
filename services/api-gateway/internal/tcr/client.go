@@ -32,17 +32,19 @@ type Client struct {
 	baseURL    string
 	apiKey     string
 	apiSecret  string
+	resellerID string
 	httpClient *http.Client
 	sandbox    bool
 }
 
 // Config holds the TCR client configuration
 type Config struct {
-	APIKey    string
-	APISecret string
-	BaseURL   string        // Optional: override default
-	Timeout   time.Duration // Optional: override default
-	Sandbox   bool          // Use sandbox environment
+	APIKey     string
+	APISecret  string
+	ResellerID string        // CSP's Reseller ID with TCR (required for campaign creation)
+	BaseURL    string        // Optional: override default
+	Timeout    time.Duration // Optional: override default
+	Sandbox    bool          // Use sandbox environment
 }
 
 // NewClient creates a new TCR API client
@@ -62,14 +64,20 @@ func NewClient(cfg Config) *Client {
 	}
 
 	return &Client{
-		baseURL:   baseURL,
-		apiKey:    cfg.APIKey,
-		apiSecret: cfg.APISecret,
+		baseURL:    baseURL,
+		apiKey:     cfg.APIKey,
+		apiSecret:  cfg.APISecret,
+		resellerID: cfg.ResellerID,
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
 		sandbox: cfg.Sandbox,
 	}
+}
+
+// ResellerID returns the CSP's Reseller ID for use in campaign creation
+func (c *Client) ResellerID() string {
+	return c.resellerID
 }
 
 // authHeader generates the Basic Auth header
