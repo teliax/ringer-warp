@@ -19,124 +19,94 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   SearchIcon,
   ShoppingCartIcon,
   MapPinIcon,
   PhoneIcon,
   InfoIcon,
+  AlertCircleIcon,
+  CheckCircleIcon,
 } from "lucide-react";
+import { useNumbers } from "@/hooks/useNumbers";
+import { useToast } from "@/hooks/use-toast";
+import { NumberSearchResult, SearchNumbersRequest } from "@/types/numbers";
 
-interface NumberSearchResult {
-  number: string;
-  rate: number;
-  setupFee: number;
-  city?: string;
-  state?: string;
-  pattern?: string;
-  type: "local" | "tollfree";
+interface NumberAcquisitionSectionProps {
+  onPurchaseComplete?: () => void;
 }
 
-export function NumberAcquisitionSection() {
+export function NumberAcquisitionSection({ onPurchaseComplete }: NumberAcquisitionSectionProps) {
   const [activeTab, setActiveTab] = useState<"local" | "tollfree">("local");
-  const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<NumberSearchResult[]>([]);
   const [selectedNumbers, setSelectedNumbers] = useState<string[]>([]);
+  const [totalElements, setTotalElements] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const [purchaseSuccess, setPurchaseSuccess] = useState(false);
+
+  const { searchAvailableNumbers, reserveNumbers, purchaseNumbers, formatPhoneNumber, loading, error } = useNumbers();
+  const { toast } = useToast();
 
   // Local search states
   const [localSearch, setLocalSearch] = useState({
     areaCode: "",
-    city: "",
     state: "",
-    zipCode: "",
-    pattern: "",
+    rateCenter: "",
     quantity: "10",
   });
 
   // Toll-free search states
   const [tollFreeSearch, setTollFreeSearch] = useState({
-    prefix: "800",
-    pattern: "",
-    wordPattern: "",
+    npa: "800",
     quantity: "10",
   });
 
   const handleLocalSearch = async () => {
-    setIsSearching(true);
+    setPurchaseSuccess(false);
+    try {
+      const params: SearchNumbersRequest = {
+        npa: localSearch.areaCode || undefined,
+        state: localSearch.state || undefined,
+        rate_center: localSearch.rateCenter || undefined,
+        page: currentPage,
+        size: parseInt(localSearch.quantity) || 10,
+      };
 
-    // Simulate API call
-    setTimeout(() => {
-      const mockResults: NumberSearchResult[] = [];
-      const quantity = parseInt(localSearch.quantity) || 10;
-
-      for (let i = 0; i < quantity; i++) {
-        const areaCode = localSearch.areaCode || "212";
-        const exchange = Math.floor(Math.random() * 900) + 100;
-        const number = Math.floor(Math.random() * 9000) + 1000;
-
-        mockResults.push({
-          number: `+1 (${areaCode}) ${exchange}-${number}`,
-          rate: 1.5,
-          setupFee: 0.5,
-          city: localSearch.city || "New York",
-          state: localSearch.state || "NY",
-          type: "local",
-        });
-      }
-
-      setSearchResults(mockResults);
-      setIsSearching(false);
-    }, 2000);
+      const response = await searchAvailableNumbers(params);
+      setSearchResults(response.numbers || []);
+      setTotalElements(response.total_elements);
+      setSelectedNumbers([]);
+    } catch (err) {
+      toast({
+        title: "Search Failed",
+        description: "Failed to search available numbers. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleTollFreeSearch = async () => {
-    setIsSearching(true);
+    setPurchaseSuccess(false);
+    try {
+      const params: SearchNumbersRequest = {
+        npa: tollFreeSearch.npa,
+        page: currentPage,
+        size: parseInt(tollFreeSearch.quantity) || 10,
+      };
 
-    // Simulate API call
-    setTimeout(() => {
-      const mockResults: NumberSearchResult[] = [];
-      const quantity = parseInt(tollFreeSearch.quantity) || 10;
-      const prefix = tollFreeSearch.prefix;
-
-      for (let i = 0; i < quantity; i++) {
-        let number;
-
-        if (tollFreeSearch.wordPattern) {
-          // Generate numbers that could spell words
-          const wordPatterns = [
-            "FLOWERS",
-            "SUPPORT",
-            "HOTLINE",
-            "SERVICE",
-            "CONNECT",
-          ];
-
-          const pattern =
-            wordPatterns[Math.floor(Math.random() * wordPatterns.length)];
-          number = `+1 (${prefix}) ${pattern.substring(0, 3)}-${pattern.substring(3)}`;
-        } else if (tollFreeSearch.pattern) {
-          // Use custom pattern
-          const patternNum = tollFreeSearch.pattern.replace(/[^\d]/g, "");
-          number = `+1 (${prefix}) ${patternNum.substring(0, 3)}-${patternNum.substring(3, 7)}`;
-        } else {
-          // Random toll-free number
-          const exchange = Math.floor(Math.random() * 900) + 100;
-          const num = Math.floor(Math.random() * 9000) + 1000;
-          number = `+1 (${prefix}) ${exchange}-${num}`;
-        }
-
-        mockResults.push({
-          number,
-          rate: 2.0,
-          setupFee: 1.0,
-          pattern: tollFreeSearch.wordPattern || tollFreeSearch.pattern,
-          type: "tollfree",
-        });
-      }
-
-      setSearchResults(mockResults);
-      setIsSearching(false);
-    }, 2000);
+      const response = await searchAvailableNumbers(params);
+      setSearchResults(response.numbers || []);
+      setTotalElements(response.total_elements);
+      setSelectedNumbers([]);
+    } catch (err) {
+      toast({
+        title: "Search Failed",
+        description: "Failed to search toll-free numbers. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleNumberSelect = (number: string) => {
@@ -151,17 +121,72 @@ export function NumberAcquisitionSection() {
     if (selectedNumbers.length === searchResults.length) {
       setSelectedNumbers([]);
     } else {
-      setSelectedNumbers(searchResults.map((r) => r.number));
+      setSelectedNumbers(searchResults.map((r) => r.telephone_number));
+    }
+  };
+
+  const handlePurchase = async () => {
+    if (selectedNumbers.length === 0) return;
+
+    setIsPurchasing(true);
+    try {
+      // First reserve the numbers
+      const reserveResponse = await reserveNumbers(selectedNumbers);
+
+      if (reserveResponse.count === 0) {
+        toast({
+          title: "Reservation Failed",
+          description: "Could not reserve any of the selected numbers. They may no longer be available.",
+          variant: "destructive",
+        });
+        setIsPurchasing(false);
+        return;
+      }
+
+      // Then purchase the reserved numbers
+      const purchaseResponse = await purchaseNumbers({
+        numbers: reserveResponse.reserved,
+        voice_enabled: true,
+        sms_enabled: false,
+      });
+
+      if (purchaseResponse.count > 0) {
+        setPurchaseSuccess(true);
+        setSelectedNumbers([]);
+        setSearchResults([]);
+        toast({
+          title: "Purchase Successful",
+          description: `Successfully purchased ${purchaseResponse.count} number(s).`,
+        });
+
+        // Notify parent to refresh inventory
+        if (onPurchaseComplete) {
+          onPurchaseComplete();
+        }
+      } else {
+        toast({
+          title: "Purchase Failed",
+          description: "Could not complete the purchase. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "Purchase Failed",
+        description: "An error occurred during purchase. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPurchasing(false);
     }
   };
 
   const getTotalCost = () => {
     const selectedResults = searchResults.filter((r) =>
-      selectedNumbers.includes(r.number)
+      selectedNumbers.includes(r.telephone_number)
     );
-    const monthlyTotal = selectedResults.reduce((sum, r) => sum + r.rate, 0);
-    const setupTotal = selectedResults.reduce((sum, r) => sum + r.setupFee, 0);
-    return { monthlyTotal, setupTotal };
+    const monthlyTotal = selectedResults.reduce((sum, r) => sum + (r.monthly_rate || 1.50), 0);
+    return { monthlyTotal, setupTotal: selectedResults.length * 0.50 };
   };
 
   const usStates = [
@@ -217,6 +242,32 @@ export function NumberAcquisitionSection() {
     { value: "WY", label: "Wyoming" },
   ];
 
+  // Success state
+  if (purchaseSuccess) {
+    return (
+      <Card>
+        <CardContent className="py-12">
+          <div className="text-center">
+            <CheckCircleIcon className="w-16 h-16 text-green-500 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Purchase Complete!</h3>
+            <p className="text-muted-foreground mb-6">
+              Your numbers have been added to your inventory.
+            </p>
+            <Button
+              onClick={() => {
+                setPurchaseSuccess(false);
+                setSearchResults([]);
+              }}
+              className="bg-[#58C5C7] hover:bg-[#58C5C7]/80"
+            >
+              Search for More Numbers
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -226,8 +277,7 @@ export function NumberAcquisitionSection() {
             Number Acquisition
           </CardTitle>
           <CardDescription>
-            Search and purchase local or toll-free numbers with advanced
-            filtering options
+            Search and purchase local or toll-free numbers from available inventory
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -243,7 +293,6 @@ export function NumberAcquisitionSection() {
                 className="flex items-center space-x-2"
               >
                 <MapPinIcon className="w-4 h-4" />
-
                 <span>Local Numbers</span>
               </TabsTrigger>
               <TabsTrigger
@@ -251,7 +300,6 @@ export function NumberAcquisitionSection() {
                 className="flex items-center space-x-2"
               >
                 <PhoneIcon className="w-4 h-4" />
-
                 <span>Toll-Free Numbers</span>
               </TabsTrigger>
             </TabsList>
@@ -261,19 +309,17 @@ export function NumberAcquisitionSection() {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div className="flex items-center space-x-2 mb-2">
                   <InfoIcon className="w-4 h-4 text-blue-600" />
-
                   <span className="text-sm font-medium text-blue-800">
                     Local Number Search
                   </span>
                 </div>
                 <p className="text-sm text-blue-700">
-                  Search by area code (NPA), city, state, zip code, or word
-                  patterns. Local numbers are tied to specific geographic
-                  locations.
+                  Search by area code (NPA), state, or rate center. Local numbers
+                  are tied to specific geographic locations.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="area-code">Area Code (NPA)</Label>
                   <Input
@@ -284,21 +330,6 @@ export function NumberAcquisitionSection() {
                       setLocalSearch((prev) => ({
                         ...prev,
                         areaCode: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="city">City</Label>
-                  <Input
-                    id="city"
-                    placeholder="e.g., New York, San Francisco"
-                    value={localSearch.city}
-                    onChange={(e) =>
-                      setLocalSearch((prev) => ({
-                        ...prev,
-                        city: e.target.value,
                       }))
                     }
                   />
@@ -316,6 +347,7 @@ export function NumberAcquisitionSection() {
                       <SelectValue placeholder="Select state" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="">Any state</SelectItem>
                       {usStates.map((state) => (
                         <SelectItem key={state.value} value={state.value}>
                           {state.label}
@@ -326,37 +358,22 @@ export function NumberAcquisitionSection() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="zip-code">Zip Code</Label>
+                  <Label htmlFor="rate-center">Rate Center</Label>
                   <Input
-                    id="zip-code"
-                    placeholder="e.g., 10001, 94105"
-                    value={localSearch.zipCode}
+                    id="rate-center"
+                    placeholder="e.g., DENVER, AUSTIN"
+                    value={localSearch.rateCenter}
                     onChange={(e) =>
                       setLocalSearch((prev) => ({
                         ...prev,
-                        zipCode: e.target.value,
+                        rateCenter: e.target.value,
                       }))
                     }
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="local-pattern">Word/Number Pattern</Label>
-                  <Input
-                    id="local-pattern"
-                    placeholder="e.g., PIZZA, 555-HELP"
-                    value={localSearch.pattern}
-                    onChange={(e) =>
-                      setLocalSearch((prev) => ({
-                        ...prev,
-                        pattern: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="local-quantity">Quantity</Label>
+                  <Label htmlFor="local-quantity">Results</Label>
                   <Select
                     value={localSearch.quantity}
                     onValueChange={(value) =>
@@ -367,7 +384,6 @@ export function NumberAcquisitionSection() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="5">5 numbers</SelectItem>
                       <SelectItem value="10">10 numbers</SelectItem>
                       <SelectItem value="25">25 numbers</SelectItem>
                       <SelectItem value="50">50 numbers</SelectItem>
@@ -378,13 +394,13 @@ export function NumberAcquisitionSection() {
 
               <Button
                 onClick={handleLocalSearch}
-                disabled={isSearching}
+                disabled={loading}
                 className="w-full bg-[#58C5C7] hover:bg-[#58C5C7]/80"
               >
-                {isSearching ? (
+                {loading ? (
                   <>
                     <SearchIcon className="w-4 h-4 mr-2 animate-spin" />
-                    Searching Local Numbers...
+                    Searching...
                   </>
                 ) : (
                   <>
@@ -400,14 +416,13 @@ export function NumberAcquisitionSection() {
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                 <div className="flex items-center space-x-2 mb-2">
                   <InfoIcon className="w-4 h-4 text-green-600" />
-
                   <span className="text-sm font-medium text-green-800">
                     Toll-Free Number Search
                   </span>
                 </div>
                 <p className="text-sm text-green-700">
-                  Search by prefix (800, 888, 877, etc.) and patterns. Toll-free
-                  numbers work nationwide and can spell memorable words.
+                  Search by prefix (800, 888, 877, etc.). Toll-free numbers work
+                  nationwide.
                 </p>
               </div>
 
@@ -415,9 +430,9 @@ export function NumberAcquisitionSection() {
                 <div className="space-y-2">
                   <Label htmlFor="tf-prefix">Toll-Free Prefix</Label>
                   <Select
-                    value={tollFreeSearch.prefix}
+                    value={tollFreeSearch.npa}
                     onValueChange={(value) =>
-                      setTollFreeSearch((prev) => ({ ...prev, prefix: value }))
+                      setTollFreeSearch((prev) => ({ ...prev, npa: value }))
                     }
                   >
                     <SelectTrigger>
@@ -436,76 +451,34 @@ export function NumberAcquisitionSection() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="tf-quantity">Quantity</Label>
+                  <Label htmlFor="tf-quantity">Results</Label>
                   <Select
                     value={tollFreeSearch.quantity}
                     onValueChange={(value) =>
-                      setTollFreeSearch((prev) => ({
-                        ...prev,
-                        quantity: value,
-                      }))
+                      setTollFreeSearch((prev) => ({ ...prev, quantity: value }))
                     }
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="5">5 numbers</SelectItem>
                       <SelectItem value="10">10 numbers</SelectItem>
                       <SelectItem value="25">25 numbers</SelectItem>
                       <SelectItem value="50">50 numbers</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="tf-word-pattern">Word Pattern</Label>
-                  <Input
-                    id="tf-word-pattern"
-                    placeholder="e.g., FLOWERS, SUPPORT, HOTLINE"
-                    value={tollFreeSearch.wordPattern}
-                    onChange={(e) =>
-                      setTollFreeSearch((prev) => ({
-                        ...prev,
-                        wordPattern: e.target.value,
-                      }))
-                    }
-                  />
-
-                  <p className="text-xs text-muted-foreground">
-                    Search for numbers that spell words (e.g., 833-FLOWERS)
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="tf-number-pattern">Number Pattern</Label>
-                  <Input
-                    id="tf-number-pattern"
-                    placeholder="e.g., XXX-1234, 555-XXXX"
-                    value={tollFreeSearch.pattern}
-                    onChange={(e) =>
-                      setTollFreeSearch((prev) => ({
-                        ...prev,
-                        pattern: e.target.value,
-                      }))
-                    }
-                  />
-
-                  <p className="text-xs text-muted-foreground">
-                    Use X for any digit, specific numbers for exact matches
-                  </p>
-                </div>
               </div>
 
               <Button
                 onClick={handleTollFreeSearch}
-                disabled={isSearching}
+                disabled={loading}
                 className="w-full bg-[#58C5C7] hover:bg-[#58C5C7]/80"
               >
-                {isSearching ? (
+                {loading ? (
                   <>
                     <SearchIcon className="w-4 h-4 mr-2 animate-spin" />
-                    Searching Toll-Free Numbers...
+                    Searching...
                   </>
                 ) : (
                   <>
@@ -519,6 +492,31 @@ export function NumberAcquisitionSection() {
         </CardContent>
       </Card>
 
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center space-x-2">
+          <AlertCircleIcon className="w-5 h-5 text-red-600" />
+          <span className="text-red-700">{error}</span>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {loading && searchResults.length === 0 && (
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-32" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Skeleton key={i} className="h-16 w-full" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Search Results */}
       {searchResults.length > 0 && (
         <Card>
@@ -527,7 +525,7 @@ export function NumberAcquisitionSection() {
               <div>
                 <CardTitle>Available Numbers</CardTitle>
                 <CardDescription>
-                  {searchResults.length} {activeTab} numbers found •{" "}
+                  {searchResults.length} of {totalElements} numbers found •{" "}
                   {selectedNumbers.length} selected
                 </CardDescription>
               </div>
@@ -545,29 +543,37 @@ export function NumberAcquisitionSection() {
               {searchResults.map((result, index) => (
                 <div
                   key={index}
-                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
+                  className={`flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer ${
+                    selectedNumbers.includes(result.telephone_number)
+                      ? "bg-muted/50 border-[#58C5C7]"
+                      : ""
+                  }`}
+                  onClick={() => handleNumberSelect(result.telephone_number)}
                 >
                   <div className="flex items-center space-x-3">
                     <Checkbox
-                      checked={selectedNumbers.includes(result.number)}
-                      onCheckedChange={() => handleNumberSelect(result.number)}
+                      checked={selectedNumbers.includes(result.telephone_number)}
+                      onCheckedChange={() => handleNumberSelect(result.telephone_number)}
                     />
-
                     <div>
                       <div className="font-mono font-medium">
-                        {result.number}
+                        {formatPhoneNumber(result.telephone_number)}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {result.type === "local" ? (
+                        {result.rate_center ? (
                           <>
                             <MapPinIcon className="w-3 h-3 inline mr-1" />
-                            {result.city}, {result.state}
+                            {result.rate_center}, {result.state}
                           </>
-                        ) : (
+                        ) : result.npa && result.npa.startsWith("8") ? (
                           <>
                             <PhoneIcon className="w-3 h-3 inline mr-1" />
                             Toll-Free • Nationwide
-                            {result.pattern && ` • Pattern: ${result.pattern}`}
+                          </>
+                        ) : (
+                          <>
+                            <MapPinIcon className="w-3 h-3 inline mr-1" />
+                            {result.state || "Unknown location"}
                           </>
                         )}
                       </div>
@@ -575,10 +581,10 @@ export function NumberAcquisitionSection() {
                   </div>
                   <div className="text-right">
                     <div className="font-medium">
-                      ${result.rate.toFixed(2)}/month
+                      ${(result.monthly_rate || 1.50).toFixed(2)}/month
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      + ${result.setupFee.toFixed(2)} setup
+                      + $0.50 setup
                     </div>
                   </div>
                 </div>
@@ -586,7 +592,7 @@ export function NumberAcquisitionSection() {
             </div>
 
             {selectedNumbers.length > 0 && (
-              <div className="flex justify-between items-center pt-4 border-t">
+              <div className="flex justify-between items-center pt-4 border-t mt-4">
                 <div className="text-sm">
                   <div className="font-medium">
                     {selectedNumbers.length} number
@@ -597,8 +603,22 @@ export function NumberAcquisitionSection() {
                     {getTotalCost().setupTotal.toFixed(2)} setup
                   </div>
                 </div>
-                <Button className="bg-[#58C5C7] hover:bg-[#58C5C7]/80">
-                  Purchase Selected Numbers
+                <Button
+                  onClick={handlePurchase}
+                  disabled={isPurchasing}
+                  className="bg-[#58C5C7] hover:bg-[#58C5C7]/80"
+                >
+                  {isPurchasing ? (
+                    <>
+                      <ShoppingCartIcon className="w-4 h-4 mr-2 animate-pulse" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingCartIcon className="w-4 h-4 mr-2" />
+                      Purchase Selected Numbers
+                    </>
+                  )}
                 </Button>
               </div>
             )}

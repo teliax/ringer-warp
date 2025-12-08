@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.6.0] - 2025-12-08
+
+### Added
+- **Number Inventory Management - Frontend Integration**
+  - Created `useNumbers` React hook for all number operations
+  - Created TypeScript types matching backend models (`types/numbers.ts`)
+  - Updated Numbers page to use real API instead of mock data
+  - Updated Number Acquisition section with SOA search integration
+  - Implemented full purchase flow: search → reserve → purchase
+  - Added inventory summary statistics
+  - Added pagination support for number listing
+  - Added skeleton loaders for loading states
+  - Added error handling with toast notifications
+
+### Changed
+- **Backend Model Alignment**
+  - Added `FaxEnabled bool` field to `AssignedNumber` model
+  - Added `UserAgent *string` field to `NumberAuditLog` model
+  - Updated all 6 repository methods to include `fax_enabled` in queries:
+    - `Create()` - INSERT + RETURNING
+    - `GetByID()` - SELECT
+    - `GetByNumber()` - SELECT
+    - `ListByCustomer()` - SELECT + Scan
+    - `Update()` - RETURNING + Scan
+    - `Release()` - RETURNING + Scan
+
+### Frontend Files
+- `apps/customer-portal/src/hooks/useNumbers.ts` (new)
+- `apps/customer-portal/src/types/numbers.ts` (new)
+- `apps/customer-portal/src/polymet/pages/numbers.tsx` (updated)
+- `apps/customer-portal/src/polymet/components/number-acquisition-section.tsx` (updated)
+
+### Backend Files
+- `services/api-gateway/internal/models/number.go` (updated)
+- `services/api-gateway/internal/repository/number.go` (updated)
+
+---
+
 ## [v1.5.0] - 2025-12-05
 
 ### Added

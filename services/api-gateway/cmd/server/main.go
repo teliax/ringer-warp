@@ -22,6 +22,8 @@ import (
 	"github.com/ringer-warp/api-gateway/internal/invitation"
 	"github.com/ringer-warp/api-gateway/internal/middleware"
 	"github.com/ringer-warp/api-gateway/internal/repository"
+	"github.com/ringer-warp/api-gateway/internal/services"
+	"github.com/ringer-warp/api-gateway/internal/soa"
 	"github.com/ringer-warp/api-gateway/internal/tcr"
 	"github.com/ringer-warp/api-gateway/internal/tincomply"
 	"github.com/ringer-warp/api-gateway/internal/trunk"
@@ -185,6 +187,27 @@ func main() {
 	trunkHandler := handlers.NewTrunkHandler(trunkService, customerRepo)
 
 	log.Println("✅ Trunk management system initialized")
+
+	// Initialize Number Inventory system (JIT provisioning from SOA)
+	soaAPIToken := os.Getenv("SOA_API_TOKEN")
+	soaBaseURL := os.Getenv("SOA_BASE_URL")
+
+	var numberHandler *handlers.NumberHandler
+
+	if soaAPIToken != "" {
+		soaClient := soa.NewClient(soa.Config{
+			APIToken: soaAPIToken,
+			BaseURL:  soaBaseURL, // Uses default if empty
+		})
+
+		numberRepo := repository.NewNumberRepository(db)
+		numberService := services.NewNumberService(numberRepo, soaClient, logger)
+		numberHandler = handlers.NewNumberHandler(numberService, logger)
+
+		log.Println("✅ Number inventory system initialized (JIT provisioning)")
+	} else {
+		log.Println("⚠️  Number inventory disabled (SOA_API_TOKEN not set)")
+	}
 
 	// Initialize centralized email service for TCR notifications
 	tcrEmailService, err := email.NewService(email.Config{
@@ -476,6 +499,29 @@ func main() {
 		{
 			network.GET("/vendor-ips", trunkHandler.GetVendorOriginationIPs)
 			network.GET("/ingress-ips", trunkHandler.GetCustomerIngressIPs)
+		}
+
+		// Number Inventory Management (JIT provisioning from SOA)
+		// Numbers serve both Voice (Kamailio routing) and Messaging (TCR campaigns)
+		if numberHandler != nil {
+			numbers := v1.Group("/numbers")
+			{
+				// Search & Acquisition (JIT from SOA)
+				numbers.GET("/search", numberHandler.SearchNumbers)
+				numbers.POST("/reserve", numberHandler.ReserveNumbers)
+				numbers.POST("/purchase", numberHandler.PurchaseNumbers)
+
+				// Inventory Management
+				numbers.GET("", numberHandler.ListNumbers)
+				numbers.GET("/summary", numberHandler.GetInventorySummary)
+
+				// Individual Number Operations
+				numbers.GET("/:id", numberHandler.GetNumber)
+				numbers.GET("/tn/:tn", numberHandler.GetNumberByTN)
+				numbers.PATCH("/:id", numberHandler.UpdateNumber)
+				numbers.POST("/:id/release", numberHandler.ReleaseNumber)
+				numbers.POST("/:id/sync", numberHandler.SyncNumber)
+			}
 		}
 
 		// TCR (The Campaign Registry) 10DLC Management (if enabled)
