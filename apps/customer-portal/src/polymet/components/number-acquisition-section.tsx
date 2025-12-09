@@ -347,7 +347,6 @@ export function NumberAcquisitionSection({ onPurchaseComplete }: NumberAcquisiti
                       <SelectValue placeholder="Select state" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Any state</SelectItem>
                       {usStates.map((state) => (
                         <SelectItem key={state.value} value={state.value}>
                           {state.label}
