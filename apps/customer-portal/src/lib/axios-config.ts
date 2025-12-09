@@ -32,12 +32,21 @@ axios.interceptors.request.use(
 axios.interceptors.response.use(
   (response) => response,
   async (error) => {
+    const url = error.config?.url || '';
+
     if (error.response?.status === 401) {
-      // Token expired or invalid - redirect to login
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('active_ban_id');
-      window.location.href = '/login';
+      // Only redirect to login for auth-related 401s or token validation failures
+      // Let components handle 401s for optional resources (trunks, etc.)
+      const isAuthEndpoint = url.includes('/auth/') || url.includes('/gatekeeper/');
+
+      if (isAuthEndpoint) {
+        // Token expired or invalid - redirect to login
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('active_ban_id');
+        window.location.href = '/login';
+      }
+      // For other endpoints, let component handle it (don't auto-logout)
     }
 
     // Handle 403 Forbidden - Permission Denied

@@ -85,7 +85,9 @@ export function Numbers() {
 
   // Fetch trunks for display
   useEffect(() => {
-    fetchTrunks();
+    // TODO: Temporarily disabled - trunk endpoint returns 401
+    // Re-enable after fixing trunk permissions
+    // fetchTrunks();
   }, []);
 
   const fetchData = async () => {
