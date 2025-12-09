@@ -145,6 +145,16 @@ spec:
               name: api-gateway-secrets
               key: ANTHROPIC_API_KEY
               optional: true  # AI feature optional
+        - name: SOA_BASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: api-gateway-secrets
+              key: SOA_BASE_URL
+        - name: SOA_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: api-gateway-secrets
+              key: SOA_API_TOKEN
         volumeMounts:
         - name: config
           mountPath: /app/config.yaml

@@ -60,11 +60,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Restore active BAN from localStorage or set first customer
       const storedBanId = localStorage.getItem('active_ban_id');
-      if (storedBanId && data.customerAccess) {
-        const ban = data.customerAccess.find((c: CustomerAccess) => c.customer_id === storedBanId);
-        setActiveBanState(ban || data.customerAccess[0] || null);
+
+      if (storedBanId) {
+        // Try to find in customerAccess first
+        const ban = data.customerAccess?.find((c: CustomerAccess) => c.customer_id === storedBanId);
+
+        if (ban) {
+          // Found in customerAccess - restore it
+          setActiveBanState(ban);
+          axios.defaults.headers.common['X-Customer-ID'] = ban.customer_id;
+        } else if (hasWildcard) {
+          // SuperAdmin: Customer not in customerAccess list, fetch it from API
+          try {
+            const customerResponse = await axios.get(`/v1/customers/${storedBanId}`);
+            const customer = customerResponse.data.data;
+            const restoredBan: CustomerAccess = {
+              customer_id: customer.id,
+              company_name: customer.company_name,
+              ban: customer.ban,
+              role: 'ADMIN'
+            };
+            setActiveBanState(restoredBan);
+            axios.defaults.headers.common['X-Customer-ID'] = restoredBan.customer_id;
+          } catch (error) {
+            console.warn('Failed to restore customer selection:', error);
+            localStorage.removeItem('active_ban_id');
+            // Fall back to first customer if available
+            if (data.customerAccess && data.customerAccess.length > 0) {
+              const firstBan = data.customerAccess[0];
+              setActiveBanState(firstBan);
+              axios.defaults.headers.common['X-Customer-ID'] = firstBan.customer_id;
+            }
+          }
+        } else {
+          // Regular user: Stored customer not in their access list, use first available
+          const firstBan = data.customerAccess?.[0] || null;
+          setActiveBanState(firstBan);
+          if (firstBan) {
+            axios.defaults.headers.common['X-Customer-ID'] = firstBan.customer_id;
+          }
+        }
       } else if (data.customerAccess && data.customerAccess.length > 0) {
-        setActiveBanState(data.customerAccess[0]);
+        // No stored selection, use first customer
+        const firstBan = data.customerAccess[0];
+        setActiveBanState(firstBan);
+        axios.defaults.headers.common['X-Customer-ID'] = firstBan.customer_id;
       }
 
       console.log('✅ Permissions and customer access loaded');
