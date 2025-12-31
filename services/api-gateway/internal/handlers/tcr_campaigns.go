@@ -767,11 +767,20 @@ func (h *TCRCampaignHandler) ResubmitCampaign(c *gin.Context) {
 	isCNPRejection := campaign.RejectedBy != nil && isCNPRejecter(*campaign.RejectedBy)
 
 	if isCNPRejection {
-		// CNP rejection - nudge CNP to appeal rejection (not re-share)
-		h.logger.Info("Nudging CNP to review appeal after rejection",
+		// CNP rejection - nudge CNP to review (intent based on current status)
+		// APPEAL_REJECTION: For campaigns in REJECTED status
+		// REVIEW: For campaigns in PENDING status
+		nudgeIntent := "REVIEW"
+		if campaign.Status == "REJECTED" {
+			nudgeIntent = "APPEAL_REJECTION"
+		}
+
+		h.logger.Info("Nudging CNP to review campaign",
 			zap.String("campaign_id", campaignID.String()),
 			zap.String("tcr_campaign_id", *campaign.TCRCampaignID),
 			zap.String("rejected_by", *campaign.RejectedBy),
+			zap.String("nudge_intent", nudgeIntent),
+			zap.String("status", campaign.Status),
 		)
 
 		// Build nudge description from rejection codes
@@ -780,8 +789,8 @@ func (h *TCRCampaignHandler) ResubmitCampaign(c *gin.Context) {
 			nudgeDesc = fmt.Sprintf("Campaign updated to fix rejection codes: %s", *campaign.RejectionCode)
 		}
 
-		// Nudge CNP to review the appeal (not create new share)
-		err := h.tcrClient.NudgeCampaign(c.Request.Context(), *campaign.TCRCampaignID, "APPEAL_REJECTION", nudgeDesc)
+		// Nudge CNP to review
+		err := h.tcrClient.NudgeCampaign(c.Request.Context(), *campaign.TCRCampaignID, nudgeIntent, nudgeDesc)
 		if err != nil {
 			h.logger.Error("Failed to nudge CNP for appeal review",
 				zap.Error(err),
@@ -797,17 +806,18 @@ func (h *TCRCampaignHandler) ResubmitCampaign(c *gin.Context) {
 			h.logger.Warn("Failed to update campaign status", zap.Error(err))
 		}
 
-		h.logger.Info("CNP nudged successfully to review appeal",
+		h.logger.Info("CNP nudged successfully",
 			zap.String("campaign_id", campaignID.String()),
 			zap.String("rejected_by", *campaign.RejectedBy),
+			zap.String("nudge_intent", nudgeIntent),
 		)
 
 		c.JSON(http.StatusOK, models.NewSuccessResponse(gin.H{
 			"campaign_id":     campaignID,
 			"tcr_campaign_id": *campaign.TCRCampaignID,
 			"rejected_by":     *campaign.RejectedBy,
-			"nudge_intent":    "APPEAL_REJECTION",
-			"message":         fmt.Sprintf("%s has been notified to review your appeal. You'll receive a webhook when they approve or reject.", *campaign.RejectedBy),
+			"nudge_intent":    nudgeIntent,
+			"message":         fmt.Sprintf("%s has been notified to review your updated campaign. You'll receive a webhook when they approve or reject.", *campaign.RejectedBy),
 		}))
 		return
 	}
