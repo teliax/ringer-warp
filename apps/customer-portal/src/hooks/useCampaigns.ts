@@ -4,6 +4,8 @@ import type {
   Campaign10DLC,
   CreateCampaignRequest,
   UpdateCampaignRequest,
+  ResubmitCampaignRequest,
+  ResubmitCampaignResponse,
   CampaignMNOStatus,
   CampaignPhoneNumber,
   AssignNumbersRequest,
@@ -89,6 +91,7 @@ export function useCampaigns() {
 
   /**
    * Update an existing campaign
+   * Only REJECTED or PENDING campaigns can be updated
    */
   const updateCampaign = async (
     id: string,
@@ -97,16 +100,42 @@ export function useCampaigns() {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.patch<APIResponse<Campaign10DLC>>(
+      const response = await axios.patch<APIResponse<{ campaign: Campaign10DLC; message: string }>>(
         `/v1/messaging/campaigns/${id}`,
         data
       );
+      // Backend returns { campaign, message } structure
+      return response.data.data?.campaign || response.data.data as any;
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error?.message || 'Failed to update campaign';
+      setError(errorMsg);
+      throw new Error(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Resubmit a rejected campaign for carrier re-review
+   * Call this after updating campaign fields to address rejection reasons
+   */
+  const resubmitCampaign = async (
+    id: string,
+    data?: ResubmitCampaignRequest
+  ): Promise<ResubmitCampaignResponse> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await axios.put<APIResponse<ResubmitCampaignResponse>>(
+        `/v1/messaging/campaigns/${id}/resubmit`,
+        data || {}
+      );
       if (!response.data.data) {
-        throw new Error('Failed to update campaign');
+        throw new Error('Failed to resubmit campaign');
       }
       return response.data.data;
     } catch (err: any) {
-      const errorMsg = err.response?.data?.error?.message || 'Failed to update campaign';
+      const errorMsg = err.response?.data?.error?.message || 'Failed to resubmit campaign';
       setError(errorMsg);
       throw new Error(errorMsg);
     } finally {
@@ -201,6 +230,7 @@ export function useCampaigns() {
     getCampaign,
     createCampaign,
     updateCampaign,
+    resubmitCampaign,
     getMNOStatus,
     assignNumbers,
     removeNumbers,

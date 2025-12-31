@@ -572,6 +572,287 @@ func (h *TCRCampaignHandler) GetCampaignNumbers(c *gin.Context) {
 	}))
 }
 
+// UpdateCampaign godoc
+// @Summary Update a 10DLC campaign
+// @Description Update editable fields of a campaign. Only REJECTED or PENDING campaigns can be updated.
+// @Tags TCR/Campaigns
+// @Accept json
+// @Produce json
+// @Param id path string true "Campaign ID (UUID)"
+// @Param campaign body models.UpdateCampaignRequest true "Campaign fields to update"
+// @Success 200 {object} models.APIResponse{data=models.Campaign10DLC}
+// @Failure 400 {object} models.APIResponse
+// @Failure 403 {object} models.APIResponse
+// @Failure 404 {object} models.APIResponse
+// @Failure 502 {object} models.APIResponse
+// @Security BearerAuth
+// @Router /messaging/campaigns/{id} [patch]
+func (h *TCRCampaignHandler) UpdateCampaign(c *gin.Context) {
+	// Parse ID
+	campaignID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.NewErrorResponse("INVALID_ID", "Invalid campaign ID format"))
+		return
+	}
+
+	var req models.UpdateCampaignRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.NewErrorResponse("INVALID_REQUEST", err.Error()))
+		return
+	}
+
+	// Validate at least one field is provided
+	if req.Description == nil && req.MessageFlow == nil && len(req.SampleMessages) == 0 &&
+		req.OptinMessage == nil && req.OptoutMessage == nil && req.HelpMessage == nil &&
+		req.PrivacyPolicyURL == nil && req.TermsURL == nil && req.AutoRenewal == nil {
+		c.JSON(http.StatusBadRequest, models.NewErrorResponse("EMPTY_UPDATE", "At least one field must be provided for update"))
+		return
+	}
+
+	// Extract customer scoping
+	var customerFilter []uuid.UUID
+	if accessibleCustomers, exists := c.Get("accessible_customer_ids"); exists {
+		customerFilter = accessibleCustomers.([]uuid.UUID)
+	}
+
+	// Get campaign to verify access and check status
+	campaign, err := h.campaignRepo.GetByID(c.Request.Context(), campaignID, customerFilter)
+	if err != nil {
+		if err.Error() == "access denied" {
+			c.JSON(http.StatusForbidden, models.NewErrorResponse("ACCESS_DENIED", "You don't have access to this campaign"))
+			return
+		}
+		c.JSON(http.StatusNotFound, models.NewErrorResponse("NOT_FOUND", "Campaign not found"))
+		return
+	}
+
+	// Only allow updates to REJECTED or PENDING campaigns
+	if campaign.Status != "REJECTED" && campaign.Status != "PENDING" {
+		c.JSON(http.StatusBadRequest, models.NewErrorResponse(
+			"INVALID_STATUS",
+			"Only campaigns in REJECTED or PENDING status can be updated. Current status: "+campaign.Status,
+		))
+		return
+	}
+
+	// Check if campaign is registered with TCR
+	if campaign.TCRCampaignID == nil {
+		c.JSON(http.StatusBadRequest, models.NewErrorResponse("NOT_REGISTERED", "Campaign must be registered with TCR before updating"))
+		return
+	}
+
+	// Get user ID for audit
+	userIDVal, _ := c.Get("user_id")
+	userIDStr, _ := userIDVal.(string)
+	updatedBy, err := uuid.Parse(userIDStr)
+	if err != nil {
+		h.logger.Error("Invalid user ID format", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, models.NewErrorResponse("AUTH_ERROR", "Invalid user ID"))
+		return
+	}
+
+	// Build TCR update request
+	tcrUpdates := buildTCRUpdateMap(&req)
+
+	// Update TCR first
+	h.logger.Info("Updating campaign in TCR",
+		zap.String("campaign_id", campaignID.String()),
+		zap.String("tcr_campaign_id", *campaign.TCRCampaignID),
+	)
+
+	_, err = h.tcrClient.UpdateCampaign(c.Request.Context(), *campaign.TCRCampaignID, tcrUpdates)
+	if err != nil {
+		h.logger.Error("Failed to update campaign in TCR",
+			zap.Error(err),
+			zap.String("tcr_campaign_id", *campaign.TCRCampaignID),
+		)
+		c.JSON(http.StatusBadGateway, models.NewErrorResponse("TCR_UPDATE_FAILED", "Failed to update campaign in TCR: "+err.Error()))
+		return
+	}
+
+	// Update local database
+	err = h.campaignRepo.Update(c.Request.Context(), campaignID, &req, updatedBy)
+	if err != nil {
+		h.logger.Error("Failed to update campaign in database after TCR success",
+			zap.Error(err),
+			zap.String("campaign_id", campaignID.String()),
+		)
+		// TCR was updated but local failed - log but don't fail the request
+		h.logger.Warn("TCR updated but local database update failed - data may be out of sync")
+	}
+
+	// Fetch updated campaign for response
+	updatedCampaign, _ := h.campaignRepo.GetByID(c.Request.Context(), campaignID, nil)
+	if updatedCampaign == nil {
+		updatedCampaign = campaign
+	}
+
+	h.logger.Info("Campaign updated successfully",
+		zap.String("campaign_id", campaignID.String()),
+		zap.String("tcr_campaign_id", *campaign.TCRCampaignID),
+	)
+
+	c.JSON(http.StatusOK, models.NewSuccessResponse(gin.H{
+		"campaign": updatedCampaign,
+		"message":  "Campaign updated successfully. You can now resubmit for carrier review.",
+	}))
+}
+
+// ResubmitCampaign godoc
+// @Summary Resubmit a campaign for MNO review
+// @Description Resubmit a REJECTED campaign to carriers for re-review after making updates
+// @Tags TCR/Campaigns
+// @Accept json
+// @Produce json
+// @Param id path string true "Campaign ID (UUID)"
+// @Param request body models.ResubmitCampaignRequest false "Optional MNO IDs to resubmit to"
+// @Success 200 {object} models.APIResponse
+// @Failure 400 {object} models.APIResponse
+// @Failure 403 {object} models.APIResponse
+// @Failure 404 {object} models.APIResponse
+// @Failure 502 {object} models.APIResponse
+// @Security BearerAuth
+// @Router /messaging/campaigns/{id}/resubmit [put]
+func (h *TCRCampaignHandler) ResubmitCampaign(c *gin.Context) {
+	// Parse ID
+	campaignID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.NewErrorResponse("INVALID_ID", "Invalid campaign ID format"))
+		return
+	}
+
+	// Parse optional request body
+	var req models.ResubmitCampaignRequest
+	// Ignore binding errors - body is optional
+	_ = c.ShouldBindJSON(&req)
+
+	// Extract customer scoping
+	var customerFilter []uuid.UUID
+	if accessibleCustomers, exists := c.Get("accessible_customer_ids"); exists {
+		customerFilter = accessibleCustomers.([]uuid.UUID)
+	}
+
+	// Get campaign to verify access and check status
+	campaign, err := h.campaignRepo.GetByID(c.Request.Context(), campaignID, customerFilter)
+	if err != nil {
+		if err.Error() == "access denied" {
+			c.JSON(http.StatusForbidden, models.NewErrorResponse("ACCESS_DENIED", "You don't have access to this campaign"))
+			return
+		}
+		c.JSON(http.StatusNotFound, models.NewErrorResponse("NOT_FOUND", "Campaign not found"))
+		return
+	}
+
+	// Only allow resubmission of REJECTED campaigns (or PENDING for backfill)
+	if campaign.Status != "REJECTED" && campaign.Status != "PENDING" {
+		c.JSON(http.StatusBadRequest, models.NewErrorResponse(
+			"INVALID_STATUS",
+			"Only campaigns in REJECTED or PENDING status can be resubmitted. Current status: "+campaign.Status,
+		))
+		return
+	}
+
+	// Check if campaign is registered with TCR
+	if campaign.TCRCampaignID == nil {
+		c.JSON(http.StatusBadRequest, models.NewErrorResponse("NOT_REGISTERED", "Campaign must be registered with TCR before resubmitting"))
+		return
+	}
+
+	// Resubmit to TCR
+	h.logger.Info("Resubmitting campaign to TCR",
+		zap.String("campaign_id", campaignID.String()),
+		zap.String("tcr_campaign_id", *campaign.TCRCampaignID),
+		zap.Any("mno_ids", req.MNOIDs),
+	)
+
+	result, err := h.tcrClient.ResubmitCampaign(c.Request.Context(), *campaign.TCRCampaignID, req.MNOIDs)
+	if err != nil {
+		h.logger.Error("Failed to resubmit campaign to TCR",
+			zap.Error(err),
+			zap.String("tcr_campaign_id", *campaign.TCRCampaignID),
+		)
+		c.JSON(http.StatusBadGateway, models.NewErrorResponse("TCR_RESUBMIT_FAILED", "Failed to resubmit campaign to TCR: "+err.Error()))
+		return
+	}
+
+	// Update local status to PENDING (awaiting carrier review)
+	err = h.campaignRepo.UpdateStatus(c.Request.Context(), campaignID, "PENDING")
+	if err != nil {
+		h.logger.Warn("Failed to update local campaign status after resubmit",
+			zap.Error(err),
+			zap.String("campaign_id", campaignID.String()),
+		)
+		// Don't fail - TCR resubmit succeeded
+	}
+
+	// Clear rejection reasons for the MNOs being resubmitted
+	go func() {
+		ctx := context.Background()
+		h.syncMNOStatus(ctx, campaignID, *campaign.TCRCampaignID)
+	}()
+
+	h.logger.Info("Campaign resubmitted successfully",
+		zap.String("campaign_id", campaignID.String()),
+		zap.String("tcr_campaign_id", *campaign.TCRCampaignID),
+	)
+
+	c.JSON(http.StatusOK, models.NewSuccessResponse(gin.H{
+		"campaign_id":     campaignID,
+		"tcr_campaign_id": result.CampaignID,
+		"mno_metadata":    result.MNOMetadata,
+		"message":         "Campaign resubmitted for carrier review. Check MNO status for approval updates.",
+	}))
+}
+
+// buildTCRUpdateMap converts UpdateCampaignRequest to map for TCR API
+func buildTCRUpdateMap(req *models.UpdateCampaignRequest) map[string]interface{} {
+	updates := make(map[string]interface{})
+
+	if req.Description != nil {
+		updates["description"] = *req.Description
+	}
+	if req.MessageFlow != nil {
+		updates["messageFlow"] = *req.MessageFlow
+	}
+	if len(req.SampleMessages) > 0 {
+		if len(req.SampleMessages) >= 1 {
+			updates["sample1"] = req.SampleMessages[0]
+		}
+		if len(req.SampleMessages) >= 2 {
+			updates["sample2"] = req.SampleMessages[1]
+		}
+		if len(req.SampleMessages) >= 3 {
+			updates["sample3"] = req.SampleMessages[2]
+		}
+		if len(req.SampleMessages) >= 4 {
+			updates["sample4"] = req.SampleMessages[3]
+		}
+		if len(req.SampleMessages) >= 5 {
+			updates["sample5"] = req.SampleMessages[4]
+		}
+	}
+	if req.OptinMessage != nil {
+		updates["optinMessage"] = *req.OptinMessage
+	}
+	if req.OptoutMessage != nil {
+		updates["optoutMessage"] = *req.OptoutMessage
+	}
+	if req.HelpMessage != nil {
+		updates["helpMessage"] = *req.HelpMessage
+	}
+	if req.PrivacyPolicyURL != nil {
+		updates["privacyPolicyLink"] = *req.PrivacyPolicyURL
+	}
+	if req.TermsURL != nil {
+		updates["termsAndConditionsLink"] = *req.TermsURL
+	}
+	if req.AutoRenewal != nil {
+		updates["autoRenewal"] = *req.AutoRenewal
+	}
+
+	return updates
+}
+
 // Helper functions
 
 func getOrEmpty(arr []string, index int) string {

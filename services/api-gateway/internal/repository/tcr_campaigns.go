@@ -274,6 +274,23 @@ func (r *TCRCampaignRepository) UpdateTCRInfo(ctx context.Context, id uuid.UUID,
 	return nil
 }
 
+// UpdateStatus updates only the campaign status
+func (r *TCRCampaignRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status string) error {
+	query := `
+		UPDATE messaging.campaigns_10dlc
+		SET status = $1,
+		    updated_at = NOW()
+		WHERE id = $2
+	`
+
+	_, err := r.db.Exec(ctx, query, status, id)
+	if err != nil {
+		return fmt.Errorf("failed to update campaign status: %w", err)
+	}
+
+	return nil
+}
+
 // GetMNOStatus retrieves MNO status for a campaign
 func (r *TCRCampaignRepository) GetMNOStatus(ctx context.Context, campaignID uuid.UUID) ([]models.CampaignMNOStatus, error) {
 	query := `

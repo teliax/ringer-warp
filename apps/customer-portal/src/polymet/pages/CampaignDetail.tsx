@@ -34,6 +34,7 @@ import {
   MessageSquare,
   Building2,
   RefreshCw,
+  Pencil,
 } from "lucide-react";
 import { useCampaigns } from "@/hooks/useCampaigns";
 import { useBrands } from "@/hooks/useBrands";
@@ -242,6 +243,12 @@ export function CampaignDetail() {
   const isActive = campaign.status === "ACTIVE";
   const allCarriersApproved = mnoStatuses.length >= 3 &&
     mnoStatuses.every(s => s.status === "REGISTERED");
+  const isEditable = campaign.status === "REJECTED" || campaign.status === "PENDING";
+
+  // Get rejection reasons from MNO statuses
+  const rejectionReasons = mnoStatuses
+    .filter(s => s.rejection_reason)
+    .map(s => ({ carrier: MNO_DISPLAY_NAMES[s.mno_id] || s.mno_name, reason: s.rejection_reason! }));
 
   return (
     <div className="p-6 space-y-6">
@@ -261,10 +268,46 @@ export function CampaignDetail() {
             </p>
           </div>
         </div>
-        <Badge className={getCampaignStatusBadge(campaign.status)}>
-          {campaign.status}
-        </Badge>
+        <div className="flex items-center space-x-3">
+          {isEditable && (
+            <Link to={`/messaging/campaigns/${campaign.id}/edit`}>
+              <Button variant="outline">
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit Campaign
+              </Button>
+            </Link>
+          )}
+          <Badge className={getCampaignStatusBadge(campaign.status)}>
+            {campaign.status}
+          </Badge>
+        </div>
       </div>
+
+      {/* Rejection Banner - shown when campaign is rejected */}
+      {campaign.status === "REJECTED" && rejectionReasons.length > 0 && (
+        <Alert variant="destructive" className="border-red-300 bg-red-50">
+          <XCircle className="h-5 w-5" />
+          <AlertTitle className="text-red-900 font-semibold">Campaign Rejected</AlertTitle>
+          <AlertDescription className="text-red-800">
+            <div className="mt-2 space-y-2">
+              {rejectionReasons.map((r, i) => (
+                <div key={i} className="text-sm">
+                  <span className="font-medium">{r.carrier}:</span>{" "}
+                  <span className="break-words">{r.reason}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4">
+              <Link to={`/messaging/campaigns/${campaign.id}/edit`}>
+                <Button variant="outline" size="sm" className="border-red-400 text-red-800 hover:bg-red-100">
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit & Resubmit Campaign
+                </Button>
+              </Link>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Status Cards */}
       <div className="grid grid-cols-4 gap-4">

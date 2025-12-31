@@ -190,6 +190,39 @@ type CampaignListResponse struct {
 // CampaignOperationStatus represents per-MNO status for a campaign
 type CampaignOperationStatus map[string]string // MNO ID -> Status (REGISTERED, REVIEW, REJECTED, SUSPENDED)
 
+// CampaignResubmitRequest represents a request to resubmit a campaign to specific MNOs
+type CampaignResubmitRequest struct {
+	MNOIDs []int64 `json:"mnoIds,omitempty"` // Optional: specific MNO IDs to resubmit to (empty = all)
+}
+
+// CampaignResubmitResponse represents the response from resubmitting a campaign
+type CampaignResubmitResponse struct {
+	CampaignID  string        `json:"campaignId"`
+	MNOMetadata []MNOMetadata `json:"mnoMetadata,omitempty"`
+}
+
+// MNOMetadata represents MNO-specific metadata from campaign submission/resubmission
+type MNOMetadata struct {
+	MNO                 string `json:"mno"`                           // MNO name
+	MNOSupport          bool   `json:"mnoSupport"`                    // Whether use case is supported
+	MNOReview           bool   `json:"mnoReview,omitempty"`           // Whether manual review required
+	Qualify             bool   `json:"qualify"`                       // Whether brand qualifies
+	MinMsgSamples       int    `json:"minMsgSamples,omitempty"`       // Minimum samples required
+	ReqSubscriberOptin  bool   `json:"reqSubscriberOptin,omitempty"`  // Opt-in required
+	ReqSubscriberOptout bool   `json:"reqSubscriberOptout,omitempty"` // Opt-out required
+	ReqSubscriberHelp   bool   `json:"reqSubscriberHelp,omitempty"`   // Help keyword required
+	NoEmbeddedLink      bool   `json:"noEmbeddedLink,omitempty"`      // Links forbidden
+	NoEmbeddedPhone     bool   `json:"noEmbeddedPhone,omitempty"`     // Phone numbers forbidden
+	// AT&T specific
+	MsgClass string `json:"msgClass,omitempty"` // AT&T message class
+	TPM      int    `json:"tpm,omitempty"`      // SMS throughput per minute
+	MMSTPM   int    `json:"mmsTpm,omitempty"`   // MMS throughput per minute
+	TPMScope string `json:"tpmScope,omitempty"` // CAMPAIGN or PHONE_NUMBER
+	// T-Mobile specific
+	BrandTier     string `json:"brandTier,omitempty"`     // LOW, LOWER_MID, UPPER_MID, TOP
+	BrandDailyCap *int   `json:"brandDailyCap,omitempty"` // Daily cap (null if uncapped)
+}
+
 // =============================================================================
 // ENUMERATION TYPES
 // =============================================================================

@@ -207,6 +207,7 @@ type CreateCampaignRequest struct {
 }
 
 // UpdateCampaignRequest represents a request to update a campaign
+// Only these fields are editable per TCR rules - brand_id, use_case, and content flags cannot be changed
 type UpdateCampaignRequest struct {
 	Description      *string  `json:"description,omitempty" binding:"omitempty,min=40"`
 	MessageFlow      *string  `json:"message_flow,omitempty" binding:"omitempty,min=40"`
@@ -217,6 +218,13 @@ type UpdateCampaignRequest struct {
 	PrivacyPolicyURL *string  `json:"privacy_policy_url,omitempty" binding:"omitempty,url"`
 	TermsURL         *string  `json:"terms_url,omitempty" binding:"omitempty,url"`
 	AutoRenewal      *bool    `json:"auto_renewal,omitempty"`
+}
+
+// ResubmitCampaignRequest represents a request to resubmit a campaign to MNOs
+type ResubmitCampaignRequest struct {
+	// MNOIDs specifies which carriers to resubmit to. If empty, resubmits to all major carriers.
+	// Valid MNO IDs: 10017 (AT&T), 10035 (T-Mobile), 10038 (Verizon)
+	MNOIDs []int64 `json:"mno_ids,omitempty"`
 }
 
 // CampaignWithBrand represents a campaign joined with brand info

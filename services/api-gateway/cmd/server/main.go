@@ -542,6 +542,8 @@ func main() {
 				messaging.GET("/campaigns", tcrCampaignHandler.ListCampaigns)
 				messaging.POST("/campaigns", tcrCampaignHandler.CreateCampaign)
 				messaging.GET("/campaigns/:id", tcrCampaignHandler.GetCampaign)
+				messaging.PATCH("/campaigns/:id", tcrCampaignHandler.UpdateCampaign)
+				messaging.PUT("/campaigns/:id/resubmit", tcrCampaignHandler.ResubmitCampaign)
 				messaging.GET("/campaigns/:id/mno-status", tcrCampaignHandler.GetMNOStatus)
 				messaging.POST("/campaigns/:id/numbers", tcrCampaignHandler.AssignPhoneNumbers)
 				messaging.DELETE("/campaigns/:id/numbers", tcrCampaignHandler.RemovePhoneNumbers)

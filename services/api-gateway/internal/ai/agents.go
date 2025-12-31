@@ -84,6 +84,51 @@ func getCampaignAgentConfig() *AgentConfig {
 					"required": []string{"updates"},
 				},
 			},
+			{
+				Name:        "analyze_rejection",
+				Description: "Analyze a campaign rejection message and suggest specific fixes. Call this when reviewing a rejected campaign to provide corrected field values that address the rejection reasons.",
+				InputSchema: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"rejection_message": map[string]interface{}{
+							"type":        "string",
+							"description": "The full rejection message from the carrier/DCA (e.g., Sinch rejection with codes CR7004, CR7005, etc.)",
+						},
+						"suggested_fixes": map[string]interface{}{
+							"type":        "array",
+							"description": "List of suggested field updates to fix the rejection",
+							"items": map[string]interface{}{
+								"type": "object",
+								"properties": map[string]interface{}{
+									"field": map[string]interface{}{
+										"type":        "string",
+										"description": "The form field that needs fixing",
+										"enum": []string{
+											"description", "message_flow", "sample_messages",
+											"optin_message", "optout_message", "help_message",
+											"privacy_policy_url", "terms_url",
+										},
+									},
+									"current_value": map[string]interface{}{
+										"type":        "string",
+										"description": "The current (rejected) value of the field",
+									},
+									"suggested_value": map[string]interface{}{
+										"type":        "string",
+										"description": "The corrected value that addresses the rejection reason",
+									},
+									"reason": map[string]interface{}{
+										"type":        "string",
+										"description": "Explanation of why this change is needed based on the rejection",
+									},
+								},
+								"required": []string{"field", "suggested_value", "reason"},
+							},
+						},
+					},
+					"required": []string{"rejection_message", "suggested_fixes"},
+				},
+			},
 		},
 	}
 }
@@ -198,6 +243,69 @@ Marketing, Mixed, Agents and Franchises, Carrier Exemptions, Charity, Emergency,
 - **Age-Gated**: Age-restricted content per CTIA guidelines?
 - **Direct Lending**: Loan-related content?
 - **Affiliate Marketing**: NO affiliate marketing allowed
+
+## Mandatory Opt-In Message Requirements (CRITICAL)
+
+Your generated opt-in messages MUST include ALL of the following elements to pass carrier review. Missing ANY of these will result in campaign rejection:
+
+1. **Brand Name**: Include the exact registered brand name
+2. **Program Description**: Brief description of what messages they'll receive
+3. **Message Frequency Disclosure**: REQUIRED - Include one of:
+   - "Msg frequency varies"
+   - "Up to X msgs/month"
+   - "Recurring messages"
+4. **Data Rates Disclosure**: REQUIRED - Include EXACTLY:
+   - "Msg & data rates may apply" OR "Message and data rates may apply"
+5. **Opt-Out Instructions**: How to stop (e.g., "Reply STOP to cancel")
+6. **Help Instructions**: How to get help (e.g., "Reply HELP for help")
+
+**COMPLIANT Opt-In Message Example**:
+"You're subscribed to [Brand Name] alerts. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to cancel."
+
+**NON-COMPLIANT Example** (will be REJECTED):
+"You're now subscribed to alerts. Reply STOP to cancel, HELP for support."
+↑ Missing: brand name, frequency disclosure, data rates disclosure
+
+## Call-to-Action (Message Flow) Requirements
+
+The message_flow field describes HOW users opt-in. Carriers verify this is accurate and accessible. It MUST:
+
+1. **Be Accessible**: The CTA must reference a live, publicly accessible webpage or physical location
+2. **Include Brand Name**: Reference the exact registered brand
+3. **Describe Consent Method**: Explain exactly how users give consent:
+   - Web form checkbox
+   - Text keyword to short code
+   - Paper form at store
+   - Account registration checkbox
+4. **Include Mandatory Disclosures on the Actual Form**: The opt-in form/CTA location should contain:
+   - What messages they'll receive
+   - Message frequency ("Msg frequency varies" or specific)
+   - "Message and data rates may apply"
+   - Links to Terms of Service and Privacy Policy
+
+**COMPLIANT Message Flow Example**:
+"Users opt-in by checking the 'Receive SMS notifications' checkbox during account registration at ringer.tel/signup. The checkbox includes disclosure text: 'By checking this box, you agree to receive account notifications from Ringer Network Solutions. Msg frequency varies. Msg & data rates may apply. View our Terms of Service and Privacy Policy.'"
+
+**NON-COMPLIANT Example** (will be REJECTED):
+"Customers will be automatically opted-in to receive account-related notifications from Ringer Network Solutions. They can manage their preferences by replying STOP to opt-out or HELP for support."
+↑ Missing: specific CTA location/URL, consent mechanism, frequency disclosure, data rates disclosure
+
+## Common Rejection Reasons & How to Prevent Them
+
+| Rejection Code | Issue | Prevention |
+|----------------|-------|------------|
+| CR7004 | Missing frequency disclosure | Always include "Msg frequency varies" in opt-in message |
+| CR7005 | Missing data rates disclosure | Always include "Msg & data rates may apply" in opt-in message |
+| CR4015 | CTA inaccessible/missing | Ensure opt-in page URL is live and publicly accessible |
+| CR7001 | Missing brand name | Use exact registered brand name in all messages |
+| CR3002 | Vague description | Be specific about message types and purposes |
+
+**Before generating any opt-in message, verify these elements are present:**
+✓ Brand name
+✓ "Msg frequency varies" (or specific frequency)
+✓ "Msg & data rates may apply"
+✓ STOP instructions
+✓ HELP instructions
 
 ## Conversation Strategy
 

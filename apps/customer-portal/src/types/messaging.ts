@@ -191,6 +191,40 @@ export interface UpdateCampaignRequest {
   auto_renewal?: boolean;
 }
 
+export interface ResubmitCampaignRequest {
+  // Optional: specific MNO IDs to resubmit to. If empty, resubmits to all carriers.
+  // Valid MNO IDs: 10017 (AT&T), 10035 (T-Mobile), 10038 (Verizon)
+  mno_ids?: number[];
+}
+
+export interface ResubmitCampaignResponse {
+  campaign_id: string;
+  tcr_campaign_id: string;
+  mno_metadata?: MNOMetadata[];
+  message: string;
+}
+
+export interface MNOMetadata {
+  mno: string;
+  mno_support: boolean;
+  mno_review?: boolean;
+  qualify: boolean;
+  min_msg_samples?: number;
+  req_subscriber_optin?: boolean;
+  req_subscriber_optout?: boolean;
+  req_subscriber_help?: boolean;
+  no_embedded_link?: boolean;
+  no_embedded_phone?: boolean;
+  // AT&T specific
+  msg_class?: string;
+  tpm?: number;
+  mms_tpm?: number;
+  tpm_scope?: string;
+  // T-Mobile specific
+  brand_tier?: string;
+  brand_daily_cap?: number | null;
+}
+
 // =============================================================================
 // MNO STATUS TYPES
 // =============================================================================

@@ -128,20 +128,32 @@ func (c *Client) GetCampaignOperationStatus(ctx context.Context, campaignID stri
 	return status, nil
 }
 
-// ResubmitCampaign resubmits a rejected campaign
-func (c *Client) ResubmitCampaign(ctx context.Context, campaignID string) error {
+// ResubmitCampaign resubmits a campaign to TCR for MNO review
+// Per TCR API spec: PUT /campaign/{campaignId}/resubmit
+// Used to:
+//   - Backfill missing MNO campaign operation records
+//   - Re-evaluate campaigns after Carrier Rules Engine updates
+//
+// mnoIDs is optional - if empty/nil, resubmits to all MNOs
+func (c *Client) ResubmitCampaign(ctx context.Context, campaignID string, mnoIDs []int64) (*CampaignResubmitResponse, error) {
 	path := fmt.Sprintf("/campaign/%s/resubmit", campaignID)
 
-	resp, err := c.doRequest(ctx, http.MethodPost, path, nil)
+	// Build request body with optional MNO IDs
+	body := CampaignResubmitRequest{
+		MNOIDs: mnoIDs,
+	}
+
+	resp, err := c.doRequest(ctx, http.MethodPut, path, body)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	if err := c.handleResponse(resp, nil); err != nil {
-		return err
+	var result CampaignResubmitResponse
+	if err := c.handleResponse(resp, &result); err != nil {
+		return nil, err
 	}
 
-	return nil
+	return &result, nil
 }
 
 // DeleteCampaign removes a campaign (if allowed by TCR)
