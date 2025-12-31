@@ -329,13 +329,13 @@ export function CampaignEdit() {
               id="optinMessage"
               value={optinMessage}
               onChange={(e) => setOptinMessage(e.target.value)}
-              placeholder='Example: "You\'re subscribed to [Brand] alerts. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to cancel."'
+              placeholder="Example: You're subscribed to [Brand] alerts. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to cancel."
               rows={3}
               className="resize-none"
             />
             <p className="text-xs text-muted-foreground">
-              <strong>Required elements:</strong> Brand name, "Msg frequency
-              varies", "Msg & data rates may apply", STOP/HELP instructions
+              <strong>Required elements:</strong> Brand name, Msg frequency
+              varies, Msg & data rates may apply, STOP/HELP instructions
             </p>
           </div>
 
@@ -390,7 +390,7 @@ export function CampaignEdit() {
               id="optoutMessage"
               value={optoutMessage}
               onChange={(e) => setOptoutMessage(e.target.value)}
-              placeholder='Example: "You\'ve been unsubscribed from [Brand] messages. Reply START to re-subscribe."'
+              placeholder="Example: You've been unsubscribed from [Brand] messages. Reply START to re-subscribe."
               rows={2}
               className="resize-none"
             />
@@ -403,7 +403,7 @@ export function CampaignEdit() {
               id="helpMessage"
               value={helpMessage}
               onChange={(e) => setHelpMessage(e.target.value)}
-              placeholder='Example: "For help, contact support@brand.com or call 1-800-XXX-XXXX. Msg & data rates may apply."'
+              placeholder="Example: For help, contact support@brand.com or call 1-800-XXX-XXXX. Msg & data rates may apply."
               rows={2}
               className="resize-none"
             />
