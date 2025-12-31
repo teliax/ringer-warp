@@ -190,6 +190,30 @@ func (c *Client) ShareCampaign(ctx context.Context, campaignID, upstreamCnpID st
 	return nil
 }
 
+// NudgeCampaign sends a notification to CNP to take action
+// nudgeIntent: "APPEAL_REJECTION" (after updating rejected campaign) or "REVIEW" (for pending campaigns)
+func (c *Client) NudgeCampaign(ctx context.Context, campaignID, nudgeIntent, description string) error {
+	path := fmt.Sprintf("/campaign/%s/nudge", campaignID)
+
+	body := map[string]interface{}{
+		"nudgeIntent": nudgeIntent,
+	}
+	if description != "" {
+		body["description"] = description
+	}
+
+	resp, err := c.doRequest(ctx, http.MethodPost, path, body)
+	if err != nil {
+		return err
+	}
+
+	if err := c.handleResponse(resp, nil); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // =============================================================================
 // CAMPAIGN BUILDER (Simplified Flow)
 // =============================================================================

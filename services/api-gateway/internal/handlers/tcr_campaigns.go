@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -766,49 +767,47 @@ func (h *TCRCampaignHandler) ResubmitCampaign(c *gin.Context) {
 	isCNPRejection := campaign.RejectedBy != nil && isCNPRejecter(*campaign.RejectedBy)
 
 	if isCNPRejection {
-		// CNP rejection (e.g., Sinch) - re-share to CNP instead of resubmitting to carriers
-		if h.cnpID == "" {
-			c.JSON(http.StatusBadRequest, models.NewErrorResponse(
-				"CNP_NOT_CONFIGURED",
-				"Campaign was rejected by CNP but TCR_CNP_ID is not configured. Cannot re-share to CNP.",
-			))
-			return
-		}
-
-		h.logger.Info("Re-sharing campaign to CNP after rejection",
+		// CNP rejection - nudge CNP to appeal rejection (not re-share)
+		h.logger.Info("Nudging CNP to review appeal after rejection",
 			zap.String("campaign_id", campaignID.String()),
 			zap.String("tcr_campaign_id", *campaign.TCRCampaignID),
 			zap.String("rejected_by", *campaign.RejectedBy),
-			zap.String("cnp_id", h.cnpID),
 		)
 
-		// Re-share to CNP (not resubmit to carriers)
-		err := h.tcrClient.ShareCampaign(c.Request.Context(), *campaign.TCRCampaignID, h.cnpID)
+		// Build nudge description from rejection codes
+		nudgeDesc := "Campaign updated to address compliance issues"
+		if campaign.RejectionCode != nil && *campaign.RejectionCode != "" {
+			nudgeDesc = fmt.Sprintf("Campaign updated to fix rejection codes: %s", *campaign.RejectionCode)
+		}
+
+		// Nudge CNP to review the appeal (not create new share)
+		err := h.tcrClient.NudgeCampaign(c.Request.Context(), *campaign.TCRCampaignID, "APPEAL_REJECTION", nudgeDesc)
 		if err != nil {
-			h.logger.Error("Failed to re-share campaign to CNP",
+			h.logger.Error("Failed to nudge CNP for appeal review",
 				zap.Error(err),
-				zap.String("cnp_id", h.cnpID),
+				zap.String("rejected_by", *campaign.RejectedBy),
 			)
-			c.JSON(http.StatusBadGateway, models.NewErrorResponse("CNP_SHARE_FAILED", "Failed to re-share campaign to CNP: "+err.Error()))
+			c.JSON(http.StatusBadGateway, models.NewErrorResponse("CNP_NUDGE_FAILED", "Failed to nudge CNP for appeal review: "+err.Error()))
 			return
 		}
 
-		// Update local status
+		// Keep status as PENDING (awaiting CNP appeal review)
 		err = h.campaignRepo.UpdateStatus(c.Request.Context(), campaignID, "PENDING")
 		if err != nil {
 			h.logger.Warn("Failed to update campaign status", zap.Error(err))
 		}
 
-		h.logger.Info("Campaign re-shared to CNP successfully",
+		h.logger.Info("CNP nudged successfully to review appeal",
 			zap.String("campaign_id", campaignID.String()),
-			zap.String("cnp_id", h.cnpID),
+			zap.String("rejected_by", *campaign.RejectedBy),
 		)
 
 		c.JSON(http.StatusOK, models.NewSuccessResponse(gin.H{
 			"campaign_id":     campaignID,
 			"tcr_campaign_id": *campaign.TCRCampaignID,
-			"cnp_id":          h.cnpID,
-			"message":         "Campaign re-shared to CNP for review. You'll receive a notification when the CNP approves or rejects.",
+			"rejected_by":     *campaign.RejectedBy,
+			"nudge_intent":    "APPEAL_REJECTION",
+			"message":         fmt.Sprintf("%s has been notified to review your appeal. You'll receive a webhook when they approve or reject.", *campaign.RejectedBy),
 		}))
 		return
 	}
