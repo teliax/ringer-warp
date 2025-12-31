@@ -131,7 +131,9 @@ func (r *TCRCampaignRepository) List(ctx context.Context, customerFilter []uuid.
 		       privacy_policy_url, terms_url, auto_renewal, expiration_date,
 		       throughput_limit, daily_cap, status,
 		       tcr_submission_date, tcr_approval_date, trust_score,
-		       reference_id, tcr_created_at, tcr_updated_at,
+		       reference_id,
+		       rejection_reason, rejection_code, rejection_category, rejected_at, rejected_by,
+		       tcr_created_at, tcr_updated_at,
 		       created_at, updated_at, created_by, updated_by
 	` + baseQuery + fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", argPos, argPos+1)
 	args = append(args, perPage, offset)
@@ -155,7 +157,9 @@ func (r *TCRCampaignRepository) List(ctx context.Context, customerFilter []uuid.
 			&campaign.PrivacyPolicyURL, &campaign.TermsURL, &campaign.AutoRenewal, &campaign.ExpirationDate,
 			&campaign.ThroughputLimit, &campaign.DailyCap, &campaign.Status,
 			&campaign.TCRSubmissionDate, &campaign.TCRApprovalDate, &campaign.TrustScore,
-			&campaign.ReferenceID, &campaign.TCRCreatedAt, &campaign.TCRUpdatedAt,
+			&campaign.ReferenceID,
+			&campaign.RejectionReason, &campaign.RejectionCode, &campaign.RejectionCategory, &campaign.RejectedAt, &campaign.RejectedBy,
+			&campaign.TCRCreatedAt, &campaign.TCRUpdatedAt,
 			&campaign.CreatedAt, &campaign.UpdatedAt, &campaign.CreatedBy, &campaign.UpdatedBy,
 		)
 		if err != nil {
@@ -179,7 +183,9 @@ func (r *TCRCampaignRepository) GetByID(ctx context.Context, id uuid.UUID, custo
 		       privacy_policy_url, terms_url, auto_renewal, expiration_date,
 		       throughput_limit, daily_cap, status,
 		       tcr_submission_date, tcr_approval_date, trust_score,
-		       reference_id, tcr_created_at, tcr_updated_at,
+		       reference_id,
+		       rejection_reason, rejection_code, rejection_category, rejected_at, rejected_by,
+		       tcr_created_at, tcr_updated_at,
 		       created_at, updated_at, created_by, updated_by
 		FROM messaging.campaigns_10dlc
 		WHERE id = $1
@@ -208,7 +214,9 @@ func (r *TCRCampaignRepository) GetByID(ctx context.Context, id uuid.UUID, custo
 		&campaign.PrivacyPolicyURL, &campaign.TermsURL, &campaign.AutoRenewal, &campaign.ExpirationDate,
 		&campaign.ThroughputLimit, &campaign.DailyCap, &campaign.Status,
 		&campaign.TCRSubmissionDate, &campaign.TCRApprovalDate, &campaign.TrustScore,
-		&campaign.ReferenceID, &campaign.TCRCreatedAt, &campaign.TCRUpdatedAt,
+		&campaign.ReferenceID,
+		&campaign.RejectionReason, &campaign.RejectionCode, &campaign.RejectionCategory, &campaign.RejectedAt, &campaign.RejectedBy,
+		&campaign.TCRCreatedAt, &campaign.TCRUpdatedAt,
 		&campaign.CreatedAt, &campaign.UpdatedAt, &campaign.CreatedBy, &campaign.UpdatedBy,
 	)
 
