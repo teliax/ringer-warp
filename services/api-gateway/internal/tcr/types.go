@@ -123,8 +123,9 @@ type Campaign struct {
 	NumberPool           bool      `json:"numberPool"`
 	AgeGated             bool      `json:"ageGated"`
 	DirectLending        bool      `json:"directLending"`
-	PrivacyPolicyLink    string    `json:"privacyPolicyLink,omitempty"`
-	TermsAndConditions   string    `json:"termsAndConditions,omitempty"`
+	PrivacyPolicyLink        string `json:"privacyPolicyLink,omitempty"`
+	TermsAndConditions       bool   `json:"termsAndConditions"`           // T&C acceptance flag
+	TermsAndConditionsLink   string `json:"termsAndConditionsLink,omitempty"` // T&C URL
 	AutoRenewal          bool      `json:"autoRenewal"`
 	ReferenceID          string    `json:"referenceId,omitempty"`
 	MNOIDs               []int     `json:"mnoIds,omitempty"` // Specific carriers (default: all)
@@ -197,8 +198,8 @@ type CampaignResubmitRequest struct {
 
 // CampaignResubmitResponse represents the response from resubmitting a campaign
 type CampaignResubmitResponse struct {
-	CampaignID  string        `json:"campaignId"`
-	MNOMetadata []MNOMetadata `json:"mnoMetadata,omitempty"`
+	CampaignID  string                   `json:"campaignId"`
+	MNOMetadata map[string]MNOMetadata `json:"mnoMetadata,omitempty"` // MNO ID -> metadata
 }
 
 // MNOMetadata represents MNO-specific metadata from campaign submission/resubmission

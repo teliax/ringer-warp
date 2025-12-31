@@ -206,7 +206,7 @@ export interface ResubmitCampaignRequest {
 export interface ResubmitCampaignResponse {
   campaign_id: string;
   tcr_campaign_id: string;
-  mno_metadata?: MNOMetadata[];
+  mno_metadata?: Record<string, MNOMetadata>; // MNO ID -> metadata object
   message: string;
 }
 
