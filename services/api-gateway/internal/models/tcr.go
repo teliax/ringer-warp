@@ -170,6 +170,12 @@ type Campaign10DLC struct {
 	TCRApprovalDate      *time.Time `json:"tcr_approval_date,omitempty" db:"tcr_approval_date"`
 	TrustScore           *int       `json:"trust_score,omitempty" db:"trust_score"`
 	ReferenceID          *string    `json:"reference_id,omitempty" db:"reference_id"`
+	// Rejection Details
+	RejectionReason      *string    `json:"rejection_reason,omitempty" db:"rejection_reason"`
+	RejectionCode        *string    `json:"rejection_code,omitempty" db:"rejection_code"`
+	RejectionCategory    *string    `json:"rejection_category,omitempty" db:"rejection_category"`
+	RejectedAt           *time.Time `json:"rejected_at,omitempty" db:"rejected_at"`
+	RejectedBy           *string    `json:"rejected_by,omitempty" db:"rejected_by"`
 	TCRCreatedAt         *time.Time `json:"tcr_created_at,omitempty" db:"tcr_created_at"`
 	TCRUpdatedAt         *time.Time `json:"tcr_updated_at,omitempty" db:"tcr_updated_at"`
 	CreatedAt            time.Time  `json:"created_at" db:"created_at"`

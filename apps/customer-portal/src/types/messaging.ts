@@ -143,6 +143,12 @@ export interface Campaign10DLC {
   tcr_approval_date?: string;
   trust_score?: number;
   reference_id?: string;
+  // Rejection Details
+  rejection_reason?: string;
+  rejection_code?: string;
+  rejection_category?: string;
+  rejected_at?: string;
+  rejected_by?: string;
   tcr_created_at?: string;
   tcr_updated_at?: string;
   created_at: string;

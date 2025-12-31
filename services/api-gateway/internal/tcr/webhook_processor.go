@@ -125,8 +125,8 @@ func (p *WebhookProcessor) ProcessCampaignEvent(ctx context.Context, event *Webh
 		return p.updateCampaignStatus(ctx, campaignUUID, event, "REGISTERED")
 
 	case "CAMPAIGN_SHARE_DELETE", "CAMPAIGN_SHARE_REJECT":
-		// Campaign rejected by MNO
-		return p.updateCampaignStatus(ctx, campaignUUID, event, "REJECTED")
+		// Campaign rejected by CNP/carrier - extract rejection details
+		return p.handleCampaignRejection(ctx, campaignUUID, event)
 
 	case "CAMPAIGN_UPDATE":
 		// Campaign details updated
@@ -332,6 +332,57 @@ func (p *WebhookProcessor) updateCampaignStatus(ctx context.Context, campaignUUI
 	if len(event.MNOStatuses) > 0 {
 		return p.updateMNOStatuses(ctx, campaignUUID, event.MNOStatuses)
 	}
+
+	return nil
+}
+
+// handleCampaignRejection processes campaign rejection events and extracts detailed rejection reasons
+func (p *WebhookProcessor) handleCampaignRejection(ctx context.Context, campaignUUID uuid.UUID, event *WebhookEvent) error {
+	// Extract rejection details from webhook payload
+	description, _ := event.RawPayload["description"].(string)
+	rejectedBy, _ := event.RawPayload["cspName"].(string) // Usually "Teliax, Inc." or carrier name
+
+	// Parse rejection codes from description (e.g., "CR4015", "CR7004", "CR7005")
+	rejectionCodes := extractRejectionCodes(description)
+
+	// Parse rejection categories (e.g., "CALL_TO_ACTION, MANDATORY_MESSAGE_TERMINOLOGY")
+	rejectionCategory := extractRejectionCategory(description)
+
+	p.logger.Info("Processing campaign rejection",
+		zap.String("campaign_uuid", campaignUUID.String()),
+		zap.String("rejected_by", rejectedBy),
+		zap.String("rejection_codes", rejectionCodes),
+		zap.String("rejection_category", rejectionCategory),
+	)
+
+	// Update campaign with rejection details
+	query := `
+		UPDATE messaging.campaigns_10dlc
+		SET
+			status = 'REJECTED',
+			rejection_reason = $2,
+			rejection_code = $3,
+			rejection_category = $4,
+			rejected_at = NOW(),
+			rejected_by = $5,
+			last_synced_at = NOW(),
+			sync_source = 'webhook',
+			updated_at = NOW()
+		WHERE id = $1
+	`
+
+	_, err := p.db.Exec(ctx, query, campaignUUID, description, rejectionCodes, rejectionCategory, rejectedBy)
+	if err != nil {
+		return fmt.Errorf("failed to update campaign rejection details: %w", err)
+	}
+
+	p.logger.Info("Campaign rejection details stored",
+		zap.String("campaign_uuid", campaignUUID.String()),
+		zap.String("status", "REJECTED"),
+	)
+
+	// Send rejection notification email
+	go p.sendCampaignStatusEmail(context.Background(), event.CampaignID, event.EventType, "REJECTED")
 
 	return nil
 }
@@ -894,4 +945,67 @@ func getInt(i *int) int {
 		return 0
 	}
 	return *i
+}
+
+// extractRejectionCodes parses rejection codes from description text
+// Example: "CR4015 - Call-to-action is missing;CR7004 - Opt-in message..." -> "CR4015,CR7004,CR7005"
+func extractRejectionCodes(description string) string {
+	if description == "" {
+		return ""
+	}
+
+	// Find all CR#### patterns
+	codes := []string{}
+	for i := 0; i < len(description)-5; i++ {
+		if description[i] == 'C' && description[i+1] == 'R' &&
+			isDigit(description[i+2]) && isDigit(description[i+3]) &&
+			isDigit(description[i+4]) && isDigit(description[i+5]) {
+			code := description[i : i+6]
+			// Avoid duplicates
+			if !contains(codes, code) {
+				codes = append(codes, code)
+			}
+		}
+	}
+
+	return strings.Join(codes, ",")
+}
+
+// extractRejectionCategory parses rejection category from description
+// Example: "Rejection Category: CALL_TO_ACTION, MANDATORY_MESSAGE_TERMINOLOGY. Explanation:" -> "CALL_TO_ACTION, MANDATORY_MESSAGE_TERMINOLOGY"
+func extractRejectionCategory(description string) string {
+	if description == "" {
+		return ""
+	}
+
+	// Find "Rejection Category:" and extract until "Explanation:" or "."
+	start := strings.Index(description, "Rejection Category:")
+	if start == -1 {
+		return ""
+	}
+
+	start += len("Rejection Category:")
+	end := strings.Index(description[start:], "Explanation:")
+	if end == -1 {
+		end = strings.Index(description[start:], ".")
+		if end == -1 {
+			return strings.TrimSpace(description[start:])
+		}
+	}
+
+	category := strings.TrimSpace(description[start : start+end])
+	return category
+}
+
+func isDigit(c byte) bool {
+	return c >= '0' && c <= '9'
+}
+
+func contains(slice []string, str string) bool {
+	for _, s := range slice {
+		if s == str {
+			return true
+		}
+	}
+	return false
 }

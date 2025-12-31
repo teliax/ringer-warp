@@ -245,10 +245,12 @@ export function CampaignDetail() {
     mnoStatuses.every(s => s.status === "REGISTERED");
   const isEditable = campaign.status === "REJECTED" || campaign.status === "PENDING";
 
-  // Get rejection reasons from MNO statuses
-  const rejectionReasons = mnoStatuses
-    .filter(s => s.rejection_reason)
-    .map(s => ({ carrier: MNO_DISPLAY_NAMES[s.mno_id] || s.mno_name, reason: s.rejection_reason! }));
+  // Get rejection reasons - prefer campaign-level (from CNP/DCA), fallback to MNO-level
+  const rejectionReasons = campaign.rejection_reason
+    ? [{ carrier: campaign.rejected_by || "Carrier", reason: campaign.rejection_reason }]
+    : mnoStatuses
+        .filter(s => s.rejection_reason)
+        .map(s => ({ carrier: MNO_DISPLAY_NAMES[s.mno_id] || s.mno_name, reason: s.rejection_reason! }));
 
   return (
     <div className="p-6 space-y-6">
