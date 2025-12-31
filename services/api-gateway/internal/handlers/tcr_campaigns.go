@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -17,6 +18,7 @@ type TCRCampaignHandler struct {
 	campaignRepo *repository.TCRCampaignRepository
 	brandRepo    *repository.TCRBrandRepository
 	tcrClient    *tcr.Client
+	cnpID        string // Upstream CNP ID (e.g., Sinch) for campaign sharing
 	logger       *zap.Logger
 }
 
@@ -24,12 +26,14 @@ func NewTCRCampaignHandler(
 	campaignRepo *repository.TCRCampaignRepository,
 	brandRepo    *repository.TCRBrandRepository,
 	tcrClient    *tcr.Client,
+	cnpID string,
 	logger *zap.Logger,
 ) *TCRCampaignHandler {
 	return &TCRCampaignHandler{
 		campaignRepo: campaignRepo,
 		brandRepo:    brandRepo,
 		tcrClient:    tcrClient,
+		cnpID:        cnpID,
 		logger:       logger,
 	}
 }
@@ -758,15 +762,66 @@ func (h *TCRCampaignHandler) ResubmitCampaign(c *gin.Context) {
 		return
 	}
 
-	// Default to all major carriers if no MNO IDs specified
+	// Smart resubmit: detect if rejection was from CNP or carrier
+	isCNPRejection := campaign.RejectedBy != nil && isCNPRejecter(*campaign.RejectedBy)
+
+	if isCNPRejection {
+		// CNP rejection (e.g., Sinch) - re-share to CNP instead of resubmitting to carriers
+		if h.cnpID == "" {
+			c.JSON(http.StatusBadRequest, models.NewErrorResponse(
+				"CNP_NOT_CONFIGURED",
+				"Campaign was rejected by CNP but TCR_CNP_ID is not configured. Cannot re-share to CNP.",
+			))
+			return
+		}
+
+		h.logger.Info("Re-sharing campaign to CNP after rejection",
+			zap.String("campaign_id", campaignID.String()),
+			zap.String("tcr_campaign_id", *campaign.TCRCampaignID),
+			zap.String("rejected_by", *campaign.RejectedBy),
+			zap.String("cnp_id", h.cnpID),
+		)
+
+		// Re-share to CNP (not resubmit to carriers)
+		err := h.tcrClient.ShareCampaign(c.Request.Context(), *campaign.TCRCampaignID, h.cnpID)
+		if err != nil {
+			h.logger.Error("Failed to re-share campaign to CNP",
+				zap.Error(err),
+				zap.String("cnp_id", h.cnpID),
+			)
+			c.JSON(http.StatusBadGateway, models.NewErrorResponse("CNP_SHARE_FAILED", "Failed to re-share campaign to CNP: "+err.Error()))
+			return
+		}
+
+		// Update local status
+		err = h.campaignRepo.UpdateStatus(c.Request.Context(), campaignID, "PENDING")
+		if err != nil {
+			h.logger.Warn("Failed to update campaign status", zap.Error(err))
+		}
+
+		h.logger.Info("Campaign re-shared to CNP successfully",
+			zap.String("campaign_id", campaignID.String()),
+			zap.String("cnp_id", h.cnpID),
+		)
+
+		c.JSON(http.StatusOK, models.NewSuccessResponse(gin.H{
+			"campaign_id":     campaignID,
+			"tcr_campaign_id": *campaign.TCRCampaignID,
+			"cnp_id":          h.cnpID,
+			"message":         "Campaign re-shared to CNP for review. You'll receive a notification when the CNP approves or rejects.",
+		}))
+		return
+	}
+
+	// Carrier rejection - resubmit to MNOs
 	mnoIDs := req.MNOIDs
 	if len(mnoIDs) == 0 {
 		// Submit to all major US carriers
 		mnoIDs = []int64{10017, 10035, 10038} // AT&T, T-Mobile, Verizon
 	}
 
-	// Resubmit to TCR
-	h.logger.Info("Resubmitting campaign to TCR",
+	// Resubmit to carriers
+	h.logger.Info("Resubmitting campaign to carriers",
 		zap.String("campaign_id", campaignID.String()),
 		zap.String("tcr_campaign_id", *campaign.TCRCampaignID),
 		zap.Any("mno_ids", mnoIDs),
@@ -774,11 +829,11 @@ func (h *TCRCampaignHandler) ResubmitCampaign(c *gin.Context) {
 
 	result, err := h.tcrClient.ResubmitCampaign(c.Request.Context(), *campaign.TCRCampaignID, mnoIDs)
 	if err != nil {
-		h.logger.Error("Failed to resubmit campaign to TCR",
+		h.logger.Error("Failed to resubmit campaign to carriers",
 			zap.Error(err),
 			zap.String("tcr_campaign_id", *campaign.TCRCampaignID),
 		)
-		c.JSON(http.StatusBadGateway, models.NewErrorResponse("TCR_RESUBMIT_FAILED", "Failed to resubmit campaign to TCR: "+err.Error()))
+		c.JSON(http.StatusBadGateway, models.NewErrorResponse("TCR_RESUBMIT_FAILED", "Failed to resubmit campaign to carriers: "+err.Error()))
 		return
 	}
 
@@ -893,6 +948,40 @@ func normalizeTCRStatus(tcrStatus string) string {
 		// Default to PENDING until webhook confirms actual status
 		return "PENDING"
 	}
+}
+
+// isCNPRejecter determines if the rejection came from a CNP/DCA vs a direct carrier
+// CNPs/DCAs include: Sinch, Bandwidth, Telnyx, Twilio, etc.
+// Direct carriers are: AT&T, T-Mobile, Verizon
+func isCNPRejecter(rejectedBy string) bool {
+	// Common CNP/DCA names
+	cnpNames := []string{
+		"Sinch",
+		"Teliax, Inc.", // Our CSP name in TCR
+		"Teliax",
+		"Bandwidth",
+		"Telnyx",
+		"Twilio",
+		"Vonage",
+		"Plivo",
+	}
+
+	for _, cnp := range cnpNames {
+		if strings.Contains(rejectedBy, cnp) {
+			return true
+		}
+	}
+
+	// If contains carrier names, it's NOT a CNP rejection
+	carrierNames := []string{"AT&T", "T-Mobile", "Verizon", "US Cellular"}
+	for _, carrier := range carrierNames {
+		if strings.Contains(rejectedBy, carrier) {
+			return false
+		}
+	}
+
+	// Default: if unclear, treat as CNP rejection (safer - won't spam carriers)
+	return true
 }
 
 // pollMNOStatus polls TCR for MNO status updates

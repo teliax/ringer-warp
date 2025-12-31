@@ -260,7 +260,7 @@ func main() {
 
 		// Initialize TCR handlers
 		tcrBrandHandler = handlers.NewTCRBrandHandler(tcrBrandRepo, tcrClient, logger)
-		tcrCampaignHandler = handlers.NewTCRCampaignHandler(tcrCampaignRepo, tcrBrandRepo, tcrClient, logger)
+		tcrCampaignHandler = handlers.NewTCRCampaignHandler(tcrCampaignRepo, tcrBrandRepo, tcrClient, tcrCNPID, logger)
 		tcrEnumHandler = handlers.NewTCREnumerationHandler(tcrClient, logger)
 
 		// Initialize TCR webhook subscription manager
