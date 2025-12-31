@@ -758,14 +758,21 @@ func (h *TCRCampaignHandler) ResubmitCampaign(c *gin.Context) {
 		return
 	}
 
+	// Default to all major carriers if no MNO IDs specified
+	mnoIDs := req.MNOIDs
+	if len(mnoIDs) == 0 {
+		// Submit to all major US carriers
+		mnoIDs = []int64{10017, 10035, 10038} // AT&T, T-Mobile, Verizon
+	}
+
 	// Resubmit to TCR
 	h.logger.Info("Resubmitting campaign to TCR",
 		zap.String("campaign_id", campaignID.String()),
 		zap.String("tcr_campaign_id", *campaign.TCRCampaignID),
-		zap.Any("mno_ids", req.MNOIDs),
+		zap.Any("mno_ids", mnoIDs),
 	)
 
-	result, err := h.tcrClient.ResubmitCampaign(c.Request.Context(), *campaign.TCRCampaignID, req.MNOIDs)
+	result, err := h.tcrClient.ResubmitCampaign(c.Request.Context(), *campaign.TCRCampaignID, mnoIDs)
 	if err != nil {
 		h.logger.Error("Failed to resubmit campaign to TCR",
 			zap.Error(err),

@@ -95,10 +95,11 @@ func (c *Client) CreateCampaign(ctx context.Context, req CampaignRequest) (*Camp
 }
 
 // UpdateCampaign updates an existing campaign
+// Per TCR API spec: PUT /campaign/{campaignId} (not PATCH)
 func (c *Client) UpdateCampaign(ctx context.Context, campaignID string, updates map[string]interface{}) (*Campaign, error) {
 	path := fmt.Sprintf("/campaign/%s", campaignID)
 
-	resp, err := c.doRequest(ctx, http.MethodPatch, path, updates)
+	resp, err := c.doRequest(ctx, http.MethodPut, path, updates)
 	if err != nil {
 		return nil, err
 	}
