@@ -241,8 +241,10 @@ export function CampaignDetail() {
   }
 
   const isActive = campaign.status === "ACTIVE";
-  const allCarriersApproved = mnoStatuses.length >= 3 &&
+  const carriersRegistered = mnoStatuses.length >= 3 &&
     mnoStatuses.every(s => s.status === "REGISTERED");
+  // Only show "approved" when carriers AND campaign status is ACTIVE (CNP approved)
+  const allCarriersApproved = carriersRegistered && isActive;
   const isEditable = campaign.status === "REJECTED" || campaign.status === "PENDING";
 
   // Get rejection reasons - prefer campaign-level (from CNP/DCA), fallback to MNO-level
@@ -307,6 +309,18 @@ export function CampaignDetail() {
                 </Button>
               </Link>
             </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Awaiting CNP Approval Banner - carriers approved but campaign not ACTIVE */}
+      {campaign.status === "PENDING" && carriersRegistered && (
+        <Alert className="border-yellow-300 bg-yellow-50">
+          <Clock className="h-5 w-5 text-yellow-600" />
+          <AlertTitle className="text-yellow-900 font-semibold">Awaiting CNP Approval</AlertTitle>
+          <AlertDescription className="text-yellow-800">
+            Carriers have approved this campaign, but your upstream provider (CNP) is still reviewing.
+            You'll receive a notification when they approve or if any changes are needed.
           </AlertDescription>
         </Alert>
       )}
