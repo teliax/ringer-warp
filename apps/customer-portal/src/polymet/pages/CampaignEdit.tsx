@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +17,13 @@ import {
   XCircle,
   CheckCircle,
   Loader2,
+  BrainIcon,
+  PanelRightOpenIcon,
+  PanelRightCloseIcon,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { AIChatPanel } from "@/components/ai";
+import { useAIChat } from "@/hooks/useAIChat";
 import { useCampaigns } from "@/hooks/useCampaigns";
 import type {
   Campaign10DLC,
@@ -41,6 +47,7 @@ export function CampaignEdit() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [resubmitting, setResubmitting] = useState(false);
+  const [showAssistant, setShowAssistant] = useState(true);
 
   // Form state
   const [description, setDescription] = useState("");
@@ -54,6 +61,93 @@ export function CampaignEdit() {
   const [autoRenewal, setAutoRenewal] = useState(true);
 
   const campaignsHook = useCampaigns();
+
+  // AI form update handler
+  const handleAIFormUpdate = useCallback((field: string, value: unknown) => {
+    switch (field) {
+      case "description":
+        setDescription(value as string);
+        break;
+      case "message_flow":
+        setMessageFlow(value as string);
+        break;
+      case "optin_message":
+        setOptinMessage(value as string);
+        break;
+      case "optout_message":
+        setOptoutMessage(value as string);
+        break;
+      case "help_message":
+        setHelpMessage(value as string);
+        break;
+      case "privacy_policy_url":
+        setPrivacyPolicyUrl(value as string);
+        break;
+      case "terms_url":
+        setTermsUrl(value as string);
+        break;
+      case "sample_messages":
+        if (Array.isArray(value)) {
+          setSampleMessages(value as string[]);
+        }
+        break;
+      default:
+        // Handle sample_messages.0, sample_messages.1, etc
+        if (field.startsWith("sample_messages.")) {
+          const index = parseInt(field.split(".")[1], 10);
+          setSampleMessages((prev) => {
+            const newMessages = [...prev];
+            newMessages[index] = value as string;
+            return newMessages;
+          });
+        }
+    }
+  }, []);
+
+  // Build initial AI message with rejection context
+  const getInitialAIMessage = () => {
+    if (!campaign?.rejection_reason) {
+      return "Hi! I can help you update your campaign fields to meet compliance requirements.";
+    }
+
+    return `Hi! I can see your campaign was rejected. Here are the details:
+
+**Rejected by**: ${campaign.rejected_by || "Carrier"}
+**Rejection codes**: ${campaign.rejection_code || "N/A"}
+**Rejection reason**: ${campaign.rejection_reason}
+
+I can help you fix these issues. Let me analyze the rejection and suggest corrected field values.`;
+  };
+
+  // Initialize AI chat with rejection context
+  const {
+    messages,
+    isLoading: aiLoading,
+    error: aiError,
+    sendMessage,
+    clearChat,
+  } = useAIChat({
+    agentType: "campaign",
+    context: {
+      mode: "edit",
+      rejectionReason: campaign?.rejection_reason,
+      rejectionCode: campaign?.rejection_code,
+      rejectionCategory: campaign?.rejection_category,
+      rejectedBy: campaign?.rejected_by,
+      currentValues: {
+        description,
+        message_flow: messageFlow,
+        optin_message: optinMessage,
+        optout_message: optoutMessage,
+        help_message: helpMessage,
+        sample_messages: sampleMessages,
+        privacy_policy_url: privacyPolicyUrl,
+        terms_url: termsUrl,
+      },
+    },
+    onFormUpdate: handleAIFormUpdate,
+    initialMessage: getInitialAIMessage(),
+  });
 
   useEffect(() => {
     loadCampaignData();
@@ -226,33 +320,46 @@ export function CampaignEdit() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <Link to={`/messaging/campaigns/${id}`}>
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold">Edit Campaign</h1>
-            <p className="text-muted-foreground">
-              TCR Campaign ID: {campaign.tcr_campaign_id || "Pending"}
-            </p>
+    <div className="flex h-screen overflow-hidden">
+      {/* Main Content Panel */}
+      <div className={cn("flex-1 overflow-y-auto", showAssistant ? "mr-[400px]" : "")}>
+        <div className="p-6 space-y-6 max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Link to={`/messaging/campaigns/${id}`}>
+                <Button variant="ghost" size="sm">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-3xl font-bold">Edit Campaign</h1>
+                <p className="text-muted-foreground">
+                  TCR Campaign ID: {campaign.tcr_campaign_id || "Pending"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <Button
+                variant={showAssistant ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowAssistant(!showAssistant)}
+              >
+                <BrainIcon className="h-4 w-4 mr-2" />
+                {showAssistant ? "Hide" : "Show"} AI Assistant
+              </Button>
+              <Badge
+                className={
+                  campaign.status === "REJECTED"
+                    ? "bg-red-100 text-red-800"
+                    : "bg-yellow-100 text-yellow-800"
+                }
+              >
+                {campaign.status}
+              </Badge>
+            </div>
           </div>
-        </div>
-        <Badge
-          className={
-            campaign.status === "REJECTED"
-              ? "bg-red-100 text-red-800"
-              : "bg-yellow-100 text-yellow-800"
-          }
-        >
-          {campaign.status}
-        </Badge>
-      </div>
 
       {/* Rejection Banner */}
       {campaign.status === "REJECTED" && rejectionReasons.length > 0 && (
@@ -451,32 +558,51 @@ export function CampaignEdit() {
         </CardContent>
       </Card>
 
-      {/* Action Buttons */}
-      <div className="flex justify-end space-x-4">
-        <Link to={`/messaging/campaigns/${id}`}>
-          <Button variant="outline">Cancel</Button>
-        </Link>
-        <Button
-          variant="secondary"
-          onClick={handleSave}
-          disabled={saving || resubmitting}
-        >
-          {saving ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <Save className="h-4 w-4 mr-2" />
-          )}
-          Save Draft
-        </Button>
-        <Button onClick={handleResubmit} disabled={saving || resubmitting}>
-          {resubmitting ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <Send className="h-4 w-4 mr-2" />
-          )}
-          Save & Resubmit
-        </Button>
+          {/* Action Buttons */}
+          <div className="flex justify-end space-x-4 pb-6">
+            <Link to={`/messaging/campaigns/${id}`}>
+              <Button variant="outline">Cancel</Button>
+            </Link>
+            <Button
+              variant="secondary"
+              onClick={handleSave}
+              disabled={saving || resubmitting}
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Save Draft
+            </Button>
+            <Button onClick={handleResubmit} disabled={saving || resubmitting}>
+              {resubmitting ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              Save & Resubmit
+            </Button>
+          </div>
+        </div>
       </div>
+
+      {/* AI Assistant Panel (Fixed Right Side) */}
+      {showAssistant && (
+        <div className="fixed right-0 top-0 h-screen w-[400px] border-l bg-background shadow-lg z-50">
+          <AIChatPanel
+            messages={messages}
+            isLoading={aiLoading}
+            error={aiError}
+            onSendMessage={sendMessage}
+            onClearChat={clearChat}
+            onClose={() => setShowAssistant(false)}
+            userName="User"
+            title="Campaign Fix Assistant"
+            inputPlaceholder="Ask how to fix the rejection..."
+          />
+        </div>
+      )}
     </div>
   );
 }
